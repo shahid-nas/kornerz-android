@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Adaptive-icon background. Set to the brand primary purple so the
+        launcher icon is recognisable even before the foreground is
+        replaced with a real brand mark.
+    -->
+    <color name="ic_launcher_background">#5D47ED</color>
+</resources>

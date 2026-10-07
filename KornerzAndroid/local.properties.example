@@ -1,0 +1,20 @@
+# Generated files
+.gradle/
+build/
+
+# Local configuration
+local.properties
+
+# IDE
+.idea/
+*.iml
+
+# OS
+.DS_Store
+
+# Logs
+*.log
+
+# Output APKs
+*.apk
+*.aab

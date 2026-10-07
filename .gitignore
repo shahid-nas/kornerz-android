@@ -1,0 +1,76 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+
+# Gradle / Android
+.gradle/
+build/
+**/build/
+KornerzAndroid/.gradle/
+KornerzAndroid/build/
+KornerzAndroid/**/build/
+KornerzAndroid/local.properties
+.externalNativeBuild/
+.cxx/
+captures/
+*.hprof
+*.apk
+*.aab
+
+# Android Studio / IntelliJ
+KornerzAndroid/.idea/
+
+# Xcode / iOS
+kornerz/Kornerz/build/
+kornerz/Kornerz.xcodeproj/xcuserdata/
+kornerz/Kornerz.xcodeproj/project.xcworkspace/xcuserdata/
+DerivedData/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM
+*.dSYM.zip
+
+# Swift Package Manager
+.swiftpm/
+.build/
+Package.resolved
+
+# CocoaPods (Pods/ ignored, Podfile.lock is conventionally committed)
+kornerz/Pods/
+
+# Carthage
+Carthage/Build/
+
+# fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/
+fastlane/test_output/
+
+# Secrets / keystores (debug keystore is safe to keep)
+*.jks
+*.keystore
+*.p12
+*.cer
+.env
+.env.*
+!.env.example
+
+# Tooling state
+.kilo/agent-manager.json
+*.log

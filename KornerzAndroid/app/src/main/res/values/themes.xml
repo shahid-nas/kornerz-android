@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!--
+        Parent theme only. Actual brand colors come from Compose via
+        KornerzTheme. This XML theme exists so the platform splash window
+        and status bar get sane defaults before Compose draws.
+    -->
+    <style name="Theme.Kornerz" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowBackground">@android:color/white</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+
+</resources>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        app_name is overridden by the dev/prod flavor's resValue in
+        app/build.gradle.kts. This default keeps the resource reference
+        resolvable for tooling and previews.
+    -->
+    <string name="app_name">Kornerz</string>
+</resources>
