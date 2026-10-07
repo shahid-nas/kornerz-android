@@ -3,9 +3,11 @@ package com.kornerz.kornerz
 import android.app.Application
 import android.util.Log
 import com.google.firebase.FirebaseApp
-import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.FirebaseOptions
+import com.google.firebase.remoteconfig.FirebaseRemoteConfig
+import com.kornerz.core.network.fcm.FcmTokenRegistrar
 import dagger.hilt.android.HiltAndroidApp
+import javax.inject.Inject
 
 /**
  * Single Hilt entry point for the Kornerz Android app. Lives in the
@@ -16,12 +18,21 @@ import dagger.hilt.android.HiltAndroidApp
  * On startup we:
  * 1. Initialize the Firebase SDK against the project declared in
  *    `app/google-services.json`.
- * 2. Kick off an anonymous Firebase Auth sign-in so P1+ can link
- *    pre-login activity to the eventual real account. The call is
- *    fire-and-forget so it never blocks the UI thread.
+ * 2. Set the in-app default values for Remote Config so the splash
+ *    Composable can read `android_min_supported_version` without a
+ *    network round-trip on first launch.
+ * 3. Start the [FcmTokenRegistrar] which silently uploads the device
+ *    token whenever a session is present.
+ *
+ * The P0 anonymous Firebase Auth sign-in is intentionally removed in
+ * P1 (see `specs/android-app-shell/spec.md` §"No anonymous Firebase
+ * user at launch in P1") — authentication is handled exclusively by the
+ * custom-auth client.
  */
 @HiltAndroidApp
 class KornerzApplication : Application() {
+
+    @Inject lateinit var fcmTokenRegistrar: FcmTokenRegistrar
 
     override fun onCreate() {
         super.onCreate()
@@ -30,13 +41,11 @@ class KornerzApplication : Application() {
         val options: FirebaseOptions = FirebaseApp.getInstance().options
         Log.i(TAG, "FirebaseApp initialized for project=${options.projectId}")
 
-        FirebaseAuth.getInstance().signInAnonymously()
-            .addOnSuccessListener {
-                Log.i(TAG, "FirebaseAuth.signInAnonymously succeeded (uid hidden)")
-            }
-            .addOnFailureListener { error ->
-                Log.w(TAG, "FirebaseAuth.signInAnonymously failed", error)
-            }
+        FirebaseRemoteConfig.getInstance().apply {
+            setDefaultsAsync(R.xml.remote_config_defaults)
+        }
+
+        fcmTokenRegistrar.registerOnStart()
     }
 
     private companion object {

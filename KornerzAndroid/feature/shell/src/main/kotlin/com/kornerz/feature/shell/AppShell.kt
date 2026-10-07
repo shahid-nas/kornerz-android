@@ -3,9 +3,10 @@ package com.kornerz.feature.shell
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.navigation.NavDestination.Companion.hierarchy
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -14,17 +15,26 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 
 /**
- * Five-tab bottom-navigation shell. Mirrors iOS `AppTabController`:
- * one nested graph per top-level destination, each currently rendering
- * an empty-state placeholder. P1+ adds the first real screen to a tab;
- * subsequent phases swap each tab's content.
+ * Five-tab bottom-navigation shell. Mirrors iOS `AppTabController`.
+ * P1 routes Profile tap → `ShellViewModel.onLogout()`; subsequent
+ * phases swap each tab's content.
  */
 @Composable
 fun AppShell(
     navController: NavHostController = rememberNavController(),
+    onLogout: () -> Unit = {},
+    viewModel: ShellViewModel = hiltViewModel(),
 ) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
+
+    LaunchedEffect(Unit) {
+        viewModel.navEvents.collect { event ->
+            when (event) {
+                ShellNavEvent.Logout -> onLogout()
+            }
+        }
+    }
 
     Scaffold(
         bottomBar = {
@@ -43,7 +53,7 @@ fun AppShell(
             kornerzTabGraph()
             nooksTabGraph()
             loopsTabGraph()
-            kloudersTabGraph()
+            kloudersTabGraph(onLogout = viewModel::onLogout)
         }
     }
 }
@@ -66,6 +76,15 @@ private fun androidx.navigation.NavGraphBuilder.tabComposable(
     }
 }
 
+private fun androidx.navigation.NavGraphBuilder.tabComposableWithLogout(
+    tab: ShellTab,
+    onLogout: () -> Unit,
+) {
+    composable(tab.route) {
+        EmptyTabScreen(tabName = tab.label, phaseNumber = tab.phase, onLogout = onLogout)
+    }
+}
+
 internal fun androidx.navigation.NavGraphBuilder.homeTabGraph() =
     tabComposable(ShellTab.Home)
 
@@ -78,5 +97,5 @@ internal fun androidx.navigation.NavGraphBuilder.nooksTabGraph() =
 internal fun androidx.navigation.NavGraphBuilder.loopsTabGraph() =
     tabComposable(ShellTab.Loops)
 
-internal fun androidx.navigation.NavGraphBuilder.kloudersTabGraph() =
-    tabComposable(ShellTab.Klouders)
+internal fun androidx.navigation.NavGraphBuilder.kloudersTabGraph(onLogout: () -> Unit) =
+    tabComposableWithLogout(ShellTab.Klouders, onLogout)

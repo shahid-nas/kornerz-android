@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.kotlin.serialization)
 }
 
 java {
@@ -11,6 +12,7 @@ kotlin {
     jvmToolchain(17)
 }
 
-// P0: core/model is intentionally empty. Domain types land in P1+.
-// No dependencies yet; the module exists so feature modules can wire
-// `implementation(project(":core:model"))` early without restructuring.
+dependencies {
+    api(libs.kotlinx.serialization.json)
+    api(libs.kotlinx.datetime)
+}

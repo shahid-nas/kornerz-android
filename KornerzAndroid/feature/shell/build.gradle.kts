@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.kapt)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.hilt)
 }
 
@@ -30,6 +31,9 @@ android {
 
 dependencies {
     implementation(project(":core:ui"))
+    implementation(project(":core:model"))
+    implementation(project(":core:network"))
+    implementation(project(":core:storage"))
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
@@ -42,6 +46,8 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
+
+    implementation(libs.kotlinx.coroutines.android)
 
     implementation(libs.hilt.android)
     kapt(libs.hilt.compiler)

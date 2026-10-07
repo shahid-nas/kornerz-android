@@ -1,51 +1,111 @@
 package com.kornerz.kornerz
 
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.kornerz.core.network.forceupdate.ForceUpdateRepository
+import com.kornerz.core.network.forceupdate.ForceUpdateState
+import com.kornerz.core.storage.country.CountryCodesRepository
+import com.kornerz.core.storage.interests.KornerInterestRepository
+import com.kornerz.core.ui.components.ForceUpdateSheet
+import com.kornerz.feature.auth.AUTH_GRAPH_ROUTE
+import com.kornerz.feature.auth.authGraph
 import com.kornerz.feature.shell.AppShell
 import com.kornerz.feature.splash.SplashScreen
-import kotlinx.coroutines.delay
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 /**
- * Top-level navigation host. Two routes:
+ * Hosts the splash, the auth graph, and the shell graph. The root
+ * NavHost swaps between `auth_graph` and `shell_graph` based on session
+ * state — every transition pops the back-stack (architecture §10.2).
  *
- * - `splash` — branded splash. A `LaunchedEffect` waits 1 second then
- *   navigates to `main`.
- * - `main` — the [AppShell] (bottom-nav + 5 tabs).
- *
- * Spec: docs/openspec/changes/p0-android-foundation/specs/android-app-shell/spec.md
- * §"App launches into splash screen" + §"Each tab renders an
- * empty-state placeholder".
+ * On top of the NavHost, the non-dismissible [ForceUpdateSheet] is
+ * rendered whenever Remote Config reports a Required state.
  */
 @Composable
-fun AppRoot(navController: NavHostController = rememberNavController()) {
+fun AppRoot(
+    navController: NavHostController = rememberNavController(),
+    countryRepository: CountryCodesRepository,
+    interestsRepository: KornerInterestRepository,
+    forceUpdateViewModel: ForceUpdateOverlayViewModel = hiltViewModel(),
+) {
+    val forceUpdateState by forceUpdateViewModel.state.collectAsStateWithLifecycle()
+    val applicationId = LocalContext.current.packageName
+
     NavHost(
         navController = navController,
         startDestination = Routes.SPLASH,
     ) {
         composable(Routes.SPLASH) {
-            LaunchedEffect(Unit) {
-                delay(SPLASH_DURATION_MS)
-                navController.navigate(Routes.MAIN) {
-                    popUpTo(Routes.SPLASH) { inclusive = true }
-                }
-            }
-            SplashScreen()
+            SplashScreen(
+                navController = navController,
+                onNavigateToAuthGraph = {
+                    navController.navigate(AUTH_GRAPH_ROUTE) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                },
+                onNavigateToShellGraph = {
+                    navController.navigate(Routes.SHELL_GRAPH) {
+                        popUpTo(0) { inclusive = true }
+                    }
+                },
+            )
         }
-        composable(Routes.MAIN) {
-            AppShell()
+        authGraph(
+            navController = navController,
+            countryRepository = countryRepository,
+            interestsRepository = interestsRepository,
+        )
+        composable(Routes.SHELL_GRAPH) {
+            AppShell(onLogout = {
+                navController.navigate(AUTH_GRAPH_ROUTE) {
+                    popUpTo(0) { inclusive = true }
+                }
+            })
+        }
+    }
+
+    (forceUpdateState as? ForceUpdateState.Required)?.let { required ->
+        ForceUpdateSheet(
+            currentVersion = required.currentVersion,
+            minVersion = required.minVersion,
+            applicationId = applicationId,
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+@HiltViewModel
+class ForceUpdateOverlayViewModel @Inject constructor(
+    private val forceUpdateRepository: ForceUpdateRepository,
+) : ViewModel() {
+
+    private val _state = MutableStateFlow<ForceUpdateState>(ForceUpdateState.Idle)
+    val state: StateFlow<ForceUpdateState> = _state.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            forceUpdateRepository.state.collect { _state.value = it }
         }
     }
 }
 
 private object Routes {
     const val SPLASH = "splash"
-    const val MAIN = "main"
+    const val SHELL_GRAPH = "shell_graph"
 }
-
-private const val SPLASH_DURATION_MS = 1_000L

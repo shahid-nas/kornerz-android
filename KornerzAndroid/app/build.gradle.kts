@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.kapt)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.hilt)
     alias(libs.plugins.google.services)
     alias(libs.plugins.firebase.crashlytics)
@@ -116,6 +117,14 @@ dependencies {
     implementation(libs.firebase.auth.ktx)
     implementation(libs.firebase.firestore.ktx)
     implementation(libs.firebase.crashlytics.ktx)
+    implementation(libs.firebase.messaging.ktx)
+    implementation(libs.firebase.config.ktx)
+    implementation(libs.firebase.functions.ktx)
+
+    // Kotlinx
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.kotlinx.serialization.json)
+    implementation(libs.kotlinx.datetime)
 
     // Internal modules
     implementation(project(":core:model"))
@@ -124,6 +133,7 @@ dependencies {
     implementation(project(":core:ui"))
     implementation(project(":feature:splash"))
     implementation(project(":feature:shell"))
+    implementation(project(":feature:auth"))
 
     // Tests
     testImplementation(libs.junit)

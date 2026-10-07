@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -20,13 +21,16 @@ import com.kornerz.core.ui.theme.Spacing
 /**
  * Empty-state placeholder used by every tab in P0. Once a phase ships
  * real content, the call site swaps this for the live screen and the
- * route inside the tab's nested graph is rewritten.
+ * route inside the tab's nested graph is rewritten. The Klouders tab
+ * also surfaces a "Log out" action so the P1 logout path is testable
+ * (architecture §10.4 — placeholder Profile tab).
  */
 @Composable
 fun EmptyTabScreen(
     tabName: String,
     phaseNumber: Int,
     modifier: Modifier = Modifier,
+    onLogout: (() -> Unit)? = null,
 ) {
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -51,6 +55,12 @@ fun EmptyTabScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                if (onLogout != null) {
+                    Spacer(Modifier.height(Spacing.space12))
+                    TextButton(onClick = onLogout) {
+                        Text("Log out", color = MaterialTheme.colorScheme.primary)
+                    }
+                }
             }
         }
     }

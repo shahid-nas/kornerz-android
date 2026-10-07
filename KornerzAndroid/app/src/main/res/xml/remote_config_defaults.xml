@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Default Remote Config values; copied into Remote Config on first launch.
+     `android_min_supported_version` is the lowest versionCode the app
+     accepts. The P0 build ships versionCode=1, so the default is 1 to
+     suppress the sheet. -->
+<defaultsMap>
+    <entry>
+        <key>android_min_supported_version</key>
+        <value>1</value>
+    </entry>
+</defaultsMap>

@@ -1,0 +1,22 @@
+{
+  "interests": [
+    { "slug": "art", "title": "Art" },
+    { "slug": "books", "title": "Books" },
+    { "slug": "comedy", "title": "Comedy" },
+    { "slug": "cooking", "title": "Cooking" },
+    { "slug": "design", "title": "Design" },
+    { "slug": "fashion", "title": "Fashion" },
+    { "slug": "film", "title": "Film" },
+    { "slug": "fitness", "title": "Fitness" },
+    { "slug": "gaming", "title": "Gaming" },
+    { "slug": "music", "title": "Music" },
+    { "slug": "nature", "title": "Nature" },
+    { "slug": "photography", "title": "Photography" },
+    { "slug": "science", "title": "Science" },
+    { "slug": "sports", "title": "Sports" },
+    { "slug": "tech", "title": "Tech" },
+    { "slug": "travel", "title": "Travel" },
+    { "slug": "wellness", "title": "Wellness" },
+    { "slug": "writing", "title": "Writing" }
+  ]
+}
