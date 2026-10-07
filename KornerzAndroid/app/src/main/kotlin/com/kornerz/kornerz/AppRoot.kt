@@ -1,4 +1,4 @@
-package com.kornerz.app
+package com.kornerz.kornerz
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect

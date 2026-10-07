@@ -1,4 +1,4 @@
-package com.kornerz.app
+package com.kornerz.kornerz
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity

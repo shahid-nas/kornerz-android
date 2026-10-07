@@ -1,4 +1,4 @@
-package com.kornerz.app
+package com.kornerz.kornerz
 
 import android.app.Application
 import android.util.Log

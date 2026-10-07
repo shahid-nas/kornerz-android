@@ -27,6 +27,7 @@ media3 = "1.4.1"
 
 # Firebase
 firebase-bom = "33.5.1"
+firebase-crashlytics = "3.0.2"
 google-services = "4.4.2"
 
 # Test
@@ -89,3 +90,4 @@ kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "ko
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 hilt = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
 google-services = { id = "com.google.gms.google-services", version.ref = "google-services" }
+firebase-crashlytics = { id = "com.google.firebase.crashlytics", version.ref = "firebase-crashlytics" }

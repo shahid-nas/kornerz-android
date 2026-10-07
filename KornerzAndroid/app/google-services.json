@@ -1,45 +1,87 @@
 {
   "project_info": {
-    "project_number": "REPLACE_WITH_FIREBASE_PROJECT_NUMBER",
+    "project_number": "684517517155",
     "project_id": "kornerz-72fba",
     "storage_bucket": "kornerz-72fba.appspot.com"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "REPLACE_WITH_MOBILE_SDK_APP_ID",
+        "mobilesdk_app_id": "1:684517517155:android:a06ed691e09c0ae317d556",
         "android_client_info": {
-          "package_name": "com.kornerz.app"
+          "package_name": "com.kornerz.kornerz"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "684517517155-tbp6o0k6t1lfjsjnu56j509rmo0kre70.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.kornerz.kornerz",
+            "certificate_hash": "6080709cfc807086da7643b3bf5599d2fa4e1430"
+          }
+        },
+        {
+          "client_id": "684517517155-76ecprvgescd6gra12500240m15dpejv.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "REPLACE_WITH_API_KEY"
+          "current_key": "AIzaSyCTeEGN34IA8F0AoPSZyWH7YLwJXceu8SU"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "684517517155-76ecprvgescd6gra12500240m15dpejv.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "684517517155-354nbquvqdsh34ha6eurfns09b6r9aj5.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.kornerz.kornerz"
+              }
+            }
+          ]
         }
       }
     },
     {
       "client_info": {
-        "mobilesdk_app_id": "REPLACE_WITH_MOBILE_SDK_APP_ID_DEV",
+        "mobilesdk_app_id": "1:684517517155:android:a06ed691e09c0ae317d556",
         "android_client_info": {
-          "package_name": "com.kornerz.app.dev"
+          "package_name": "com.kornerz.kornerz.dev"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "684517517155-76ecprvgescd6gra12500240m15dpejv.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "REPLACE_WITH_API_KEY"
+          "current_key": "AIzaSyCTeEGN34IA8F0AoPSZyWH7YLwJXceu8SU"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "684517517155-76ecprvgescd6gra12500240m15dpejv.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "684517517155-354nbquvqdsh34ha6eurfns09b6r9aj5.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.kornerz.kornerz"
+              }
+            }
+          ]
         }
       }
     }

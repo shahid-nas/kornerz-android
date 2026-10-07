@@ -5,14 +5,15 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.hilt)
     alias(libs.plugins.google.services)
+    alias(libs.plugins.firebase.crashlytics)
 }
 
 android {
-    namespace = "com.kornerz.app"
+    namespace = "com.kornerz.kornerz"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.kornerz.app"
+        applicationId = "com.kornerz.kornerz"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
