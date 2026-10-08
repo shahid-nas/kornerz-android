@@ -13,6 +13,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -31,7 +34,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -99,7 +104,7 @@ fun SignupNicknameStep(
             BlackCapsuleButton(
                 text = "Next",
                 onClick = { onEvent(SignupEvent.Continue) },
-                enabled = state.isStep2Valid,
+                enabled = state.isNicknameValid,
             )
         }
     }
@@ -140,7 +145,7 @@ fun SignupEmailStep(
         BlackCapsuleButton(
             text = "Next",
             onClick = { onEvent(SignupEvent.Continue) },
-            enabled = state.isStep3Valid && !state.emailAlreadyInUse,
+                enabled = state.isEmailValid && !state.emailAlreadyInUse,
         )
     }
 }
@@ -177,10 +182,21 @@ fun SignupPasswordStep(
             fontSize = 12.sp,
         )
         BlackCapsuleButton(
-            text = "Next",
+            text = if (state.submit is AsyncValue.Loading) "Creating account…" else "Create account",
             onClick = { onEvent(SignupEvent.Continue) },
-            enabled = state.isStep4Valid,
+            enabled = state.isPasswordValid,
+            loading = state.submit is AsyncValue.Loading,
         )
+        (state.submit as? AsyncValue.Error)?.let { err ->
+            Text(
+                text = err.throwable.message ?: "We couldn't create your account. Please try again.",
+                color = Color.White,
+                fontFamily = Satoshi,
+                fontWeight = FontWeight.Normal,
+                fontSize = 14.sp,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
     }
 }
 
@@ -225,13 +241,13 @@ fun SignupPhoneStep(
         ) {
             BorderedCapsuleButton(
                 text = "Skip",
-                onClick = { onEvent(SignupEvent.Continue) },
+                onClick = { onEvent(SignupEvent.SkipStep) },
                 color = Color.Black,
             )
             BlackCapsuleButton(
                 text = "Next",
                 onClick = { onEvent(SignupEvent.Continue) },
-                enabled = state.isStep5Valid,
+                enabled = state.isPhoneValid,
             )
         }
     }
@@ -291,7 +307,8 @@ private fun CountryCodePickerSheet(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 8.dp),
+                                .clickable { onSelect(country) }
+                                .padding(vertical = 12.dp, horizontal = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
@@ -354,7 +371,7 @@ fun SignupLanguageStep(
         BlackCapsuleButton(
             text = "Next",
             onClick = { onEvent(SignupEvent.Continue) },
-            enabled = state.isStep6Valid,
+                enabled = state.isLanguageValid,
         )
     }
 }
@@ -376,35 +393,81 @@ fun SignupInterestsStep(
         )
     }
     BrandedSignupScaffold(
-        title = "Pick your Korners. Which topics are you interested in?",
+        title = "Pick your Kornerz. Which topics are you interested in?",
         onBack = onBack,
+        bottomBar = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Aqua)
+                    .padding(horizontal = 32.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                if (state.interestsError) {
+                    Text(
+                        text = "You can pick up to 5 favorites",
+                        color = Color.White,
+                        fontFamily = Satoshi,
+                        fontWeight = FontWeight.Normal,
+                        fontSize = 12.sp,
+                    )
+                }
+                BlackCapsuleButton(
+                    text = "Next",
+                    onClick = { onEvent(SignupEvent.Continue) },
+                    enabled = state.isInterestsValid,
+                )
+            }
+        },
     ) {
         AsyncValueContent(
             value = loaded,
             onRetry = { loaded = AsyncValue.Loading },
         ) { interests ->
-            SelectableCapsuleGrid(
+            KornerzCardGrid(
                 items = interests,
                 isSelected = { state.interests.contains(it.slug) },
-                label = { it.title },
                 onToggle = { onEvent(SignupEvent.InterestToggled(it.slug)) },
                 modifier = Modifier.fillMaxWidth(),
             )
         }
-        if (state.interestsError) {
-            Text(
-                text = "You can pick up to 5 favorites",
-                color = Color.White,
-                fontFamily = Satoshi,
-                fontWeight = FontWeight.Normal,
-                fontSize = 12.sp,
-            )
+    }
+}
+
+@Composable
+private fun KornerzCardGrid(
+    items: List<KornerInterest>,
+    isSelected: (KornerInterest) -> Boolean,
+    onToggle: (KornerInterest) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        items.chunked(2).forEach { rowItems ->
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                rowItems.forEachIndexed { localIndex, item ->
+                    val globalIndex = items.indexOf(item)
+                    val selected = isSelected(item)
+                    KornerzSquareCard(
+                        title = item.title,
+                        background = kornerzCardColor(globalIndex),
+                        modifier = Modifier
+                            .weight(1f)
+                            .aspectRatio(1f)
+                            .kornerzSelectionStroke(selected)
+                            .clickable { onToggle(item) },
+                    )
+                }
+                if (rowItems.size < 2) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+            }
         }
-        BlackCapsuleButton(
-            text = "Next",
-            onClick = { onEvent(SignupEvent.Continue) },
-            enabled = state.isStep7Valid,
-        )
     }
 }
 
@@ -432,29 +495,15 @@ fun SignupPhotoStep(
                 .padding(vertical = 16.dp),
             contentAlignment = Alignment.Center,
         ) {
-            // iOS uses a 150x150 black rounded square (corner radius 32)
-            // rotated 45° with "Add Photo" in the center. We replicate
-            // the rounded square (without the 45° rotation so the label
-            // stays readable) and tap-to-pick.
-            Box(
-                modifier = Modifier
-                    .size(150.dp)
-                    .background(
-                        color = Color.Black,
-                        shape = RoundedCornerShape(32.dp),
-                    )
-                    .clickable { picker.launch(pickImageOnly) },
-                contentAlignment = Alignment.Center,
-            ) {
-                val hasPhoto = state.photoUri != null
-                Text(
-                    text = if (hasPhoto) "Photo selected" else "Add Photo",
-                    color = Color.White,
-                    fontFamily = Satoshi,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 16.sp,
-                )
-            }
+            // iOS `SignupPhotoView.imageView`: 150x150 rounded square
+            // (corner radius 32) rotated 45° into a diamond. When a
+            // photo is picked, the diamond is filled with the selected
+            // image; when empty, the same black diamond shows "Add Photo"
+            // in the center. Tapping either state re-opens the picker.
+            DiamondPhotoTile(
+                photoUri = state.photoUri,
+                onTap = { picker.launch(pickImageOnly) },
+            )
         }
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -462,14 +511,72 @@ fun SignupPhotoStep(
         ) {
             BorderedCapsuleButton(
                 text = "Skip",
-                onClick = { onEvent(SignupEvent.Continue) },
+                onClick = { onEvent(SignupEvent.SkipStep) },
                 color = Color.Black,
             )
             BlackCapsuleButton(
                 text = "Next",
                 onClick = { onEvent(SignupEvent.Continue) },
-                enabled = state.isStep8Valid,
+                enabled = state.isPhotoValid,
             )
+        }
+    }
+}
+
+/**
+ * 150dp diamond that hosts the selected profile photo (or the "Add
+ * Photo" prompt) — 1:1 port of iOS `DiamondImageView` used inside
+ * `SignupPhotoView.imageView`. The diamond is a 150dp square rotated
+ * 45°; the visible diagonal of the diamond equals the rendered square
+ * side. The inner content (photo or label) is counter-rotated so it
+ * reads upright.
+ */
+@Composable
+private fun DiamondPhotoTile(
+    photoUri: android.net.Uri?,
+    onTap: () -> Unit,
+) {
+    val size = 150.dp
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(RoundedCornerShape(0.dp))
+            .clickable(onClick = onTap),
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { rotationZ = 45f }
+                .clip(RoundedCornerShape(32.dp))
+                .background(Color.Black),
+            contentAlignment = Alignment.Center,
+        ) {
+            // Counter-rotate the content so the photo / label reads
+            // upright inside the diamond.
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { rotationZ = -45f },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (photoUri != null) {
+                    coil.compose.AsyncImage(
+                        model = photoUri,
+                        contentDescription = "Selected profile photo",
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    Text(
+                        text = "Add Photo",
+                        color = Color.White,
+                        fontFamily = Satoshi,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 16.sp,
+                    )
+                }
+            }
         }
     }
 }

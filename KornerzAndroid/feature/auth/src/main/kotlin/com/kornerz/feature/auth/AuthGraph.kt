@@ -62,6 +62,7 @@ fun NavGraphBuilder.authGraph(
                 navController = navController,
                 countryRepository = countryRepository,
                 interestsRepository = interestsRepository,
+                onNavigateToShellGraph = onNavigateToShellGraph,
             )
         }
         composable(AuthRoute.ForgotPassword.route) {

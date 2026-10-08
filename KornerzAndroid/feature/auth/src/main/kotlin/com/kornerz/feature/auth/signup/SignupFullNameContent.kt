@@ -12,7 +12,7 @@ import com.kornerz.core.ui.theme.KornerzTheme
  * Stateless renderer for the signup wizard's full-name step. Mirrors the
  * iOS `SignupFullNameView` (kornerz/.../Signup/Views/SignupFullNameView.swift)
  * 1:1 using the shared [BrandedSignupScaffold]. The CTA is bound to
- * [SignupWizardState.isStep1Valid] (which mirrors the iOS
+ * [SignupWizardState.isFullNameValid] (which mirrors the iOS
  * `SignupViewModel.isFullNameValid` regex).
  */
 @Composable
@@ -38,7 +38,7 @@ fun SignupFullNameContent(
         BlackCapsuleButton(
             text = "Next",
             onClick = { onEvent(SignupEvent.Continue) },
-            enabled = state.isStep1Valid,
+            enabled = state.isFullNameValid,
         )
     }
 }

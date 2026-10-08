@@ -22,12 +22,16 @@ data class SignupWizardState(
     val interests: Set<String> = emptySet(),
     val photoUri: Uri? = null,
     val photoUpload: AsyncValue<String> = AsyncValue.Loading,
-    val submit: AsyncValue<Unit> = AsyncValue.Loading,
+    // `submit` defaults to `Success(Unit)` (a no-op success sentinel) so
+    // that on screen entry the password step doesn't render the
+    // "Creating account…" loading state. `submit()` flips it to
+    // `Loading` only when the user actually taps "Create account".
+    val submit: AsyncValue<Unit> = AsyncValue.Success(Unit),
     val emailAlreadyInUse: Boolean = false,
     val nicknameError: String? = null,
     val interestsError: Boolean = false,
 ) {
-    val isStep1Valid: Boolean get() {
+    val isFullNameValid: Boolean get() {
         val trimmed = fullName.trim()
         if (trimmed.isEmpty()) return false
         // Mirrors iOS `SignupViewModel.isFullNameValid`: split on
@@ -40,11 +44,8 @@ data class SignupWizardState(
         val tokenRegex = Regex("^[a-zA-Z]+(?:[\\s\\-\\']*[a-zA-Z]+)*$")
         return tokens.all { it.matches(tokenRegex) }
     }
-    val isStep2Valid: Boolean get() = nickname.trim().length in 3..20 &&
-        nickname.matches(Regex("^[a-zA-Z0-9_-]+$"))
-    val isStep3Valid: Boolean get() = email.matches(Regex("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\$"))
-    val isStep4Valid: Boolean get() = password.length >= 6 && password == confirmPassword
-    val isStep5Valid: Boolean get() {
+    val isEmailValid: Boolean get() = email.matches(Regex("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\$"))
+    val isPhoneValid: Boolean get() {
         // Mirrors iOS `SignupViewModel.isPhoneNoValid`: total digits
         // (country code + local number) must be 10–15, prefixed with
         // `+`. Strips spaces, hyphens, and parentheses before counting.
@@ -52,20 +53,29 @@ data class SignupWizardState(
         val cleaned = full.replace(Regex("[\\s\\-()]"), "")
         return cleaned.matches(Regex("^\\+[0-9]{10,15}\$"))
     }
-    val isStep6Valid: Boolean get() = languages.isNotEmpty()
-    val isStep7Valid: Boolean get() = interests.isNotEmpty() && interests.size <= 5
-    val isStep8Valid: Boolean get() = photoUpload is AsyncValue.Success && submit !is AsyncValue.Loading
+    val isLanguageValid: Boolean get() = languages.isNotEmpty()
+    val isInterestsValid: Boolean get() = interests.isNotEmpty() && interests.size <= 5
+    val isNicknameValid: Boolean get() = nickname.trim().length in 3..20 &&
+        nickname.matches(Regex("^[a-zA-Z0-9_-]+$"))
+    val isPhotoValid: Boolean get() = photoUri != null &&
+        photoUpload is AsyncValue.Success
+    val isPasswordValid: Boolean get() = password.length >= 6 && password == confirmPassword
 
+    /**
+     * Wizard step → matching field validation. Mirrors the iOS flow
+     * 1:1: Full Name → Email → Phone → Language → Kornerz → Nickname
+     * → Photo → Password (terminal, submits the account).
+     */
     val canContinue: Boolean
         get() = when (step) {
-            1 -> isStep1Valid
-            2 -> isStep2Valid
-            3 -> isStep3Valid && !emailAlreadyInUse
-            4 -> isStep4Valid
-            5 -> isStep5Valid
-            6 -> isStep6Valid
-            7 -> isStep7Valid
-            8 -> isStep8Valid
+            1 -> isFullNameValid
+            2 -> isEmailValid && !emailAlreadyInUse
+            3 -> isPhoneValid
+            4 -> isLanguageValid
+            5 -> isInterestsValid
+            6 -> isNicknameValid
+            7 -> isPhotoValid
+            8 -> isPasswordValid
             else -> false
         }
 }
@@ -84,6 +94,7 @@ sealed interface SignupEvent {
     data class PhotoSelected(val uri: Uri) : SignupEvent
     data object PhotoUploadRetry : SignupEvent
     data object Continue : SignupEvent
+    data object SkipStep : SignupEvent
     data object Back : SignupEvent
     data object Submit : SignupEvent
     data object SuggestNickname : SignupEvent

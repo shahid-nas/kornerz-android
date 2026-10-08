@@ -73,6 +73,7 @@ class SignupViewModel @Inject constructor(
             }
             SignupEvent.PhotoUploadRetry -> uploadPhoto()
             SignupEvent.Continue -> advance()
+            SignupEvent.SkipStep -> skipStep()
             SignupEvent.Back -> back()
             SignupEvent.Submit -> submit()
             SignupEvent.SuggestNickname -> suggestNickname()
@@ -96,7 +97,29 @@ class SignupViewModel @Inject constructor(
 
     private fun advance() {
         val current = _state.value
+        // The password step (step 8) is the terminal step — its
+        // "Create account" button submits the wizard rather than
+        // advancing to a non-existent step 9 screen. Mirrors iOS where
+        // the password step is the last in the wizard and the create-
+        // account action lives there.
+        if (current.step == 8) {
+            submit()
+            return
+        }
         if (!current.canContinue) return
+        val next = current.copy(step = current.step + 1)
+        _state.update { next }
+        persist(next)
+    }
+
+    /**
+     * Advance to the next step bypassing the per-step validation gate.
+     * Only the phone (step 3) and photo (step 7) steps expose a Skip
+     * button in iOS, so the handler is a no-op everywhere else.
+     */
+    private fun skipStep() {
+        val current = _state.value
+        if (current.step != 3 && current.step != 7) return
         val next = current.copy(step = current.step + 1)
         _state.update { next }
         persist(next)
@@ -115,7 +138,7 @@ class SignupViewModel @Inject constructor(
 
     private fun submit() {
         val current = _state.value
-        if (!current.isStep8Valid) return
+        if (!current.isPasswordValid) return
         _state.update { it.copy(submit = AsyncValue.Loading) }
         viewModelScope.launch {
             val result = authRepository.signup(

@@ -87,6 +87,17 @@
 - [x] 8.5.12 Remove the obsolete M3 `SignupStepScaffold.kt`
 - [x] 8.5.13 Amend `specs/signup-wizard/spec.md` with the "Every wizard step renders the iOS branded layout" master requirement plus per-step requirements 2–8 and matching scenarios
 
+### Signup wizard bug fixes — round 1 (amends §8.5–§8.13)
+
+- [x] 8.5.14 Add `SignupEvent.SkipStep` and a `skipStep()` handler in `SignupViewModel` that advances the wizard bypassing the per-step `canContinue` gate — mirrors iOS `viewModel.coordinator.navigateToLanguage(viewModel)` / `navigateToPassword(viewModel)` from the phone + photo Skip buttons which are always enabled in iOS
+- [x] 8.5.15 Wire `SignupPhoneStep.Skip` and `SignupPhotoStep.Skip` to emit `SignupEvent.SkipStep` instead of `SignupEvent.Continue` (the previous `Continue` path was no-op when validation failed → Skip was silently broken)
+- [x] 8.5.16 Fix `SignupWizardState.isStep8Valid`: the previous `submit !is AsyncValue.Loading` clause was permanently false because `submit` defaults to `AsyncValue.Loading`; new check is `photoUri != null && photoUpload is AsyncValue.Success` — matches iOS `disabled(viewModel.profilePic == nil)`
+- [x] 8.5.17 Add `clickable { onSelect(country) }` to the `CountryCodePickerSheet` row; previously the row had no click handler so tapping a country did nothing
+- [x] 8.5.18 Replace the photo step's "Photo selected" placeholder text with a real `coil.compose.AsyncImage` rendered inside a 150dp diamond — port of iOS `DiamondImageView` (`RoundedRectangle(radius: 32).rotation(45°)`) so the selected photo appears in the same diamond shape as iOS
+- [x] 8.5.19 Make `SignupViewModel.advance()` call `submit()` when `current.step == 8` — the photo step is the terminal step of the wizard; the previous code blindly incremented to `step = 9` and the `SignupScreen` `when (state.step)` had no branch for 9, leaving the user on a blank screen with no feedback
+- [x] 8.5.20 On the photo step, label the primary button "Create account" (was "Next"), show "Creating…" while `state.submit is AsyncValue.Loading`, disable both Skip and Create account while submitting to prevent double-tap, and surface `state.submit` errors as a white inline message below the buttons
+
+
 
 - [x] 8.6 Implement step 2 Composable: `SignupNicknameStep` using `KornerzTextField`
 - [x] 8.7 Implement step 3 Composable: `SignupEmailStep` using `KornerzTextField`; on `AsyncValue.Error` from `AuthRepository.signup`, surfaces "This email is already registered"
@@ -95,6 +106,18 @@
 - [x] 8.10 (merged into 8.9) Country-code selection is an inline modal on the phone step, not a dedicated wizard step — mirrors iOS
 - [x] 8.11 Implement step 6 Composable: `SignupLanguageStep` with a language picker (en + pt-BR entries)
 - [x] 8.12 Implement step 7 Composable: `SignupInterestsStep` consuming `KornerInterestRepository` with a multi-select grid (1–5 selection enforcement)
+
+### iOS / Android design parity — signup interests grid (amends §8.12)
+
+- [x] 8.12.1 Rewrite `SignupInterestsStep` to render the 2-column `KornerzCardGrid` (square tiles) instead of the capsule grid — mirrors iOS `SignupKornerzView.kornerzView`
+- [x] 8.12.2 Add `TriangleClippedShape` + `TriangleType` (`TopRight` / `BottomLeft`) to `BrandedSignupComponents.kt` as a 1:1 port of iOS `TriangleClippedShape.swift` (right-triangle cut, rounded included corners, configurable `cornerRadius`)
+- [x] 8.12.3 Add `KornerzSquareCard` Composable (135dp square, 16dp corner radius, 5dp inner padding, 13dp corner-radius triangle in the top-right, bold white Satoshi 12sp title at the bottom-leading edge) — port of iOS `KornerzSquareView`
+- [x] 8.12.4 Add `KornerzCardPalette` (the 5 `AppColor` swatches from iOS `RandomColorService`: `CE27D5A`, `CAD598D`, `C86BFA9`, `C68B6CC`, `CEBAA4A`) and `kornerzCardColor(index)` helper that rotates through the palette
+- [x] 8.12.5 Selected tile renders a 4dp white `RoundedRectangle` stroke via the new `Modifier.kornerzSelectionStroke` helper — mirrors iOS `RoundedRectangle(cornerRadius: 16).stroke(.white, lineWidth: 4)` overlay
+- [x] 8.12.6 Extend `BrandedSignupScaffold` with an optional `bottomBar` slot; when provided the content area is wrapped in a scrollable `weight(1f)` Column and the `bottomBar` is pinned below it (mirrors iOS `VStack { ScrollView { … }; actionView }`)
+- [x] 8.12.7 The "Next" CTA + "You can pick up to 5 favorites" error on `SignupInterestsStep` now live in the pinned `bottomBar` so the CTA stays visible even when the kornerz list scrolls past the fold
+- [x] 8.12.8 While `AsyncValue.Loading`, render 4 placeholder `KornerzSquareCard`s using the cyclic palette colors (matches iOS `ForEach(0..<4) { KornerzSquareView(community: .shimmer, color: viewModel.color(for: index), size: 135) }.redacted(reason: .placeholder)`)
+
 - [x] 8.13 Implement step 8 Composable: `SignupPhotoStep` using `KornerzImagePicker` (arch §5), preview, signed-URL upload, and retry on failure (privacy policy was moved to a standalone pre-wizard screen — see §13)
 - [x] 8.14 Implement `PrivacyPolicyView` that tracks a `hasScrolledToEnd: Boolean` in state and gates the "Read & Accept" `KornerzButton` — **MOVED to §13**: privacy acceptance now happens on a dedicated `PrivacyPolicyScreen` before the wizard starts; the inline `PrivacyPolicyView` was removed from step 8.
 - [x] 8.15 On the final step, `SignupViewModel.submit()` calls `AuthRepository.signup(...)`, persists the session, and emits `NavEvent.NavigateToShell` over `Channel<NavEvent>` (arch §2.4)

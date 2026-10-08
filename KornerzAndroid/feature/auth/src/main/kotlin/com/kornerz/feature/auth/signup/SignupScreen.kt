@@ -21,6 +21,7 @@ fun SignupScreen(
     navController: NavHostController,
     countryRepository: CountryCodesRepository,
     interestsRepository: KornerInterestRepository,
+    onNavigateToShellGraph: () -> Unit,
     modifier: androidx.compose.ui.Modifier = androidx.compose.ui.Modifier,
     viewModel: SignupViewModel = hiltViewModel(),
 ) {
@@ -29,12 +30,7 @@ fun SignupScreen(
     LaunchedEffect(Unit) {
         viewModel.navEvents.collect { event ->
             when (event) {
-                SignupNavEvent.NavigateToShell -> {
-                    navController.popBackStack(
-                        route = com.kornerz.feature.auth.AuthRoute.Welcome.route,
-                        inclusive = true,
-                    )
-                }
+                SignupNavEvent.NavigateToShell -> onNavigateToShellGraph()
                 SignupNavEvent.NavigateBack -> navController.popBackStack()
             }
         }
@@ -50,40 +46,40 @@ fun SignupScreen(
             onBack = onBack,
             modifier = modifier,
         )
-        2 -> SignupNicknameStep(
-            state = state,
-            onEvent = viewModel::onEvent,
-            onBack = onBack,
-            onSuggestNickname = { viewModel.onEvent(SignupEvent.SuggestNickname) },
-        )
-        3 -> SignupEmailStep(
+        2 -> SignupEmailStep(
             state = state,
             onEvent = viewModel::onEvent,
             onBack = onBack,
         )
-        4 -> SignupPasswordStep(
-            state = state,
-            onEvent = viewModel::onEvent,
-            onBack = onBack,
-        )
-        5 -> SignupPhoneStep(
+        3 -> SignupPhoneStep(
             state = state,
             onEvent = viewModel::onEvent,
             onBack = onBack,
             repository = countryRepository,
         )
-        6 -> SignupLanguageStep(
+        4 -> SignupLanguageStep(
             state = state,
             onEvent = viewModel::onEvent,
             onBack = onBack,
         )
-        7 -> SignupInterestsStep(
+        5 -> SignupInterestsStep(
             state = state,
             onEvent = viewModel::onEvent,
             onBack = onBack,
             repository = interestsRepository,
         )
-        8 -> SignupPhotoStep(
+        6 -> SignupNicknameStep(
+            state = state,
+            onEvent = viewModel::onEvent,
+            onBack = onBack,
+            onSuggestNickname = { viewModel.onEvent(SignupEvent.SuggestNickname) },
+        )
+        7 -> SignupPhotoStep(
+            state = state,
+            onEvent = viewModel::onEvent,
+            onBack = onBack,
+        )
+        8 -> SignupPasswordStep(
             state = state,
             onEvent = viewModel::onEvent,
             onBack = onBack,
