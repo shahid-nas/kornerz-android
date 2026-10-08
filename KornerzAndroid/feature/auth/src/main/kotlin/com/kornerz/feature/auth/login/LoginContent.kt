@@ -384,6 +384,7 @@ private fun AsyncValue.Error.toReadableMessage(): String {
         AuthError.NetworkError -> "Connection error. Please try again."
         AuthError.SessionExpired -> "Your session has expired. Please log in again."
         AuthError.EmailAlreadyInUse -> "This email is already registered"
+        AuthError.NicknameAlreadyInUse -> "This nickname is already taken"
         AuthError.InvalidCode -> "Invalid code"
         is AuthError.Unknown -> throwable.message ?: "Something went wrong"
     }

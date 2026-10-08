@@ -73,6 +73,32 @@ class AuthRepository @Inject constructor(
         }
     }
 
+    /**
+     * Returns `AsyncValue.Success(true)` when a user with the supplied
+     * [nickname] already exists, `AsyncValue.Success(false)` when the
+     * nickname is free, or `AsyncValue.Error` on a network failure.
+     * Powers the "nickname already taken" check on the signup wizard
+     * (iOS parity — `UserRepository.checkIfNickNameExist(_:)`).
+     */
+    suspend fun checkIfNickNameExists(nickname: String): AsyncValue<Boolean> =
+        when (val result = authApi.checkIfNickNameExists(nickname)) {
+            is AuthResult.Success -> AsyncValue.Success(result.data)
+            is AuthResult.Failure -> AsyncValue.Error(result.error.toThrowable())
+        }
+
+    /**
+     * Returns `AsyncValue.Success(true)` when a user with the supplied
+     * [email] already exists, `AsyncValue.Success(false)` when the email
+     * is free, or `AsyncValue.Error` on a network failure. Powers the
+     * "email already registered" check on the signup wizard
+     * (iOS parity — `FireStoreServiceManager.checkIfEmailExist`).
+     */
+    suspend fun checkIfEmailExists(email: String): AsyncValue<Boolean> =
+        when (val result = authApi.checkIfEmailExists(email)) {
+            is AuthResult.Success -> AsyncValue.Success(result.data)
+            is AuthResult.Failure -> AsyncValue.Error(result.error.toThrowable())
+        }
+
     suspend fun requestPasswordReset(email: String): AsyncValue<Unit> {
         return when (
             val result = authApi.requestPasswordReset(
@@ -162,6 +188,7 @@ private fun <T> AuthResult<T>.asAsyncValue(): AsyncValue<T> = when (this) {
 private fun AuthError.toThrowable(): Throwable = when (this) {
     AuthError.InvalidCredentials -> AuthException(this, "Email or password is incorrect")
     AuthError.EmailAlreadyInUse -> AuthException(this, "This email is already registered")
+    AuthError.NicknameAlreadyInUse -> AuthException(this, "This nickname is already taken")
     AuthError.InvalidCode -> AuthException(this, "Invalid or expired code")
     AuthError.NetworkError -> AuthException(this, "Connection error. Please try again.")
     AuthError.SessionExpired -> AuthException(this, "Your session has expired. Please log in again.")

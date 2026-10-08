@@ -22,6 +22,8 @@ sealed interface AuthError {
 
     data object EmailAlreadyInUse : AuthError
 
+    data object NicknameAlreadyInUse : AuthError
+
     data object InvalidCode : AuthError
 
     data object NetworkError : AuthError

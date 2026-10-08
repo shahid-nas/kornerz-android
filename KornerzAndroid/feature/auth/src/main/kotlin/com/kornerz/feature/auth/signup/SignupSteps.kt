@@ -80,9 +80,14 @@ fun SignupNicknameStep(
             capitalization = KeyboardCapitalization.None,
             imeAction = ImeAction.Done,
         )
-        if (state.nicknameError != null) {
+        // Surface the local-format error and the async backend
+        // "nickname already taken" error in the same slot so the
+        // layout is stable as the user fixes the value.
+        val nicknameMessage = state.nicknameError
+            ?: (state.nicknameCheck as? AsyncValue.Error)?.throwable?.message
+        if (nicknameMessage != null) {
             Text(
-                text = state.nicknameError,
+                text = nicknameMessage,
                 color = Color.Red,
                 fontFamily = Satoshi,
                 fontWeight = FontWeight.Normal,
@@ -100,11 +105,13 @@ fun SignupNicknameStep(
                 text = "Suggest nickname",
                 onClick = onSuggestNickname,
                 color = Color.Black,
+                enabled = state.nicknameCheck !is AsyncValue.Loading,
             )
             BlackCapsuleButton(
-                text = "Next",
+                text = if (state.nicknameCheck is AsyncValue.Loading) "Checking…" else "Next",
                 onClick = { onEvent(SignupEvent.Continue) },
                 enabled = state.isNicknameValid,
+                loading = state.nicknameCheck is AsyncValue.Loading,
             )
         }
     }
@@ -130,9 +137,20 @@ fun SignupEmailStep(
             capitalization = KeyboardCapitalization.None,
             imeAction = ImeAction.Next,
         )
-        if (state.emailAlreadyInUse) {
+        // Show whichever error is present: the inline `emailAlreadyInUse`
+        // flag (set by both the async uniqueness check and the late
+        // `submit()` failure) or the `emailCheck` async-error state
+        // directly. Mirrors iOS `SignupEmailView.errorMessage` behaviour.
+        val emailMessage = when {
+            state.emailAlreadyInUse -> "This email is already registered"
+            state.emailCheck is AsyncValue.Error ->
+                (state.emailCheck as AsyncValue.Error).throwable.message
+                    ?: "This email is already registered"
+            else -> null
+        }
+        if (emailMessage != null) {
             Text(
-                text = "This email is already registered",
+                text = emailMessage,
                 color = Color.Red,
                 fontFamily = Satoshi,
                 fontWeight = FontWeight.Normal,
@@ -143,9 +161,10 @@ fun SignupEmailStep(
             )
         }
         BlackCapsuleButton(
-            text = "Next",
+            text = if (state.emailCheck is AsyncValue.Loading) "Checking…" else "Next",
             onClick = { onEvent(SignupEvent.Continue) },
-                enabled = state.isEmailValid && !state.emailAlreadyInUse,
+            enabled = state.isEmailValid,
+            loading = state.emailCheck is AsyncValue.Loading,
         )
     }
 }

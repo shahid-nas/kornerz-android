@@ -62,6 +62,25 @@ interface AuthApi {
      */
     suspend fun fetchUser(userId: String): AuthResult<User>
 
+    /**
+     * Returns `true` when at least one user document in the `Users`
+     * collection has `nickname == [nickname]`. Mirrors iOS
+     * `UserRepository.checkIfNickNameExist(_:)` in
+     * `kornerz/Kornerz/Backend/Repositories/UserRepository.swift`.
+     * Used by the signup wizard to surface a "nickname already taken"
+     * error before the user finishes the wizard.
+     */
+    suspend fun checkIfNickNameExists(nickname: String): AuthResult<Boolean>
+
+    /**
+     * Returns `true` when at least one user document in the `Users`
+     * collection has `email == [email]`. Mirrors iOS
+     * `FireStoreServiceManager.checkIfEmailExist(_:completionHandler:)`.
+     * Used by the signup wizard to surface a "email already registered"
+     * error before the user finishes the wizard.
+     */
+    suspend fun checkIfEmailExists(email: String): AuthResult<Boolean>
+
     /** Clock used to materialise the token `expiresAt` in tests. */
     fun now(): Instant
 }

@@ -183,6 +183,24 @@ class FirestoreAuthApi @Inject constructor(
         )
     }.getOrElse { mapError(it) }
 
+    override suspend fun checkIfNickNameExists(nickname: String): AuthResult<Boolean> =
+        runCatching {
+            val snapshot = usersCollection
+                .whereEqualTo("nickname", nickname)
+                .get()
+                .await()
+            AuthResult.Success(!snapshot.isEmpty)
+        }.getOrElse { mapError(it) }
+
+    override suspend fun checkIfEmailExists(email: String): AuthResult<Boolean> =
+        runCatching {
+            val snapshot = usersCollection
+                .whereEqualTo("email", email)
+                .get()
+                .await()
+            AuthResult.Success(!snapshot.isEmpty)
+        }.getOrElse { mapError(it) }
+
     override fun now(): Instant = Clock.System.now()
 
     private suspend fun signInFirebaseAnonymously() {

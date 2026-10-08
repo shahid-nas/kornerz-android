@@ -27,6 +27,12 @@ data class SignupWizardState(
     // "Creating account…" loading state. `submit()` flips it to
     // `Loading` only when the user actually taps "Create account".
     val submit: AsyncValue<Unit> = AsyncValue.Success(Unit),
+    // Async existence checks for the wizard's nickname (step 6) and
+    // email (step 2) steps. Defaults to `Success(Unit)` so the UI isn't
+    // stuck in a checking state on screen entry. While the check is
+    // running these are `Loading`; on a hit they become `Error`.
+    val nicknameCheck: AsyncValue<Unit> = AsyncValue.Success(Unit),
+    val emailCheck: AsyncValue<Unit> = AsyncValue.Success(Unit),
     val emailAlreadyInUse: Boolean = false,
     val nicknameError: String? = null,
     val interestsError: Boolean = false,

@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kornerz.core.model.AsyncValue
+import com.kornerz.core.network.AuthException
 import com.kornerz.core.network.AuthRepository
 import com.kornerz.core.network.auth.dto.SignupRequest
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -39,10 +40,18 @@ class SignupViewModel @Inject constructor(
         when (event) {
             is SignupEvent.FullNameChanged -> _state.update { it.copy(fullName = event.value) }
             is SignupEvent.NicknameChanged -> _state.update {
-                it.copy(nickname = event.value, nicknameError = null)
+                it.copy(
+                    nickname = event.value,
+                    nicknameError = null,
+                    nicknameCheck = AsyncValue.Success(Unit),
+                )
             }
             is SignupEvent.EmailChanged -> _state.update {
-                it.copy(email = event.value, emailAlreadyInUse = false)
+                it.copy(
+                    email = event.value,
+                    emailAlreadyInUse = false,
+                    emailCheck = AsyncValue.Success(Unit),
+                )
             }
             is SignupEvent.PasswordChanged -> _state.update { it.copy(password = event.value) }
             is SignupEvent.ConfirmPasswordChanged -> _state.update { it.copy(confirmPassword = event.value) }
@@ -107,9 +116,111 @@ class SignupViewModel @Inject constructor(
             return
         }
         if (!current.canContinue) return
+        // Steps with async uniqueness checks (email = step 2, nickname
+        // = step 6) don't advance inline; they fire the check and only
+        // move on when the check confirms the value is free. Mirrors
+        // iOS `SignupViewModel.validateNickName()` / the email
+        // uniqueness check on `SignupEmailView`.
+        when (current.step) {
+            2 -> { checkEmailUniqueness(); return }
+            6 -> { checkNicknameUniqueness(); return }
+        }
+        advanceToNextStep()
+    }
+
+    /**
+     * Bump the wizard to the next step. Called by [advance] for the
+     * non-uniqueness-checked steps, and by [checkEmailUniqueness] /
+     * [checkNicknameUniqueness] once the async check confirms the
+     * value is free. Splitting it out avoids an infinite loop where
+     * the post-check `advance()` call re-enters the same step and
+     * re-fires the check.
+     */
+    private fun advanceToNextStep() {
+        val current = _state.value
         val next = current.copy(step = current.step + 1)
         _state.update { next }
         persist(next)
+    }
+
+    /**
+     * Asynchronously check whether [SignupWizardState.email] is already
+     * registered. On hit, sets `emailCheck` to `Error` and surfaces
+     * `emailAlreadyInUse` so the email step's UI can show the error.
+     * On miss, advances to step 3. Mirrors iOS
+     * `FireStoreServiceManager.checkIfEmailExist`.
+     */
+    private fun checkEmailUniqueness() {
+        val email = _state.value.email.trim()
+        if (email.isEmpty()) return
+        _state.update { it.copy(emailCheck = AsyncValue.Loading) }
+        viewModelScope.launch {
+            val result = authRepository.checkIfEmailExists(email)
+            when (result) {
+                is AsyncValue.Success -> {
+                    if (result.data) {
+                        _state.update {
+                            it.copy(
+                                emailCheck = AsyncValue.Error(
+                                    AuthException(
+                                        com.kornerz.core.network.auth.AuthError.EmailAlreadyInUse,
+                                        "This email is already registered",
+                                    ),
+                                ),
+                                emailAlreadyInUse = true,
+                            )
+                        }
+                    } else {
+                        _state.update { it.copy(emailCheck = AsyncValue.Success(Unit)) }
+                        advanceToNextStep()
+                    }
+                }
+                is AsyncValue.Error -> {
+                    _state.update { it.copy(emailCheck = result) }
+                }
+                AsyncValue.Loading -> Unit
+            }
+        }
+    }
+
+    /**
+     * Asynchronously check whether [SignupWizardState.nickname] is
+     * already taken. On hit, sets `nicknameCheck` to `Error` and
+     * populates `nicknameError` so the nickname step's UI can show the
+     * error. On miss, advances to step 7. Mirrors iOS
+     * `SignupViewModel.validateNickName()`.
+     */
+    private fun checkNicknameUniqueness() {
+        val nickname = _state.value.nickname.trim()
+        if (nickname.isEmpty()) return
+        _state.update { it.copy(nicknameCheck = AsyncValue.Loading) }
+        viewModelScope.launch {
+            val result = authRepository.checkIfNickNameExists(nickname)
+            when (result) {
+                is AsyncValue.Success -> {
+                    if (result.data) {
+                        _state.update {
+                            it.copy(
+                                nicknameCheck = AsyncValue.Error(
+                                    AuthException(
+                                        com.kornerz.core.network.auth.AuthError.NicknameAlreadyInUse,
+                                        "This nickname is already taken",
+                                    ),
+                                ),
+                                nicknameError = "This nickname is already taken",
+                            )
+                        }
+                    } else {
+                        _state.update { it.copy(nicknameCheck = AsyncValue.Success(Unit)) }
+                        advanceToNextStep()
+                    }
+                }
+                is AsyncValue.Error -> {
+                    _state.update { it.copy(nicknameCheck = result) }
+                }
+                AsyncValue.Loading -> Unit
+            }
+        }
     }
 
     /**
@@ -160,10 +271,21 @@ class SignupViewModel @Inject constructor(
                 ),
             )
             _state.update {
+                val isEmailAlreadyInUse = (result as? AsyncValue.Error)
+                    ?.throwable?.message?.contains("already registered") == true
                 it.copy(
                     submit = result,
-                    emailAlreadyInUse = (result as? AsyncValue.Error)
-                        ?.throwable?.message?.contains("already registered") == true,
+                    emailAlreadyInUse = isEmailAlreadyInUse,
+                    // If signup failed because the email is already
+                    // taken, surface that as the email-step error so
+                    // the user can fix it without restarting.
+                    emailCheck = if (isEmailAlreadyInUse) {
+                        AsyncValue.Error(
+                            (result as AsyncValue.Error).throwable,
+                        )
+                    } else {
+                        it.emailCheck
+                    },
                 )
             }
             if (result is AsyncValue.Success) {
