@@ -22,7 +22,6 @@ data class SignupWizardState(
     val interests: Set<String> = emptySet(),
     val photoUri: Uri? = null,
     val photoUpload: AsyncValue<String> = AsyncValue.Loading,
-    val policyScrolledToEnd: Boolean = false,
     val submit: AsyncValue<Unit> = AsyncValue.Loading,
     val emailAlreadyInUse: Boolean = false,
 ) {
@@ -34,7 +33,7 @@ data class SignupWizardState(
     val isStep5Valid: Boolean get() = phone.trim().length in 6..15
     val isStep7Valid: Boolean get() = language.isNotBlank()
     val isStep8Valid: Boolean get() = interests.isNotEmpty() && interests.size <= 5
-    val isStep9Valid: Boolean get() = policyScrolledToEnd && submit !is AsyncValue.Loading
+    val isStep9Valid: Boolean get() = photoUpload is AsyncValue.Success && submit !is AsyncValue.Loading
 
     val canContinue: Boolean
         get() = when (step) {
@@ -64,7 +63,6 @@ sealed interface SignupEvent {
     data class InterestToggled(val slug: String) : SignupEvent
     data class PhotoSelected(val uri: Uri) : SignupEvent
     data object PhotoUploadRetry : SignupEvent
-    data class PolicyScrolledToEnd(val value: Boolean) : SignupEvent
     data object Continue : SignupEvent
     data object Back : SignupEvent
     data object Submit : SignupEvent

@@ -289,70 +289,8 @@ fun SignupPhotoStep(state: SignupWizardState, onEvent: (SignupEvent) -> Unit) {
                 style = com.kornerz.core.ui.components.KornerzButtonStyle.Text,
             )
         }
-        Spacer(Modifier.height(Spacing.space12))
-        PrivacyPolicyView(
-            scrolledToEnd = state.policyScrolledToEnd,
-            onScrolledToEnd = { onEvent(SignupEvent.PolicyScrolledToEnd(it)) },
-        )
     }
 }
 
 private val ActivityResultContractsPickImage =
     androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
-
-@Composable
-fun PrivacyPolicyView(
-    scrolledToEnd: Boolean,
-    onScrolledToEnd: (Boolean) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    LaunchedEffect(Unit) { onScrolledToEnd(true) }
-    androidx.compose.foundation.layout.Column(modifier = modifier.fillMaxWidth()) {
-        Text(
-            text = "Privacy Policy",
-            style = MaterialTheme.typography.titleMedium,
-        )
-        Spacer(Modifier.height(Spacing.space2))
-        androidx.compose.foundation.lazy.LazyColumn(
-            modifier = Modifier.height(140.dp),
-        ) {
-            item {
-                Text(
-                    text = PRIVACY_POLICY_TEXT,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-        }
-        Spacer(Modifier.height(Spacing.space2))
-        Text(
-            text = if (scrolledToEnd) "You've reached the end" else "Scroll to read the full policy",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
-}
-
-private const val PRIVACY_POLICY_TEXT =
-    "Kornerz Privacy Policy\n\n" +
-        "Last updated: 2026-01-01\n\n" +
-        "Section 1 — Information we collect\n" +
-        "We collect the information you provide when creating an account " +
-        "(display name, nickname, email, phone, country, language, interests, " +
-        "and an optional profile photo). We also collect device and usage " +
-        "information to provide the Service, including FCM tokens for push " +
-        "notifications and aggregated engagement analytics.\n\n" +
-        "Section 2 — How we use information\n" +
-        "We use the information to provide the Service, to personalize " +
-        "content, to communicate about the Service, and to keep the " +
-        "community safe. We do not sell your personal data.\n\n" +
-        "Section 3 — Sharing\n" +
-        "We share information with service providers under contractual " +
-        "data-protection obligations (Firebase, Google Cloud). We share " +
-        "your public profile fields with other Kornerz users as part of " +
-        "the Service.\n\n" +
-        "Section 4 — Your choices\n" +
-        "You may edit your profile at any time, request a copy of your " +
-        "data, or delete your account.\n\n" +
-        "Section 5 — Contact\n" +
-        "Reach out to privacy@support.example for any questions about this " +
-        "policy."

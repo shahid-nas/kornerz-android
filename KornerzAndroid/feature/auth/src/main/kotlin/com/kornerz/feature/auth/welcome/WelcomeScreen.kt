@@ -54,7 +54,7 @@ fun WelcomeScreen(
         viewModel.navEvents.collect { event ->
             when (event) {
                 WelcomeNavEvent.NavigateToSignup -> navController.navigate(
-                    AuthRoute.Signup.build(step = 1),
+                    AuthRoute.PrivacyPolicy.route,
                 )
                 WelcomeNavEvent.NavigateToLogin -> navController.navigate(AuthRoute.Login.route)
             }

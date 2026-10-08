@@ -62,7 +62,6 @@ class SignupViewModel @Inject constructor(
                 it.copy(photoUri = event.uri, photoUpload = AsyncValue.Loading)
             }
             SignupEvent.PhotoUploadRetry -> uploadPhoto()
-            is SignupEvent.PolicyScrolledToEnd -> _state.update { it.copy(policyScrolledToEnd = event.value) }
             SignupEvent.Continue -> advance()
             SignupEvent.Back -> back()
             SignupEvent.Submit -> submit()
@@ -134,7 +133,6 @@ class SignupViewModel @Inject constructor(
         savedStateHandle[KEY_COUNTRY_ISO] = state.countryIso
         savedStateHandle[KEY_LANGUAGE] = state.language
         savedStateHandle[KEY_INTERESTS] = state.interests.toTypedArray()
-        savedStateHandle[KEY_POLICY_SCROLLED] = state.policyScrolledToEnd
     }
 
     private fun restoreOrInit(): SignupWizardState {
@@ -151,7 +149,6 @@ class SignupViewModel @Inject constructor(
             countryIso = savedStateHandle.get<String>(KEY_COUNTRY_ISO) ?: "US",
             language = savedStateHandle.get<String>(KEY_LANGUAGE) ?: "en",
             interests = (savedStateHandle.get<Array<String>>(KEY_INTERESTS)?.toSet() ?: emptySet()),
-            policyScrolledToEnd = savedStateHandle.get<Boolean>(KEY_POLICY_SCROLLED) ?: false,
         )
     }
 
@@ -167,6 +164,5 @@ class SignupViewModel @Inject constructor(
         const val KEY_COUNTRY_ISO = "signup.countryIso"
         const val KEY_LANGUAGE = "signup.language"
         const val KEY_INTERESTS = "signup.interests"
-        const val KEY_POLICY_SCROLLED = "signup.policyScrolled"
     }
 }

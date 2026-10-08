@@ -46,7 +46,7 @@ fun SignupScreen(
         totalSteps = 9,
         state = state,
         onEvent = viewModel::onEvent,
-        continueLabel = if (state.step == 9) "Read & Accept" else "Continue",
+        continueLabel = if (state.step == 9) "Create account" else "Continue",
         modifier = modifier,
     ) {
         when (state.step) {

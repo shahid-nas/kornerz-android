@@ -21,7 +21,7 @@ import com.kornerz.core.ui.theme.Spacing
 /**
  * Shared scaffold used by every wizard step (architecture §8.4). Provides
  * a header (step title + step count), a Back control (disabled on step
- * 1), and a Continue / Read & Accept control.
+ * 1), and a Continue / Create account control on the final step.
  */
 @Composable
 fun SignupStepScaffold(

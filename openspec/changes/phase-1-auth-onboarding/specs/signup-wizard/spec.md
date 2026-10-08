@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: User can sign up through a 9-step wizard
-The app SHALL provide a sign-up wizard reachable from the Login screen via a "Create account" action. The wizard SHALL collect, in this exact order across 9 screens: (1) full name, (2) nickname, (3) email, (4) password, (5) phone number, (6) country code (dial code), (7) preferred language, (8) Kornerz interests (multi-select from a bundled catalog of Korner slugs), (9) profile photo. The single `SignupViewModel` SHALL be Hilt-scoped (per `architecture.md` §2.6) and SHALL expose `state: StateFlow<SignupWizardState>` and `navEvents: Flow<NavEvent>` (per §2.4 — never reference `NavController` directly). All Compose screens SHALL use the shared `KornerzTextField`, `KornerzPasswordField`, `KornerzImagePicker`, `KornerzButton`, and `KornerzEmptyState` / `KornerzErrorState` from `core/ui/components/` (per §5). Each step SHALL validate its input locally before allowing navigation to the next step. The wizard SHALL persist its current state across configuration changes and process death for all fields using `SavedStateHandle`. The wizard SHALL NOT call the auth backend until step 9 is confirmed; instead, all collected data SHALL be sent in a single sign-up Cloud Function call through `AuthRepository.signup(...)`. After successful sign-up, `SignupViewModel` SHALL emit `NavEvent.NavigateToShell` over `Channel<NavEvent>`, and the root NavHost SHALL swap from `auth_graph` to `shell_graph` clearing the back-stack.
+The app SHALL provide a sign-up wizard reachable from the Welcome screen's "Sign Up" action via the standalone Privacy Policy screen. Once the policy is accepted, the wizard SHALL collect, in this exact order across 9 screens: (1) full name, (2) nickname, (3) email, (4) password, (5) phone number, (6) country code (dial code), (7) preferred language, (8) Kornerz interests (multi-select from a bundled catalog of Korner slugs), (9) profile photo. The single `SignupViewModel` SHALL be Hilt-scoped (per `architecture.md` §2.6) and SHALL expose `state: StateFlow<SignupWizardState>` and `navEvents: Flow<NavEvent>` (per §2.4 — never reference `NavController` directly). All Compose screens SHALL use the shared `KornerzTextField`, `KornerzPasswordField`, `KornerzImagePicker`, `KornerzButton`, and `KornerzEmptyState` / `KornerzErrorState` from `core/ui/components/` (per §5). Each step SHALL validate its input locally before allowing navigation to the next step. The wizard SHALL persist its current state across configuration changes and process death for all fields using `SavedStateHandle`. The wizard SHALL NOT call the auth backend until step 9 is confirmed; instead, all collected data SHALL be sent in a single sign-up Cloud Function call through `AuthRepository.signup(...)`. After successful sign-up, `SignupViewModel` SHALL emit `NavEvent.NavigateToShell` over `Channel<NavEvent>`, and the root NavHost SHALL swap from `auth_graph` to `shell_graph` clearing the back-stack.
 
 #### Scenario: Successful sign-up end to end
 - **WHEN** a user completes all 9 steps and confirms the final step
@@ -25,20 +25,33 @@ The app SHALL provide a sign-up wizard reachable from the Login screen via a "Cr
 - **THEN** the wizard SHALL block the navigation
 - **AND** display a validation error on step 3
 
-### Requirement: Inline Privacy Policy acceptance at the end of sign-up
-The 9th step of the signup wizard SHALL include an inline expandable view of the Kornerz Privacy Policy. The user SHALL NOT be able to confirm sign-up without scrolling the policy view to its end at least once during the current session. A "Read & Accept" button SHALL become enabled only after the policy has been scrolled to the end.
+### Requirement: Standalone Privacy Policy gate before the signup wizard
+The app SHALL present a dedicated `PrivacyPolicyScreen` immediately after the user taps "Sign Up" on the Welcome screen and immediately before the first step of the signup wizard. The screen SHALL display the full Kornerz Privacy Policy in a scrollable view and SHALL disable the "Accept & Continue" CTA until the user has scrolled the policy to its end at least once. Tapping "Accept & Continue" SHALL navigate to the first step of the signup wizard (full name). Tapping "Decline" SHALL return to the Welcome screen. No wizard data is collected before the policy is accepted.
 
 #### Scenario: Policy must be read
-- **WHEN** the user reaches step 9 and has not yet scrolled the privacy policy to the end
-- **THEN** the "Read & Accept" button is disabled
+- **WHEN** the user reaches the Privacy Policy screen and has not yet scrolled the policy to the end
+- **THEN** the "Accept & Continue" button is disabled
 
 #### Scenario: Button enables after scroll
 - **WHEN** the user scrolls the privacy policy to its bottom
-- **THEN** the "Read & Accept" button becomes enabled
-- **AND** tapping it submits the sign-up
+- **THEN** the "Accept & Continue" button becomes enabled
+- **AND** tapping it navigates to the signup wizard's full-name step
+
+#### Scenario: Decline returns to Welcome
+- **WHEN** the user taps "Decline" on the Privacy Policy screen
+- **THEN** the app returns to the Welcome screen
+- **AND** no wizard state is created
+
+### Requirement: Final wizard step submits without a re-confirmation gate
+Step 9 of the wizard SHALL submit the sign-up request when the user taps "Create account" (the step-9 button label), provided the photo upload has completed successfully. There SHALL NOT be a second Privacy Policy gate at step 9 because the user already accepted the policy on the standalone Privacy Policy screen.
+
+#### Scenario: Step 9 submits
+- **WHEN** the user has uploaded a profile photo and taps "Create account" on step 9
+- **THEN** the sign-up Cloud Function is called
+- **AND** the app navigates to the shell graph
 
 ### Requirement: Wizard step navigation controls
-Each wizard step SHALL provide a "Back" control (disabled on step 1) and a "Continue" control (disabled until the step's local validation passes). Step 9 SHALL replace "Continue" with "Read & Accept" as defined above.
+Each wizard step SHALL provide a "Back" control (disabled on step 1) and a "Continue" control (disabled until the step's local validation passes). Step 9 SHALL replace "Continue" with "Create account" (no privacy gate at step 9).
 
 #### Scenario: Back on step 1
 - **WHEN** the user is on step 1

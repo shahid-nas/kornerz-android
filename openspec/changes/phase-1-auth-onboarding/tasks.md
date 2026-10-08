@@ -74,11 +74,25 @@
 - [x] 8.10 Implement step 6 Composable: `SignupCountryCodeStep` consuming `CountryCodesRepository.getAll()` and rendering `KornerzEmptyState` / `KornerzErrorState` per arch §2.2
 - [x] 8.11 Implement step 7 Composable: `SignupLanguageStep` with a language picker (en + pt-BR entries)
 - [x] 8.12 Implement step 8 Composable: `SignupInterestsStep` consuming `KornerInterestRepository` with a multi-select grid (1–5 selection enforcement)
-- [x] 8.13 Implement step 9 Composable: `SignupPhotoStep` using `KornerzImagePicker` (arch §5), preview, signed-URL upload, retry on failure, and an inline expandable `PrivacyPolicyView`
-- [x] 8.14 Implement `PrivacyPolicyView` that tracks a `hasScrolledToEnd: Boolean` in state and gates the "Read & Accept" `KornerzButton`
-- [x] 8.15 On "Read & Accept", `SignupViewModel.submit()` calls `AuthRepository.signup(...)`, persists the session, and emits `NavEvent.NavigateToShell` over `Channel<NavEvent>` (arch §2.4)
+- [x] 8.13 Implement step 9 Composable: `SignupPhotoStep` using `KornerzImagePicker` (arch §5), preview, signed-URL upload, and retry on failure (privacy policy was moved to a standalone pre-wizard screen — see §13)
+- [x] 8.14 Implement `PrivacyPolicyView` that tracks a `hasScrolledToEnd: Boolean` in state and gates the "Read & Accept" `KornerzButton` — **MOVED to §13**: privacy acceptance now happens on a dedicated `PrivacyPolicyScreen` before the wizard starts; the inline `PrivacyPolicyView` was removed from step 9.
+- [x] 8.15 On the final step, `SignupViewModel.submit()` calls `AuthRepository.signup(...)`, persists the session, and emits `NavEvent.NavigateToShell` over `Channel<NavEvent>` (arch §2.4)
 - [x] 8.16 Add `@Preview` Composable previews for every step in light, dark, and `en-rXA`
 - [ ] 8.17 Create `SignupViewModelTest.kt` covering all 9 step flows + validation + photo upload retry path — **DEFERRED**: unit tests are scoped to follow-up.
+
+## 13. Standalone Privacy Policy screen (pre-wizard gate)
+
+- [x] 13.1 Create `feature/auth/.../privacy/PrivacyPolicyContract.kt` defining `PrivacyPolicyState(hasScrolledToEnd)`, `PrivacyPolicyEvent` (`ScrolledToEndChanged`, `Accept`, `Decline`), and `PrivacyPolicyNavEvent` (`NavigateToSignup`, `NavigateBack`) — Hilt-scoped VM, never touches `NavController` directly (arch §2.4)
+- [x] 13.2 Create `feature/auth/.../privacy/PrivacyPolicyViewModel.kt` as `@HiltViewModel` exposing `state: StateFlow<PrivacyPolicyState>` and `navEvents: Flow<PrivacyPolicyNavEvent>` via `Channel(BUFFERED)`; `Accept` only emits `NavigateToSignup` when `canAccept` is true
+- [x] 13.3 Create `feature/auth/.../privacy/PrivacyPolicyScreen.kt` (stateful) that navigates to `AuthRoute.Signup.build(1)` on `NavigateToSignup` and `popBackStack()` on `NavigateBack`
+- [x] 13.4 Create `feature/auth/.../privacy/PrivacyPolicyContent.kt` (stateless) with a scrollable `LazyColumn` of `PRIVACY_POLICY_TEXT`, proper scroll-to-end detection via `derivedStateOf` over `LazyListState.layoutInfo`, an "Accept & Continue" `KornerzButton` gated on `state.canAccept`, and a "Decline" `TextButton`
+- [x] 13.5 Wire `AuthRoute.PrivacyPolicy` (already declared in `AuthRoute.kt`) as a `composable(...)` entry inside `authGraph(...)` in `AuthGraph.kt`
+- [x] 13.6 Update `WelcomeScreen` to navigate to `AuthRoute.PrivacyPolicy.route` on `WelcomeNavEvent.NavigateToSignup` instead of `AuthRoute.Signup.build(1)`
+- [x] 13.7 Remove the inline `PrivacyPolicyView` and `PRIVACY_POLICY_TEXT` from `SignupSteps.kt`; `SignupPhotoStep` now shows only the photo picker + retry UI
+- [x] 13.8 Remove `policyScrolledToEnd` field, `PolicyScrolledToEnd` event, and `KEY_POLICY_SCROLLED` persistence from `SignupContract.kt` / `SignupViewModel.kt`; `isStep9Valid` now requires only a successful `photoUpload`
+- [x] 13.9 Rename the step-9 button label from "Read & Accept" to "Create account" in `SignupScreen.kt`; update the `SignupStepScaffold` docstring
+- [x] 13.10 Add `@Preview` light + dark previews for `PrivacyPolicyContent`
+- [x] 13.11 Update `specs/signup-wizard/spec.md`: the "Inline Privacy Policy acceptance at the end of sign-up" requirement is replaced by the "Standalone Privacy Policy gate before the signup wizard" and "Final wizard step submits without a re-confirmation gate" requirements
 
 ## 9. Password recovery
 
