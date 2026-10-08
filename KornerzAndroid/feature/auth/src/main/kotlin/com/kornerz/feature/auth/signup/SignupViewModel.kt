@@ -38,7 +38,9 @@ class SignupViewModel @Inject constructor(
     fun onEvent(event: SignupEvent) {
         when (event) {
             is SignupEvent.FullNameChanged -> _state.update { it.copy(fullName = event.value) }
-            is SignupEvent.NicknameChanged -> _state.update { it.copy(nickname = event.value) }
+            is SignupEvent.NicknameChanged -> _state.update {
+                it.copy(nickname = event.value, nicknameError = null)
+            }
             is SignupEvent.EmailChanged -> _state.update {
                 it.copy(email = event.value, emailAlreadyInUse = false)
             }
@@ -48,15 +50,22 @@ class SignupViewModel @Inject constructor(
             is SignupEvent.CountrySelected -> _state.update {
                 it.copy(countryDialCode = event.dialCode, countryIso = event.iso)
             }
-            is SignupEvent.LanguageChanged -> _state.update { it.copy(language = event.value) }
+            is SignupEvent.LanguageToggled -> _state.update {
+                val next = it.languages.toMutableSet()
+                if (next.contains(event.code)) next.remove(event.code) else next.add(event.code)
+                it.copy(languages = next)
+            }
             is SignupEvent.InterestToggled -> _state.update {
                 val next = it.interests.toMutableSet()
                 if (next.contains(event.slug)) {
                     next.remove(event.slug)
+                    it.copy(interests = next, interestsError = false)
                 } else if (next.size < 5) {
                     next.add(event.slug)
+                    it.copy(interests = next, interestsError = false)
+                } else {
+                    it.copy(interestsError = true)
                 }
-                it.copy(interests = next)
             }
             is SignupEvent.PhotoSelected -> {
                 _state.update { it.copy(photoUri = event.uri) }
@@ -66,6 +75,22 @@ class SignupViewModel @Inject constructor(
             SignupEvent.Continue -> advance()
             SignupEvent.Back -> back()
             SignupEvent.Submit -> submit()
+            SignupEvent.SuggestNickname -> suggestNickname()
+        }
+    }
+
+    /**
+     * Generates a nickname suggestion from the current full name and
+     * writes it to `state.nickname`. Mirrors iOS
+     * `SignupViewModel.suggestNickName()`: if the full name has exactly
+     * two whitespace-separated tokens, the suggestion is generated from
+     * the first token; otherwise from the entire full-name string.
+     */
+    fun suggestNickname() {
+        val current = _state.value
+        val suggestion = NicknameGenerator.suggestFromFullName(current.fullName)
+        if (suggestion.isNotEmpty()) {
+            _state.update { it.copy(nickname = suggestion, nicknameError = null) }
         }
     }
 
@@ -101,7 +126,12 @@ class SignupViewModel @Inject constructor(
                     password = current.password,
                     phone = current.countryDialCode + current.phone,
                     countryCode = current.countryIso,
-                    language = current.language,
+                    // iOS sends a list (`countries: languages`); the
+                    // current backend DTO accepts a single `language`
+                    // string, so we send the first selected code (or
+                    // "en" as a default fallback). The data model can
+                    // be widened to `List<String>` in a follow-up.
+                    language = current.languages.firstOrNull() ?: "en",
                     interests = current.interests.toList(),
                     photoUrl = null,
                 ),
@@ -136,7 +166,7 @@ class SignupViewModel @Inject constructor(
         savedStateHandle[KEY_PHONE] = state.phone
         savedStateHandle[KEY_COUNTRY_DIAL] = state.countryDialCode
         savedStateHandle[KEY_COUNTRY_ISO] = state.countryIso
-        savedStateHandle[KEY_LANGUAGE] = state.language
+        savedStateHandle[KEY_LANGUAGES] = state.languages.toTypedArray()
         savedStateHandle[KEY_INTERESTS] = state.interests.toTypedArray()
     }
 
@@ -152,7 +182,7 @@ class SignupViewModel @Inject constructor(
             phone = savedStateHandle.get<String>(KEY_PHONE).orEmpty(),
             countryDialCode = savedStateHandle.get<String>(KEY_COUNTRY_DIAL) ?: "+1",
             countryIso = savedStateHandle.get<String>(KEY_COUNTRY_ISO) ?: "US",
-            language = savedStateHandle.get<String>(KEY_LANGUAGE) ?: "en",
+            languages = (savedStateHandle.get<Array<String>>(KEY_LANGUAGES)?.toSet() ?: emptySet()),
             interests = (savedStateHandle.get<Array<String>>(KEY_INTERESTS)?.toSet() ?: emptySet()),
         )
     }
@@ -167,7 +197,7 @@ class SignupViewModel @Inject constructor(
         const val KEY_PHONE = "signup.phone"
         const val KEY_COUNTRY_DIAL = "signup.countryDialCode"
         const val KEY_COUNTRY_ISO = "signup.countryIso"
-        const val KEY_LANGUAGE = "signup.language"
+        const val KEY_LANGUAGES = "signup.languages"
         const val KEY_INTERESTS = "signup.interests"
     }
 }

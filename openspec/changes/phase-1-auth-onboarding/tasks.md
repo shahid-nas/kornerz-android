@@ -67,6 +67,27 @@
 - [x] 8.3 Persist `SignupWizardState` into `SavedStateHandle`; restore from it on process death
 - [x] 8.4 Create a `components/SignupStepScaffold.kt` shared by every wizard step (header + Back/Continue controls per arch §4)
 - [x] 8.5 Implement step 1 Composable: `SignupFullNameStep` using `KornerzTextField`, back disabled, continue disabled until non-blank
+
+### iOS / Android design parity — signup full-name step (amends §8.5)
+
+- [x] 8.5.1 Update `SignupWizardState.isStep1Valid` to mirror iOS `SignupViewModel.isFullNameValid` (≥2 whitespace tokens, each matching `^[a-zA-Z]+(?:[\s\-']*[a-zA-Z]+)*$`)
+- [x] 8.5.2 Create `SignupFullNameContent.kt` that renders step 1 with the iOS-matching layout: full-bleed Aqua `#68B6CC` background, `bg-clouds-light` decoration (250dp / y+60), white Satoshi Medium 24sp title, transparent text field with 2dp white left bar (Satoshi Bold 24sp, white text/placeholder), and a full-width black capsule "Next" CTA
+- [x] 8.5.3 Render the new content only for `state.step == 1` in `SignupScreen.kt`; route `Back` to `SignupEvent.Back`; keep the shared `SignupStepScaffold` for steps 2–8 unchanged
+- [x] 8.5.4 Implement CTA enable/disable: background `#F2F4F6` and label `#9E9EAE` when `state.isStep1Valid == false`, black background / white label otherwise — matches iOS `KornerzButtonStyle` disabled colors
+- [x] 8.5.5 Add `@Preview` light previews for empty and filled `SignupFullNameContent` states
+- [x] 8.5.6 Amend `specs/signup-wizard/spec.md` with the new "Full-name wizard step matches the iOS design 1:1" and "Full-name validation mirrors iOS regex" requirements and the matching scenarios
+
+### iOS / Android design parity — signup wizard steps 2–8 (amends §8.6–§8.13)
+
+- [x] 8.5.7 Extract shared branded composables into `BrandedSignupComponents.kt`: `BrandedSignupScaffold` (Aqua bg + cloud header + back chevron + 32dp padding + Satoshi title slot), `BrandedTextField` / `BrandedPasswordField` (2dp white left bar, Satoshi Bold 24sp white text), `BlackCapsuleButton` / `BorderedCapsuleButton` (Satoshi Bold 16sp, iOS `KornerzButtonStyle` disabled palette `#F2F4F6` / `#9E9EAE`), and `SelectableCapsuleGrid` (2-col LazyVerticalGrid for the language/interests steps)
+- [x] 8.5.8 Rewrite `SignupSteps.kt` to use the branded scaffold for every step: nickname (title "Choose a nickname", Suggest + Next in an HStack), email ("What is your email?", email keyboard, "This email is already registered" error), password ("Create a password with at least 6 digits", two branded password fields with eye toggles, "At least 6 characters." hint), phone ("What is your phone number?", country code bordered capsule + phone field, Skip + Next in an HStack, `CountryCodePickerSheet` modal), language (2-col grid of capsules, multi-select, default 10-item catalog mirroring iOS `SignupViewModel.allLanguages`), interests (2-col grid of capsules from `KornerInterestRepository`, multi-select with 5-item cap), photo (150dp black rounded square with "Add Photo", Skip + Next in an HStack)
+- [x] 8.5.9 Update `SignupContract.kt`: replace `language: String` with `languages: Set<String>`; add `nicknameError: String?` and `interestsError: Boolean`; add `LanguageToggled` event; rewrite `isStep5Valid` to mirror iOS `SignupViewModel.isPhoneNoValid` (full `+` prefixed 10–15 digit number after stripping spaces/hyphens/parentheses); update `isStep6Valid` to require at least one language
+- [x] 8.5.10 Update `SignupViewModel.kt` to handle `LanguageToggled` and the new `interestsError` / `nicknameError` flags; persist + restore `languages` (replacing the old single `language` key); submit the first selected language code to the existing `SignupRequest.language` field (the `language: List<String>` widening to match iOS `User.countries` is deferred to a follow-up)
+- [x] 8.5.11 Rewrite `SignupScreen.kt` to route steps 1–8 each to their own branded content composable with `onBack` and per-step arguments (e.g. `onSuggestNickname` for step 2, `countryRepository` for step 5, `interestsRepository` for step 7)
+- [x] 8.5.12 Remove the obsolete M3 `SignupStepScaffold.kt`
+- [x] 8.5.13 Amend `specs/signup-wizard/spec.md` with the "Every wizard step renders the iOS branded layout" master requirement plus per-step requirements 2–8 and matching scenarios
+
+
 - [x] 8.6 Implement step 2 Composable: `SignupNicknameStep` using `KornerzTextField`
 - [x] 8.7 Implement step 3 Composable: `SignupEmailStep` using `KornerzTextField`; on `AsyncValue.Error` from `AuthRepository.signup`, surfaces "This email is already registered"
 - [x] 8.8 Implement step 4 Composable: `SignupPasswordStep` using two `KornerzPasswordField` instances with the password rule UI

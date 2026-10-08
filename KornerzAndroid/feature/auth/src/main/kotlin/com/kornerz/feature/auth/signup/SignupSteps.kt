@@ -5,21 +5,22 @@
 
 package com.kornerz.feature.auth.signup
 
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.material3.FilterChip
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -30,124 +31,207 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.kornerz.core.model.AsyncValue
 import com.kornerz.core.model.Country
 import com.kornerz.core.model.KornerInterest
 import com.kornerz.core.storage.country.CountryCodesRepository
 import com.kornerz.core.storage.interests.KornerInterestRepository
 import com.kornerz.core.ui.components.AsyncValueContent
-import com.kornerz.core.ui.components.KornerzAvatar
-import com.kornerz.core.ui.components.KornerzButton
-import com.kornerz.core.ui.components.KornerzOtpTextField
-import com.kornerz.core.ui.components.KornerzPasswordField
-import com.kornerz.core.ui.components.KornerzTextField
 import com.kornerz.core.ui.components.rememberKornerzImagePicker
-import com.kornerz.core.ui.theme.Spacing
+import com.kornerz.core.ui.theme.Satoshi
 
-// ─────────────────────────────────────────────────────────────────────────
-// Step composables
-// ─────────────────────────────────────────────────────────────────────────
+// ─── iOS-matching branded step content ────────────────────────────────────
+//
+// Every step below mirrors the corresponding iOS view in
+// kornerz/.../Signup/Views/*.swift 1:1 — Aqua #68B6CC background, cloud
+// decoration, white Satoshi title, transparent bar text field, black
+// capsule "Next" CTA. All steps use the shared [BrandedSignupScaffold].
 
-@Composable
-fun SignupFullNameStep(state: SignupWizardState, onEvent: (SignupEvent) -> Unit) {
-    KornerzTextField(
-        value = state.fullName,
-        onValueChange = { onEvent(SignupEvent.FullNameChanged(it)) },
-        label = "Full name",
-        supportingText = "First and last name",
-    )
-}
+// ── Step 2 — Nickname ──────────────────────────────────────────────────────
 
 @Composable
-fun SignupNicknameStep(state: SignupWizardState, onEvent: (SignupEvent) -> Unit) {
-    KornerzTextField(
-        value = state.nickname,
-        onValueChange = { onEvent(SignupEvent.NicknameChanged(it)) },
-        label = "Nickname",
-        supportingText = "3-20 chars, letters / numbers / underscores",
-    )
-}
-
-@Composable
-fun SignupEmailStep(state: SignupWizardState, onEvent: (SignupEvent) -> Unit) {
-    Column {
-        KornerzTextField(
-            value = state.email,
-            onValueChange = { onEvent(SignupEvent.EmailChanged(it)) },
-            label = "Email",
+fun SignupNicknameStep(
+    state: SignupWizardState,
+    onEvent: (SignupEvent) -> Unit,
+    onBack: () -> Unit,
+    onSuggestNickname: () -> Unit,
+) {
+    BrandedSignupScaffold(
+        title = "Choose a nickname",
+        onBack = onBack,
+    ) {
+        BrandedTextField(
+            value = state.nickname,
+            onValueChange = { onEvent(SignupEvent.NicknameChanged(it)) },
+            placeholder = "Nickname",
             keyboardType = KeyboardType.Email,
-            isError = state.emailAlreadyInUse,
-            errorText = if (state.emailAlreadyInUse) "This email is already registered" else null,
+            capitalization = KeyboardCapitalization.None,
+            imeAction = ImeAction.Done,
         )
-        if (state.emailAlreadyInUse) {
-            Spacer(Modifier.height(Spacing.space2))
+        if (state.nicknameError != null) {
             Text(
-                text = "Sign in instead or use a different email address.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                text = state.nicknameError,
+                color = Color.Red,
+                fontFamily = Satoshi,
+                fontWeight = FontWeight.Normal,
+                fontSize = 14.sp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            BorderedCapsuleButton(
+                text = "Suggest nickname",
+                onClick = onSuggestNickname,
+                color = Color.Black,
+            )
+            BlackCapsuleButton(
+                text = "Next",
+                onClick = { onEvent(SignupEvent.Continue) },
+                enabled = state.isStep2Valid,
             )
         }
     }
 }
 
+// ── Step 3 — Email ────────────────────────────────────────────────────────
+
 @Composable
-fun SignupPasswordStep(state: SignupWizardState, onEvent: (SignupEvent) -> Unit) {
-    Column {
-        KornerzPasswordField(
-            value = state.password,
-            onValueChange = { onEvent(SignupEvent.PasswordChanged(it)) },
-            label = "Password",
+fun SignupEmailStep(
+    state: SignupWizardState,
+    onEvent: (SignupEvent) -> Unit,
+    onBack: () -> Unit,
+) {
+    BrandedSignupScaffold(
+        title = "What is your email?",
+        onBack = onBack,
+    ) {
+        BrandedTextField(
+            value = state.email,
+            onValueChange = { onEvent(SignupEvent.EmailChanged(it)) },
+            placeholder = "Valid email",
+            keyboardType = KeyboardType.Email,
+            capitalization = KeyboardCapitalization.None,
+            imeAction = ImeAction.Next,
         )
-        Spacer(Modifier.height(Spacing.space6))
-        KornerzPasswordField(
-            value = state.confirmPassword,
-            onValueChange = { onEvent(SignupEvent.ConfirmPasswordChanged(it)) },
-            label = "Confirm password",
-            isError = state.confirmPassword.isNotEmpty() && state.password != state.confirmPassword,
-            errorText = if (state.confirmPassword.isNotEmpty() && state.password != state.confirmPassword) {
-                "Passwords do not match"
-            } else null,
-        )
-        Spacer(Modifier.height(Spacing.space4))
-        Text(
-            text = "At least 6 characters. Use a unique phrase.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        if (state.emailAlreadyInUse) {
+            Text(
+                text = "This email is already registered",
+                color = Color.Red,
+                fontFamily = Satoshi,
+                fontWeight = FontWeight.Normal,
+                fontSize = 14.sp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+            )
+        }
+        BlackCapsuleButton(
+            text = "Next",
+            onClick = { onEvent(SignupEvent.Continue) },
+            enabled = state.isStep3Valid && !state.emailAlreadyInUse,
         )
     }
 }
+
+// ── Step 4 — Password ─────────────────────────────────────────────────────
+
+@Composable
+fun SignupPasswordStep(
+    state: SignupWizardState,
+    onEvent: (SignupEvent) -> Unit,
+    onBack: () -> Unit,
+) {
+    BrandedSignupScaffold(
+        title = "Create a password with at least 6 digits",
+        onBack = onBack,
+    ) {
+        BrandedPasswordField(
+            value = state.password,
+            onValueChange = { onEvent(SignupEvent.PasswordChanged(it)) },
+            placeholder = "Password",
+            imeAction = ImeAction.Next,
+        )
+        BrandedPasswordField(
+            value = state.confirmPassword,
+            onValueChange = { onEvent(SignupEvent.ConfirmPasswordChanged(it)) },
+            placeholder = "Confirm password",
+            imeAction = ImeAction.Done,
+        )
+        Text(
+            text = "At least 6 characters.",
+            color = Color.White.copy(alpha = 0.8f),
+            fontFamily = Satoshi,
+            fontWeight = FontWeight.Normal,
+            fontSize = 12.sp,
+        )
+        BlackCapsuleButton(
+            text = "Next",
+            onClick = { onEvent(SignupEvent.Continue) },
+            enabled = state.isStep4Valid,
+        )
+    }
+}
+
+// ── Step 5 — Phone ────────────────────────────────────────────────────────
 
 @Composable
 fun SignupPhoneStep(
     state: SignupWizardState,
     onEvent: (SignupEvent) -> Unit,
+    onBack: () -> Unit,
     repository: CountryCodesRepository,
 ) {
     var showSheet by remember { mutableStateOf(false) }
 
-    Column {
+    BrandedSignupScaffold(
+        title = "What is your phone number?",
+        onBack = onBack,
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(Spacing.space4),
-            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            OutlinedButton(
+            BorderedCapsuleButton(
+                text = state.countryDialCode,
                 onClick = { showSheet = true },
-                modifier = Modifier.widthIn(min = 96.dp),
-            ) {
-                Text(
-                    text = state.countryDialCode,
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-            }
-            KornerzTextField(
+                color = Color.White,
+            )
+            BrandedTextField(
                 value = state.phone,
                 onValueChange = { onEvent(SignupEvent.PhoneChanged(it)) },
-                label = "Phone number",
+                placeholder = "Phone Number",
                 keyboardType = KeyboardType.Phone,
+                capitalization = KeyboardCapitalization.None,
+                imeAction = ImeAction.Done,
                 modifier = Modifier.weight(1f),
+            )
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            BorderedCapsuleButton(
+                text = "Skip",
+                onClick = { onEvent(SignupEvent.Continue) },
+                color = Color.Black,
+            )
+            BlackCapsuleButton(
+                text = "Next",
+                onClick = { onEvent(SignupEvent.Continue) },
+                enabled = state.isStep5Valid,
             )
         }
     }
@@ -190,14 +274,13 @@ private fun CountryCodePickerSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = Spacing.space8),
+                .padding(horizontal = 16.dp),
         ) {
             Text(
-                text = "Select country code",
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface,
+                text = "Select Country Code",
+                style = androidx.compose.material3.MaterialTheme.typography.titleLarge,
+                color = androidx.compose.material3.MaterialTheme.colorScheme.onSurface,
             )
-            Spacer(Modifier.height(Spacing.space4))
             AsyncValueContent(
                 value = loaded,
                 onRetry = { loaded = AsyncValue.Loading },
@@ -208,70 +291,81 @@ private fun CountryCodePickerSheet(
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .selectable(
-                                    selected = selected,
-                                    onClick = { onSelect(country) },
-                                )
-                                .padding(vertical = Spacing.space4),
+                                .padding(vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
                                 text = country.name,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = if (selected) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.onSurface,
+                                fontFamily = Satoshi,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 16.sp,
+                                color = if (selected) Color(0xFF5D47ED) else Color.Black,
                                 modifier = Modifier.weight(1f),
                             )
                             Text(
                                 text = country.dialCode,
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = if (selected) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontFamily = Satoshi,
+                                fontWeight = FontWeight.Medium,
+                                fontSize = 16.sp,
+                                color = if (selected) Color(0xFF5D47ED)
+                                else Color(0xFF9E9EAE),
                             )
                         }
                     }
                 }
             }
-            Spacer(Modifier.height(Spacing.space8))
         }
     }
 }
 
+// ── Step 6 — Language ─────────────────────────────────────────────────────
+
+private val DefaultLanguages = listOf(
+    "en" to "English",
+    "pt-BR" to "Portuguese",
+    "es" to "Spanish",
+    "it" to "Italian",
+    "fr" to "French",
+    "de" to "German",
+    "ru" to "Russian",
+    "ja" to "Japanese",
+    "ar" to "Arabic",
+    "zh" to "Mandarin",
+)
+
 @Composable
-fun SignupLanguageStep(state: SignupWizardState, onEvent: (SignupEvent) -> Unit) {
-    val languages = listOf(
-        "en" to "English",
-        "pt-BR" to "Portuguese (Brazil)",
-    )
-    Column {
-        for ((code, label) in languages) {
-            val selected = state.language == code
-            androidx.compose.material3.Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .selectable(
-                        selected = selected,
-                        onClick = { onEvent(SignupEvent.LanguageChanged(code)) },
-                    ),
-                color = if (selected) MaterialTheme.colorScheme.primaryContainer
-                else MaterialTheme.colorScheme.surface,
-            ) {
-                Text(
-                    text = label,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
-                    else MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(Spacing.space8),
-                )
-            }
-        }
+fun SignupLanguageStep(
+    state: SignupWizardState,
+    onEvent: (SignupEvent) -> Unit,
+    onBack: () -> Unit,
+) {
+    val languages = remember { DefaultLanguages }
+    BrandedSignupScaffold(
+        title = "Which languages are you able to communicate easily?",
+        onBack = onBack,
+    ) {
+        SelectableCapsuleGrid(
+            items = languages,
+            isSelected = { state.languages.contains(it.first) },
+            label = { it.second },
+            onToggle = { onEvent(SignupEvent.LanguageToggled(it.first)) },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        BlackCapsuleButton(
+            text = "Next",
+            onClick = { onEvent(SignupEvent.Continue) },
+            enabled = state.isStep6Valid,
+        )
     }
 }
+
+// ── Step 7 — Interests (Kornerz) ──────────────────────────────────────────
 
 @Composable
 fun SignupInterestsStep(
     state: SignupWizardState,
     onEvent: (SignupEvent) -> Unit,
+    onBack: () -> Unit,
     repository: KornerInterestRepository,
 ) {
     var loaded by remember { mutableStateOf<AsyncValue<List<KornerInterest>>>(AsyncValue.Loading) }
@@ -281,74 +375,101 @@ fun SignupInterestsStep(
             onFailure = { AsyncValue.Error(it) },
         )
     }
-    AsyncValueContent(value = loaded, onRetry = { loaded = AsyncValue.Loading }) { items ->
-        Column {
-            Text(
-                text = "Pick 1 to 5 favorites",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(Spacing.space4))
-            androidx.compose.foundation.layout.FlowRow(
+    BrandedSignupScaffold(
+        title = "Pick your Korners. Which topics are you interested in?",
+        onBack = onBack,
+    ) {
+        AsyncValueContent(
+            value = loaded,
+            onRetry = { loaded = AsyncValue.Loading },
+        ) { interests ->
+            SelectableCapsuleGrid(
+                items = interests,
+                isSelected = { state.interests.contains(it.slug) },
+                label = { it.title },
+                onToggle = { onEvent(SignupEvent.InterestToggled(it.slug)) },
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(Spacing.space4),
-                verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(Spacing.space4),
-            ) {
-                items.forEach { interest ->
-                    val selected = state.interests.contains(interest.slug)
-                    FilterChip(
-                        selected = selected,
-                        onClick = { onEvent(SignupEvent.InterestToggled(interest.slug)) },
-                        label = { Text(interest.title) },
-                    )
-                }
-            }
-            if (state.interests.size >= 5) {
-                Spacer(Modifier.height(Spacing.space4))
-                Text(
-                    text = "You can pick up to 5 favorites",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
-                )
-            }
+            )
         }
+        if (state.interestsError) {
+            Text(
+                text = "You can pick up to 5 favorites",
+                color = Color.White,
+                fontFamily = Satoshi,
+                fontWeight = FontWeight.Normal,
+                fontSize = 12.sp,
+            )
+        }
+        BlackCapsuleButton(
+            text = "Next",
+            onClick = { onEvent(SignupEvent.Continue) },
+            enabled = state.isStep7Valid,
+        )
     }
 }
 
+// ── Step 8 — Photo ────────────────────────────────────────────────────────
+
 @Composable
-fun SignupPhotoStep(state: SignupWizardState, onEvent: (SignupEvent) -> Unit) {
+fun SignupPhotoStep(
+    state: SignupWizardState,
+    onEvent: (SignupEvent) -> Unit,
+    onBack: () -> Unit,
+) {
     val picker = rememberKornerzImagePicker { uri ->
         onEvent(SignupEvent.PhotoSelected(uri))
     }
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        KornerzAvatar(previewUri = state.photoUri)
-        Spacer(Modifier.height(Spacing.space6))
-        KornerzButton(
-            text = "Choose from gallery",
-            onClick = {
-                picker.launch(
-                    androidx.activity.result.PickVisualMediaRequest(
-                        ActivityResultContractsPickImage,
-                    ),
+    val pickImageOnly = remember {
+        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+    }
+    BrandedSignupScaffold(
+        title = "Add a photo",
+        onBack = onBack,
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            // iOS uses a 150x150 black rounded square (corner radius 32)
+            // rotated 45° with "Add Photo" in the center. We replicate
+            // the rounded square (without the 45° rotation so the label
+            // stays readable) and tap-to-pick.
+            Box(
+                modifier = Modifier
+                    .size(150.dp)
+                    .background(
+                        color = Color.Black,
+                        shape = RoundedCornerShape(32.dp),
+                    )
+                    .clickable { picker.launch(pickImageOnly) },
+                contentAlignment = Alignment.Center,
+            ) {
+                val hasPhoto = state.photoUri != null
+                Text(
+                    text = if (hasPhoto) "Photo selected" else "Add Photo",
+                    color = Color.White,
+                    fontFamily = Satoshi,
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 16.sp,
                 )
-            },
-            style = com.kornerz.core.ui.components.KornerzButtonStyle.Outlined,
-        )
-        if (state.photoUpload is AsyncValue.Error) {
-            Spacer(Modifier.height(Spacing.space4))
-            Text(
-                text = "Upload failed — retry",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
+            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            BorderedCapsuleButton(
+                text = "Skip",
+                onClick = { onEvent(SignupEvent.Continue) },
+                color = Color.Black,
             )
-            KornerzButton(
-                text = "Retry upload",
-                onClick = { onEvent(SignupEvent.PhotoUploadRetry) },
-                style = com.kornerz.core.ui.components.KornerzButtonStyle.Text,
+            BlackCapsuleButton(
+                text = "Next",
+                onClick = { onEvent(SignupEvent.Continue) },
+                enabled = state.isStep8Valid,
             )
         }
     }
 }
-
-private val ActivityResultContractsPickImage =
-    androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly
