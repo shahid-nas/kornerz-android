@@ -21,6 +21,11 @@ import com.kornerz.feature.auth.welcome.WelcomeScreen
  * navigate within the auth graph (architecture §2.4 — ViewModels never
  * touch the controller directly).
  *
+ * [onNavigateToShellGraph] is invoked by the Login screen after a
+ * successful sign-in; the root NavHost implements it by clearing the
+ * back-stack and navigating to the shell graph (mirrors the
+ * `SplashScreen` callback pattern).
+ *
  * `WelcomeScreen` is the entry destination for unauthenticated users
  * (mirrors the iOS `SplashScreen` in `kornerz/Kornerz/SwiftUI/OnBoarding/Splash/`).
  */
@@ -28,6 +33,7 @@ fun NavGraphBuilder.authGraph(
     navController: NavHostController,
     countryRepository: CountryCodesRepository,
     interestsRepository: KornerInterestRepository,
+    onNavigateToShellGraph: () -> Unit,
 ) {
     navigation(
         route = AUTH_GRAPH_ROUTE,
@@ -37,7 +43,10 @@ fun NavGraphBuilder.authGraph(
             WelcomeScreen(navController = navController)
         }
         composable(AuthRoute.Login.route) {
-            LoginScreen(navController = navController)
+            LoginScreen(
+                navController = navController,
+                onNavigateToShellGraph = onNavigateToShellGraph,
+            )
         }
         composable(
             route = AuthRoute.Signup.route,

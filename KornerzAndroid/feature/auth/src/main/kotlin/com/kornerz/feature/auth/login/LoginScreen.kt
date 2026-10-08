@@ -16,15 +16,18 @@ import com.kornerz.feature.auth.AuthRoute
  * the controller directly (architecture §2.4).
  *
  * Navigation semantics:
- * - `NavigateToShell` — the root NavHost owns the auth→shell swap. This
- *   screen pops the auth back-stack so the user can't accidentally
- *   navigate back into Login after signing in.
+ * - `NavigateToShell` — the root NavHost owns the cross-graph swap; we
+ *   hand it the [onNavigateToShellGraph] callback so the auth feature
+ *   never has to know about the shell route. The callback is expected
+ *   to `popUpTo(0) { inclusive = true }` so the back-stack is cleared
+ *   and the user can't navigate back into the auth flow.
  * - `NavigateToForgotPassword` — push the matching route within the
  *   auth graph.
  */
 @Composable
 fun LoginScreen(
     navController: NavHostController,
+    onNavigateToShellGraph: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: LoginViewModel = hiltViewModel(),
 ) {
@@ -33,12 +36,7 @@ fun LoginScreen(
     LaunchedEffect(Unit) {
         viewModel.navEvents.collect { event ->
             when (event) {
-                LoginNavEvent.NavigateToShell -> {
-                    navController.popBackStack(
-                        route = AuthRoute.Welcome.route,
-                        inclusive = true,
-                    )
-                }
+                LoginNavEvent.NavigateToShell -> onNavigateToShellGraph()
                 LoginNavEvent.NavigateToSignup -> navController.navigate(
                     AuthRoute.Signup.build(step = 1),
                 )

@@ -47,6 +47,17 @@ fun AppRoot(
     val forceUpdateState by forceUpdateViewModel.state.collectAsStateWithLifecycle()
     val applicationId = LocalContext.current.packageName
 
+    val navigateToAuthGraph: () -> Unit = {
+        navController.navigate(AUTH_GRAPH_ROUTE) {
+            popUpTo(0) { inclusive = true }
+        }
+    }
+    val navigateToShellGraph: () -> Unit = {
+        navController.navigate(Routes.SHELL_GRAPH) {
+            popUpTo(0) { inclusive = true }
+        }
+    }
+
     NavHost(
         navController = navController,
         startDestination = Routes.SPLASH,
@@ -54,29 +65,18 @@ fun AppRoot(
         composable(Routes.SPLASH) {
             SplashScreen(
                 navController = navController,
-                onNavigateToAuthGraph = {
-                    navController.navigate(AUTH_GRAPH_ROUTE) {
-                        popUpTo(0) { inclusive = true }
-                    }
-                },
-                onNavigateToShellGraph = {
-                    navController.navigate(Routes.SHELL_GRAPH) {
-                        popUpTo(0) { inclusive = true }
-                    }
-                },
+                onNavigateToAuthGraph = navigateToAuthGraph,
+                onNavigateToShellGraph = navigateToShellGraph,
             )
         }
         authGraph(
             navController = navController,
             countryRepository = countryRepository,
             interestsRepository = interestsRepository,
+            onNavigateToShellGraph = navigateToShellGraph,
         )
         composable(Routes.SHELL_GRAPH) {
-            AppShell(onLogout = {
-                navController.navigate(AUTH_GRAPH_ROUTE) {
-                    popUpTo(0) { inclusive = true }
-                }
-            })
+            AppShell(onLogout = navigateToAuthGraph)
         }
     }
 
