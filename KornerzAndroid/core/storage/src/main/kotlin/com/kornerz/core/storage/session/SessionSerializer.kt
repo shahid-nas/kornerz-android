@@ -2,6 +2,7 @@ package com.kornerz.core.storage.session
 
 import androidx.datastore.core.CorruptionException
 import androidx.datastore.core.Serializer
+import com.kornerz.core.model.User
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import java.io.InputStream
@@ -20,11 +21,18 @@ object SessionSerializer : Serializer<SessionRecord> {
         encodeDefaults = true
     }
 
-    override val defaultValue: SessionRecord
-        get() = throw UnsupportedOperationException(
-            "SessionStorage has no meaningful default; absence of a record " +
-                "should be modelled as a missing file.",
-        )
+    /**
+     * Materialised by DataStore on the very first read/write when the
+     * file does not yet exist (fresh install, or after the corruption
+     * handler replaces a missing/garbled file). An empty record maps to
+     * [SessionState.Anonymous] in `SessionRepository.toState`, matching
+     * the shape `clearSession()` writes when the user signs out.
+     */
+    override val defaultValue: SessionRecord = SessionRecord(
+        token = "",
+        expiresAt = "",
+        user = User(id = "", email = "", displayName = "", nickname = ""),
+    )
 
     override suspend fun readFrom(input: InputStream): SessionRecord {
         try {

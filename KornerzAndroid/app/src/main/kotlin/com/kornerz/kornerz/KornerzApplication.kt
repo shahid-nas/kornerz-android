@@ -16,8 +16,10 @@ import javax.inject.Inject
  * application module.
  *
  * On startup we:
- * 1. Initialize the Firebase SDK against the project declared in
- *    `app/google-services.json`.
+ * 1. Initialize the Firebase SDK against the project declared in the
+ *    active flavor's `google-services.json`:
+ *    - `dev` flavor  → `app/src/dev/google-services.json`  (staging)
+ *    - `prod` flavor → `app/src/prod/google-services.json` (production)
  * 2. Set the in-app default values for Remote Config so the splash
  *    Composable can read `android_min_supported_version` without a
  *    network round-trip on first launch.

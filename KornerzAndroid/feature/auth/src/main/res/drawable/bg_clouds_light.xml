@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Source: kornerz/Kornerz/Resources/Assets.xcassets/Auth/bg-clouds-light.imageset/klouders_illustration.svg
+  Transcribed to an Android Vector Drawable so the Login screen can match
+  the iOS `CloudHeaderView` exactly. Two tiny 1px sparkle lines from the
+  SVG were intentionally omitted as they are not visible at typical
+  resolutions.
+  Opacity 0.3 → #4D, 0.2 → #33 (hex alpha).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="391dp"
+    android:height="360dp"
+    android:viewportWidth="391"
+    android:viewportHeight="360">
+
+    <path
+        android:fillColor="#4DFFFBF5"
+        android:pathData="M100.755,75.8721 L210.074,185.191 C222.246,197.363 213.626,218.185 196.404,218.185 L-26.6377,218.185 C-43.8589,218.185 -52.4794,197.363 -40.3075,185.191 L69.0113,75.8721 C77.7806,67.1028 91.9861,67.1028 100.755,75.8721 Z" />
+
+    <path
+        android:fillColor="#4DFFFBF5"
+        android:pathData="M327.49,10.6069 L379.88,62.9966 C385.713,68.8299 381.581,78.8086 373.328,78.8086 L266.438,78.8086 C258.185,78.8086 254.054,68.8299 259.887,62.9966 L312.277,10.6069 C316.479,6.40433 323.287,6.40433 327.49,10.6069 Z" />
+
+    <path
+        android:fillColor="#4DFFFBF5"
+        android:pathData="M217.309,-22.6327 L356.455,116.513 C371.948,132.006 360.975,158.509 339.055,158.509 L55.1578,158.509 C33.238,158.509 22.2654,132.006 37.7583,116.513 L176.904,-22.6327 C188.066,-33.7946 206.147,-33.7946 217.309,-22.6327 Z" />
+
+    <path
+        android:fillColor="#33FFFBF5"
+        android:pathData="M267.755,97.8726 L377.074,207.191 C389.246,219.363 380.625,240.185 363.404,240.185 L140.362,240.185 C123.141,240.185 114.521,219.363 126.692,207.191 L236.011,97.8726 C244.781,89.1032 258.986,89.1032 267.755,97.8726 Z" />
+
+</vector>

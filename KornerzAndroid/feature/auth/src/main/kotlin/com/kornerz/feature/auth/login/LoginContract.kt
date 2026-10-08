@@ -6,7 +6,7 @@ import com.kornerz.core.model.AsyncValue
 data class LoginState(
     val email: String = "",
     val password: String = "",
-    val submit: AsyncValue<Unit> = AsyncValue.Loading,
+    val submit: AsyncValue<Unit> = AsyncValue.Success(Unit),
 ) {
     val isFormValid: Boolean
         get() = email.contains("@") && password.isNotEmpty()
@@ -20,8 +20,6 @@ sealed interface LoginEvent {
     data class PasswordChanged(val value: String) : LoginEvent
 
     data object Submit : LoginEvent
-
-    data object CreateAccount : LoginEvent
 
     data object ForgotPassword : LoginEvent
 }

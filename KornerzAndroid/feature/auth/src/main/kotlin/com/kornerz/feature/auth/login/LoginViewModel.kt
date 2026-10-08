@@ -36,14 +36,11 @@ class LoginViewModel @Inject constructor(
         when (event) {
             is LoginEvent.EmailChanged -> _state.value = _state.value.copy(
                 email = event.value,
-                submit = AsyncValue.Loading,
             )
             is LoginEvent.PasswordChanged -> _state.value = _state.value.copy(
                 password = event.value,
-                submit = AsyncValue.Loading,
             )
             LoginEvent.Submit -> submit()
-            LoginEvent.CreateAccount -> _navEvents.trySend(LoginNavEvent.NavigateToSignup)
             LoginEvent.ForgotPassword -> _navEvents.trySend(LoginNavEvent.NavigateToForgotPassword)
         }
     }

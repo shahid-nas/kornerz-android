@@ -23,20 +23,34 @@ KornerzAndroid/
 
 ## Build flavors
 
-| Flavor | applicationId              | app name      |
-|--------|----------------------------|---------------|
-| `dev`  | `com.kornerz.app.dev`      | `Kornerz Dev` |
-| `prod` | `com.kornerz.app`          | `Kornerz`     |
+| Flavor | applicationId              | app name      | Firebase project |
+|--------|----------------------------|---------------|------------------|
+| `dev`  | `com.kornerz.kornerz.dev`  | `Kornerz Dev` | **staging**      |
+| `prod` | `com.kornerz.kornerz`      | `Kornerz`     | **production**   |
 
 The `dev` flavor installs side-by-side with `prod` so QA can compare.
+`dev` always points at the **staging** Firebase project so a developer
+build can never accidentally read or write production data — flip to
+the `prod` build variant explicitly when you want to hit production.
+
+### Per-flavor Firebase config
+
+The `com.google.gms.google-services` Gradle plugin picks the right
+`google-services.json` based on the active flavor:
+
+- `app/src/dev/google-services.json`  → staging project
+- `app/src/prod/google-services.json` → production project (committed)
+
+The dev config is **not** committed — see `app/src/dev/README.md` for
+how to obtain and install it.
 
 ## Build commands
 
 From `KornerzAndroid/`:
 
 ```bash
-./gradlew :app:assembleDevDebug      # build dev APK
-./gradlew :app:assembleProdDebug     # build prod APK
+./gradlew :app:assembleDevDebug      # build dev APK (staging)
+./gradlew :app:assembleProdDebug     # build prod APK (production)
 ./gradlew :app:installDevDebug       # install on a connected device
 ./gradlew :app:lintDevDebug          # run lint
 ```
@@ -58,10 +72,23 @@ the repo can be built without further setup. CI installs Gradle via
 
 ## Firebase
 
-`app/google-services.json` is committed at the project root (it
-contains public OAuth client IDs, not secrets). The Android team
-needs Editor access to `kornerz-72fba` to upload the production
-config; the file committed here is the dev project.
+`google-services.json` files contain public OAuth client IDs, package
+names, and the Android API key — none of these are secrets for a
+mobile client (they're shipped in the APK). Security lives in Firebase
+Security Rules + API key restrictions in the GCP / Firebase console.
+
+| File                                   | Project     | Committed? |
+|----------------------------------------|-------------|------------|
+| `app/src/prod/google-services.json`    | production  | yes        |
+| `app/src/dev/google-services.json`     | staging     | no — see `app/src/dev/README.md` |
+
+To verify which project a given build is connecting to at runtime,
+check logcat:
+
+```
+adb logcat -s KornerzApplication:I
+I/KornerzApplication: FirebaseApp initialized for project=<id>
+```
 
 ## CI
 

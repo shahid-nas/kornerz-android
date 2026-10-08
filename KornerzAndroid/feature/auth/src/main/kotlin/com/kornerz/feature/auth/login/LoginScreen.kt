@@ -1,11 +1,8 @@
 package com.kornerz.feature.auth.login
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -22,8 +19,8 @@ import com.kornerz.feature.auth.AuthRoute
  * - `NavigateToShell` — the root NavHost owns the auth→shell swap. This
  *   screen pops the auth back-stack so the user can't accidentally
  *   navigate back into Login after signing in.
- * - `NavigateToSignup` / `NavigateToForgotPassword` — push the matching
- *   route within the auth graph.
+ * - `NavigateToForgotPassword` — push the matching route within the
+ *   auth graph.
  */
 @Composable
 fun LoginScreen(
@@ -52,7 +49,5 @@ fun LoginScreen(
         }
     }
 
-    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        LoginContent(state = state, onEvent = viewModel::onEvent)
-    }
+    LoginContent(state = state, onEvent = viewModel::onEvent, modifier = modifier)
 }
