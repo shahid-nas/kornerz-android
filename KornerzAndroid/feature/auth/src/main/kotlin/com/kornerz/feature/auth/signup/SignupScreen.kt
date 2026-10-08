@@ -43,10 +43,10 @@ fun SignupScreen(
     SignupStepScaffold(
         title = stepTitle(state.step),
         stepNumber = state.step,
-        totalSteps = 9,
+        totalSteps = 8,
         state = state,
         onEvent = viewModel::onEvent,
-        continueLabel = if (state.step == 9) "Create account" else "Continue",
+        continueLabel = if (state.step == 8) "Create account" else "Continue",
         modifier = modifier,
     ) {
         when (state.step) {
@@ -54,11 +54,10 @@ fun SignupScreen(
             2 -> SignupNicknameStep(state, viewModel::onEvent)
             3 -> SignupEmailStep(state, viewModel::onEvent)
             4 -> SignupPasswordStep(state, viewModel::onEvent)
-            5 -> SignupPhoneStep(state, viewModel::onEvent)
-            6 -> SignupCountryCodeStep(state, viewModel::onEvent, countryRepository)
-            7 -> SignupLanguageStep(state, viewModel::onEvent)
-            8 -> SignupInterestsStep(state, viewModel::onEvent, interestsRepository)
-            9 -> SignupPhotoStep(state, viewModel::onEvent)
+            5 -> SignupPhoneStep(state, viewModel::onEvent, countryRepository)
+            6 -> SignupLanguageStep(state, viewModel::onEvent)
+            7 -> SignupInterestsStep(state, viewModel::onEvent, interestsRepository)
+            8 -> SignupPhotoStep(state, viewModel::onEvent)
         }
     }
 }
@@ -69,9 +68,8 @@ private fun stepTitle(step: Int): String = when (step) {
     3 -> "What's your email?"
     4 -> "Create a password"
     5 -> "Add your phone number"
-    6 -> "Choose your country"
-    7 -> "Choose your language"
-    8 -> "Pick your favorites"
-    9 -> "Add a photo"
+    6 -> "Choose your language"
+    7 -> "Pick your favorites"
+    8 -> "Add a photo"
     else -> ""
 }

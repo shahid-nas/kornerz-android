@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * Single ViewModel for the 9-step signup wizard. Holds a
+ * Single ViewModel for the 8-step signup wizard. Holds a
  * [SignupWizardState] across configuration changes and process death
  * using [SavedStateHandle] (architecture §8.3). Emits navigation through
  * [SignupNavEvent] on `Channel<NavEvent>`.
@@ -58,8 +58,9 @@ class SignupViewModel @Inject constructor(
                 }
                 it.copy(interests = next)
             }
-            is SignupEvent.PhotoSelected -> _state.update {
-                it.copy(photoUri = event.uri, photoUpload = AsyncValue.Loading)
+            is SignupEvent.PhotoSelected -> {
+                _state.update { it.copy(photoUri = event.uri) }
+                uploadPhoto()
             }
             SignupEvent.PhotoUploadRetry -> uploadPhoto()
             SignupEvent.Continue -> advance()
@@ -71,7 +72,9 @@ class SignupViewModel @Inject constructor(
     private fun advance() {
         val current = _state.value
         if (!current.canContinue) return
-        persist(current.copy(step = current.step + 1))
+        val next = current.copy(step = current.step + 1)
+        _state.update { next }
+        persist(next)
     }
 
     private fun back() {
@@ -80,12 +83,14 @@ class SignupViewModel @Inject constructor(
             _navEvents.trySend(SignupNavEvent.NavigateBack)
             return
         }
-        persist(current.copy(step = current.step - 1))
+        val next = current.copy(step = current.step - 1)
+        _state.update { next }
+        persist(next)
     }
 
     private fun submit() {
         val current = _state.value
-        if (!current.isStep9Valid) return
+        if (!current.isStep8Valid) return
         _state.update { it.copy(submit = AsyncValue.Loading) }
         viewModelScope.launch {
             val result = authRepository.signup(

@@ -1,18 +1,27 @@
-@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@file:OptIn(
+    androidx.compose.foundation.layout.ExperimentalLayoutApi::class,
+    androidx.compose.material3.ExperimentalMaterial3Api::class,
+)
 
 package com.kornerz.feature.auth.signup
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -111,70 +120,119 @@ fun SignupPasswordStep(state: SignupWizardState, onEvent: (SignupEvent) -> Unit)
 }
 
 @Composable
-fun SignupPhoneStep(state: SignupWizardState, onEvent: (SignupEvent) -> Unit) {
-    Column {
-        Text(
-            text = "Country code: ${state.countryDialCode}",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-        )
-        Spacer(Modifier.height(Spacing.space6))
-        KornerzTextField(
-            value = state.phone,
-            onValueChange = { onEvent(SignupEvent.PhoneChanged(it)) },
-            label = "Phone number",
-            keyboardType = KeyboardType.Phone,
-        )
-    }
-}
-
-@Composable
-fun SignupCountryCodeStep(
+fun SignupPhoneStep(
     state: SignupWizardState,
     onEvent: (SignupEvent) -> Unit,
     repository: CountryCodesRepository,
 ) {
+    var showSheet by remember { mutableStateOf(false) }
+
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.space4),
+            verticalAlignment = Alignment.Top,
+        ) {
+            OutlinedButton(
+                onClick = { showSheet = true },
+                modifier = Modifier.widthIn(min = 96.dp),
+            ) {
+                Text(
+                    text = state.countryDialCode,
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            }
+            KornerzTextField(
+                value = state.phone,
+                onValueChange = { onEvent(SignupEvent.PhoneChanged(it)) },
+                label = "Phone number",
+                keyboardType = KeyboardType.Phone,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+
+    if (showSheet) {
+        CountryCodePickerSheet(
+            repository = repository,
+            selectedDialCode = state.countryDialCode,
+            onSelect = { country ->
+                onEvent(SignupEvent.CountrySelected(country.dialCode, country.code))
+                showSheet = false
+            },
+            onDismiss = { showSheet = false },
+        )
+    }
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
+private fun CountryCodePickerSheet(
+    repository: CountryCodesRepository,
+    selectedDialCode: String,
+    onSelect: (Country) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var loaded by remember { mutableStateOf<AsyncValue<List<Country>>>(AsyncValue.Loading) }
+
     LaunchedEffect(Unit) {
         loaded = repository.getAll().fold(
             onSuccess = { AsyncValue.Success(it) },
             onFailure = { AsyncValue.Error(it) },
         )
     }
-    AsyncValueContent(
-        value = loaded,
-        onRetry = {
-            loaded = AsyncValue.Loading
-        },
-    ) { countries ->
-        LazyColumn(modifier = Modifier.fillMaxWidth()) {
-            items(countries, key = { it.code }) { country ->
-                val selected = country.dialCode == state.countryDialCode
-                androidx.compose.material3.Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .selectable(
-                            selected = selected,
-                            onClick = {
-                                onEvent(SignupEvent.CountrySelected(country.dialCode, country.code))
-                            },
-                        ),
-                    color = if (selected) MaterialTheme.colorScheme.primaryContainer
-                    else MaterialTheme.colorScheme.surface,
-                ) {
-                    androidx.compose.foundation.layout.Row(
-                        modifier = Modifier.padding(horizontal = Spacing.space8, vertical = Spacing.space4),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = "${country.name}  ${country.dialCode}",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer
-                            else MaterialTheme.colorScheme.onSurface,
-                        )
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.space8),
+        ) {
+            Text(
+                text = "Select country code",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Spacer(Modifier.height(Spacing.space4))
+            AsyncValueContent(
+                value = loaded,
+                onRetry = { loaded = AsyncValue.Loading },
+            ) { countries ->
+                LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                    items(countries, key = { it.code }) { country ->
+                        val selected = country.dialCode == selectedDialCode
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .selectable(
+                                    selected = selected,
+                                    onClick = { onSelect(country) },
+                                )
+                                .padding(vertical = Spacing.space4),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = country.name,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = if (selected) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text(
+                                text = country.dialCode,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = if (selected) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 }
             }
+            Spacer(Modifier.height(Spacing.space8))
         }
     }
 }

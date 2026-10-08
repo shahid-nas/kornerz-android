@@ -4,7 +4,7 @@ import android.net.Uri
 import com.kornerz.core.model.AsyncValue
 
 /**
- * Aggregate state for the 9-step signup wizard. Per the architecture
+ * Aggregate state for the 8-step signup wizard. Per the architecture
  * every step Composable reads its own subset of fields, validates
  * locally, and emits events through [SignupEvent].
  */
@@ -31,9 +31,9 @@ data class SignupWizardState(
     val isStep3Valid: Boolean get() = email.matches(Regex("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\$"))
     val isStep4Valid: Boolean get() = password.length >= 6 && password == confirmPassword
     val isStep5Valid: Boolean get() = phone.trim().length in 6..15
-    val isStep7Valid: Boolean get() = language.isNotBlank()
-    val isStep8Valid: Boolean get() = interests.isNotEmpty() && interests.size <= 5
-    val isStep9Valid: Boolean get() = photoUpload is AsyncValue.Success && submit !is AsyncValue.Loading
+    val isStep6Valid: Boolean get() = language.isNotBlank()
+    val isStep7Valid: Boolean get() = interests.isNotEmpty() && interests.size <= 5
+    val isStep8Valid: Boolean get() = photoUpload is AsyncValue.Success && submit !is AsyncValue.Loading
 
     val canContinue: Boolean
         get() = when (step) {
@@ -42,10 +42,9 @@ data class SignupWizardState(
             3 -> isStep3Valid && !emailAlreadyInUse
             4 -> isStep4Valid
             5 -> isStep5Valid
-            6 -> true
+            6 -> isStep6Valid
             7 -> isStep7Valid
             8 -> isStep8Valid
-            9 -> isStep9Valid
             else -> false
         }
 }

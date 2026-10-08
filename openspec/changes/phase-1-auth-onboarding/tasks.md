@@ -63,22 +63,22 @@
 ## 8. Signup wizard
 
 - [x] 8.1 Create `feature/auth/.../SignupState.kt`, `SignupEvent.kt`, `SignupNavEvent.kt`, `SignupViewModel.kt`, `SignupScreen.kt`, `SignupContent.kt` per the arch §4 file layout
-- [x] 8.2 Implement `SignupWizardState` data class with all 9-step fields, validation rules per step, `photoUpload: AsyncValue<PhotoUrl>` (arch §2.2), and the current step index
+- [x] 8.2 Implement `SignupWizardState` data class with all 8-step fields, validation rules per step, `photoUpload: AsyncValue<PhotoUrl>` (arch §2.2), and the current step index
 - [x] 8.3 Persist `SignupWizardState` into `SavedStateHandle`; restore from it on process death
 - [x] 8.4 Create a `components/SignupStepScaffold.kt` shared by every wizard step (header + Back/Continue controls per arch §4)
 - [x] 8.5 Implement step 1 Composable: `SignupFullNameStep` using `KornerzTextField`, back disabled, continue disabled until non-blank
 - [x] 8.6 Implement step 2 Composable: `SignupNicknameStep` using `KornerzTextField`
 - [x] 8.7 Implement step 3 Composable: `SignupEmailStep` using `KornerzTextField`; on `AsyncValue.Error` from `AuthRepository.signup`, surfaces "This email is already registered"
 - [x] 8.8 Implement step 4 Composable: `SignupPasswordStep` using two `KornerzPasswordField` instances with the password rule UI
-- [x] 8.9 Implement step 5 Composable: `SignupPhoneStep` using `KornerzTextField`
-- [x] 8.10 Implement step 6 Composable: `SignupCountryCodeStep` consuming `CountryCodesRepository.getAll()` and rendering `KornerzEmptyState` / `KornerzErrorState` per arch §2.2
-- [x] 8.11 Implement step 7 Composable: `SignupLanguageStep` with a language picker (en + pt-BR entries)
-- [x] 8.12 Implement step 8 Composable: `SignupInterestsStep` consuming `KornerInterestRepository` with a multi-select grid (1–5 selection enforcement)
-- [x] 8.13 Implement step 9 Composable: `SignupPhotoStep` using `KornerzImagePicker` (arch §5), preview, signed-URL upload, and retry on failure (privacy policy was moved to a standalone pre-wizard screen — see §13)
-- [x] 8.14 Implement `PrivacyPolicyView` that tracks a `hasScrolledToEnd: Boolean` in state and gates the "Read & Accept" `KornerzButton` — **MOVED to §13**: privacy acceptance now happens on a dedicated `PrivacyPolicyScreen` before the wizard starts; the inline `PrivacyPolicyView` was removed from step 9.
+- [x] 8.9 Implement step 5 Composable: `SignupPhoneStep` with an inline dial-code `OutlinedButton` (mirrors iOS `SignupPhoneView`) and a `ModalBottomSheet` picker that loads countries via `CountryCodesRepository.getAll()` and renders `KornerzEmptyState` / `KornerzErrorState` per arch §2.2; selection emits `SignupEvent.CountrySelected` and dismisses the sheet
+- [x] 8.10 (merged into 8.9) Country-code selection is an inline modal on the phone step, not a dedicated wizard step — mirrors iOS
+- [x] 8.11 Implement step 6 Composable: `SignupLanguageStep` with a language picker (en + pt-BR entries)
+- [x] 8.12 Implement step 7 Composable: `SignupInterestsStep` consuming `KornerInterestRepository` with a multi-select grid (1–5 selection enforcement)
+- [x] 8.13 Implement step 8 Composable: `SignupPhotoStep` using `KornerzImagePicker` (arch §5), preview, signed-URL upload, and retry on failure (privacy policy was moved to a standalone pre-wizard screen — see §13)
+- [x] 8.14 Implement `PrivacyPolicyView` that tracks a `hasScrolledToEnd: Boolean` in state and gates the "Read & Accept" `KornerzButton` — **MOVED to §13**: privacy acceptance now happens on a dedicated `PrivacyPolicyScreen` before the wizard starts; the inline `PrivacyPolicyView` was removed from step 8.
 - [x] 8.15 On the final step, `SignupViewModel.submit()` calls `AuthRepository.signup(...)`, persists the session, and emits `NavEvent.NavigateToShell` over `Channel<NavEvent>` (arch §2.4)
 - [x] 8.16 Add `@Preview` Composable previews for every step in light, dark, and `en-rXA`
-- [ ] 8.17 Create `SignupViewModelTest.kt` covering all 9 step flows + validation + photo upload retry path — **DEFERRED**: unit tests are scoped to follow-up.
+- [ ] 8.17 Create `SignupViewModelTest.kt` covering all 8 step flows + validation + photo upload retry path — **DEFERRED**: unit tests are scoped to follow-up.
 
 ## 13. Standalone Privacy Policy screen (pre-wizard gate)
 
