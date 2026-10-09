@@ -13,11 +13,15 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.kornerz.feature.home.HomeScreen
 
 /**
  * Five-tab bottom-navigation shell. Mirrors iOS `AppTabController`.
- * P1 routes Profile tap → `ShellViewModel.onLogout()`; subsequent
- * phases swap each tab's content.
+ *
+ * Phase 2 wires the Home tab to the new `HomeScreen` from
+ * `feature/home`. The remaining tabs keep their P0 "Coming in Phase N"
+ * placeholder. Pull-to-refresh, per-section loading state and `Coming
+ * in Phase N` snackbars live in `feature/home`.
  */
 @Composable
 fun AppShell(
@@ -85,8 +89,11 @@ private fun androidx.navigation.NavGraphBuilder.tabComposableWithLogout(
     }
 }
 
-internal fun androidx.navigation.NavGraphBuilder.homeTabGraph() =
-    tabComposable(ShellTab.Home)
+internal fun androidx.navigation.NavGraphBuilder.homeTabGraph() {
+    composable(ShellTab.Home.route) {
+        HomeScreen(modifier = Modifier)
+    }
+}
 
 internal fun androidx.navigation.NavGraphBuilder.kornerzTabGraph() =
     tabComposable(ShellTab.Kornerz)

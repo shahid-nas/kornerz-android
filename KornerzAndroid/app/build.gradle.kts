@@ -48,6 +48,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
@@ -134,6 +135,7 @@ dependencies {
     implementation(project(":feature:splash"))
     implementation(project(":feature:shell"))
     implementation(project(":feature:auth"))
+    implementation(project(":feature:home"))
 
     // Tests
     testImplementation(libs.junit)

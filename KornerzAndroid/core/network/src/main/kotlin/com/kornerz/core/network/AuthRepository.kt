@@ -146,10 +146,10 @@ class AuthRepository @Inject constructor(
         ) {
             is AuthResult.Success -> AsyncValue.Success(Unit)
             is AuthResult.Failure -> {
-                if (result.error is AuthError.SessionExpired) {
-                    interceptor.onSessionExpired()
-                    _sessionExpired.tryEmit(Unit)
-                }
+                // FCM token rotation is a background task. A failure here must
+                // not wipe the persisted custom-auth session — that would force
+                // the user to log in again on every cold start while the
+                // anonymous Firebase Auth user is unavailable.
                 AsyncValue.Error(result.error.toThrowable())
             }
         }

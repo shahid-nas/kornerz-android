@@ -20,6 +20,7 @@ data class User(
     val email: String,
     @SerialName("name") val displayName: String,
     @SerialName("nickname") val nickname: String,
+    @SerialName("codeUser") val userCode: String? = null,
     @SerialName("number") val phone: String? = null,
     @SerialName("countryCode") val countryCode: String? = null,
     @SerialName("language") val language: String? = null,

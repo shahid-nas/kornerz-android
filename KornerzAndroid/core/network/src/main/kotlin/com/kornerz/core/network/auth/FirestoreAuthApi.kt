@@ -77,6 +77,7 @@ class FirestoreAuthApi @Inject constructor(
             "id" to docRef.id,
             "name" to request.displayName,
             "nickname" to request.nickname,
+            "codeUser" to generateUserCode(),
             "email" to request.email,
             "number" to request.phone,
             "countryCode" to request.countryCode,
@@ -140,7 +141,15 @@ class FirestoreAuthApi @Inject constructor(
         request: UpdateFcmTokenRequest,
     ): AuthResult<UpdateFcmTokenResponse> = runCatching {
         val user = firebaseAuth.currentUser
-            ?: return AuthResult.Failure(AuthError.SessionExpired)
+        if (user == null) {
+            // No anonymous Firebase Auth user yet (or it was cleared). The custom
+            // auth session in DataStore is independent — the FCM token rotation
+            // is a background nicety, not a session-expiry signal, so we report
+            // an Unknown error and let the caller decide what to do.
+            return AuthResult.Failure(
+                AuthError.Unknown("Skipped FCM token upload: no Firebase Auth user"),
+            )
+        }
         firestore.collection("users")
             .document(user.uid)
             .update("tokenPush", request.token)
@@ -172,6 +181,7 @@ class FirestoreAuthApi @Inject constructor(
                 email = data["email"] as? String ?: "",
                 displayName = data["name"] as? String ?: "",
                 nickname = data["nickname"] as? String ?: "",
+                userCode = data["codeUser"] as? String,
                 phone = data["number"] as? String,
                 countryCode = data["countryCode"] as? String,
                 language = data["language"] as? String,
@@ -211,6 +221,9 @@ class FirestoreAuthApi @Inject constructor(
 
     private fun generateResetCode(): String =
         (1..6).map { ('0'..'9').random() }.joinToString("")
+
+    private fun generateUserCode(): String =
+        (1..8).map { "abcdefghijklmnopqrstuvwxyz0123456789".random() }.joinToString("")
 
     private fun mapError(t: Throwable): AuthResult<Nothing> =
         AuthResult.Failure(

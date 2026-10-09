@@ -140,4 +140,9 @@ object KornerzColors {
     val SmokeDark get() = KornerzPalette.SmokeDark
     val RedLight get() = KornerzPalette.RedLight
     val RedDark get() = KornerzPalette.RedDark
+    val CoralLight get() = KornerzPalette.CoralLight
+    val PlumLight get() = KornerzPalette.PlumLight
+    val SageLight get() = KornerzPalette.SageLight
+    val AquaLight get() = KornerzPalette.AquaLight
+    val SaffronLight get() = KornerzPalette.SaffronLight
 }
