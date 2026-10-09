@@ -1,0 +1,42 @@
+## Why
+
+> **See also:** [`docs/architecture.md`](../../../docs/architecture.md) for the MVVM + Repository + UDF contract, `AsyncValue<T>`, `Channel<NavEvent>`, module boundaries, Hilt scopes, and the canonical library list that every artifact in this change conforms to.
+
+Phase 0 produced a branded shell, Phase 1 produced working auth, and Phase 2 populated the Home tab — so a signed-in Android user can browse the Home carousel and tap into "Your Kornerz". But the Kornerz tab itself is still the P0 empty-state placeholder, and the Home carousel's `onKornerTap` resolves to a "Coming in Phase 3" snackbar instead of a real destination. Phase 3 closes that gap by implementing the entire Kornerz tab (browse list + detail) so the user can drill into a Korner and see its cover, about, current nook, upcoming nooks list, and members. Every screen is a 1:1 port of the iOS `SwiftUI/Dashboard/Korner/*` views so the Android and iOS builds look identical in screenshots and walkthroughs.
+
+## What Changes
+
+- Add a new `feature/kornerz` module with the standard scaffolding (`kornerz.android.feature.compose.hilt`), hosting the Kornerz tab `NavHost` route and two sub-routes (`kornerz/list` and `kornerz/{id}`) that render the list and detail flows respectively.
+- Add a `KornerzViewModel` (`@HiltViewModel`) for the tab root that exposes `KornerzState` (the full list of `Korner` items the signed-in user can browse), fetches via `KornerzRepository`, and routes into detail through `Channel<KornerzNavEvent>` per arch §2.4. Mirrors iOS `KornerzView.swift` + `KornerzViewModel.swift`.
+- Add a `KornerDetailViewModel` (`@HiltViewModel`) for the detail screen that holds an `AsyncValue<KornerDetail>` (the merged aggregate: cover, about, current nook, nooks list, members list), shares a `KornerDetailViewModel` per `kornerId` nav-arg via Hilt's `SavedStateHandle` factory (mirrors `KornerDetailView.swift` + `KornerDetailViewModel.swift` which use a shared `selectedCommunity` state on the parent coordinator).
+- Add `KornerzRepository` (`@Singleton`) backed by Firestore reads that mirror the iOS `KornerzViewModel.fetchData()` and `KornerDetailViewModel.fetchData()` calls — list of communities the user can see (same query as P2 `home-your-kornerz` but without the membership filter, since the Kornerz tab is a discovery surface), and the per-community detail aggregate (cover, description, theme color, current live nook, scheduled nooks, member list).
+- Add `core/model` types `Korner` (id, name, themeColor, coverUrl, description, membersCount, isLive, isJoined) and a `KornerDetail` aggregate that composes `Korner` + `List<Nook>` + `List<User>` for the detail screen. All `@Serializable` per arch §3. Mirrors iOS `Model/Community.swift` + `Model/Event.swift`.
+- Add Coil-based image loading for the Korner cover, member avatars, and nook thumbnails, with shimmer placeholders consistent with the P2 `home-kornerz-carousel` shimmer pattern.
+- Update `feature/shell` so the Kornerz tab's `NavHost` route no longer renders the P0 "Coming in Phase 3" placeholder; instead it hosts `KornerzScreen`. The 5-tab order, tab icons, and selection state are unchanged.
+- Wire `home-your-kornerz`'s `onKornerTap` (delivered via `Channel<HomeNavEvent.KornerDetail>` from P2) and `home-kornerz-carousel`'s `onItemClick` into the new `kornerz/{id}` destination so the Home carousel now navigates to a real screen.
+- Add a back-stack rule: from the Korner detail screen, the system back button pops to the Kornerz tab list (not to Home) — matches iOS `TabHost.swift` selection handling.
+- Implement a "shared header" composable used by both the Kornerz tab root and (optionally) detail — title + filter chips placeholder. Mirrors iOS `KornerzHeaderView.swift`.
+
+## Capabilities
+
+### New Capabilities
+
+- `kornerz-tab`: Kornerz tab root (4.1) + shared header (4.2) — the discovery list view that renders all `Korner` items in a `LazyColumn` (mirrors iOS `KornerzView.swift`'s scrollable list), with a shared header composable used across the Kornerz feature.
+- `korner-detail`: Korner detail host (4.3) + view (4.4) — the destination reached when a user taps a Korner tile from the Kornerz tab or from Home's "Your Kornerz" carousel. Hosts the Korner detail screen with deep-link-by-id support via `SavedStateHandle["kornerId"]`. Includes the Korner detail header (4.5), About section (4.6), Current nook section (4.7), Nooks list (4.8), single nook tile (4.9), and Members section (4.10) as a single composite capability because the iOS source ships them as one coordinated screen and breaking the bundle into separate specs would force artificial seams.
+- `korner-domain`: the `Korner` and `KornerDetail` data models in `core/model`. Defines the contract between the Firestore repository and every consumer (Kornerz tab list, Korner detail, Home "Your Kornerz" carousel, future video room anchoring).
+
+### Modified Capabilities
+
+- `android-app-shell`: the Kornerz tab route must render `KornerzScreen` instead of the P0 "Coming in Phase 3" placeholder. The shell-level tab order, selection, insets, and theming requirements are unchanged. The Kornerz tab now owns a nested `NavHost` for `kornerz/list` and `kornerz/{id}`.
+- `home-your-kornerz`: the `onKornerTap` callback must now resolve to a real `KornerDetail` destination route (`kornerz/{id}`) instead of the P2 "Coming in Phase 3" snackbar. The carousel's tile rendering, color palette, and shimmer behavior are unchanged.
+- `home-kornerz-carousel`: the shared `KornerzCarousel` composable's `onItemClick(community)` callback must now navigate to `kornerz/{id}` instead of the P2 "Coming in Phase 3" snackbar. The composable's visual contract (135dp square tiles, triangle clip, accent strip) is unchanged.
+
+## Impact
+
+- New module: `feature/kornerz` (convention plugin `kornerz.android.feature.compose.hilt`, `namespace = "com.kornerz.feature.kornerz"`). Imported only by `app` per arch §2.5.
+- New code in `core/model` (`Korner`, `KornerDetail`, `List<Nook>` + `List<User>` aggregates), `core/network` (`KornerFirestoreApi` wrapper around the same Firestore paths iOS reads — `communities`, `events`, `users/{uid}/memberships`), `feature/kornerz` (`KornerzScreen`/`Content`, `KornerzState`/`Event`/`NavEvent`, `KornerzViewModel`, `KornerzRepository`, `KornerDetailScreen`/`Content`, `KornerDetailState`/`Event`/`NavEvent`, `KornerDetailViewModel`, plus composables for the header, About, Current Nook, Nooks list, and Members sections per arch §4).
+- Touched modules: `feature/shell` (Kornerz tab `composable` now hosts `KornerzScreen` with nested `NavHost`), `feature/home` (replace the `Coming in Phase 3` snackbar in `HomeNavEvent.KornerDetail` handler with a real nav call into the `kornerz/{id}` destination; the `home-your-kornerz` carousel and `home-kornerz-carousel` composable callers are unchanged because the nav destination is wired at the parent shell), `app` (Hilt module wires `KornerzRepository` into both view models), `gradle/libs.versions.toml` (no new dependencies — Coil, Coroutines, Compose BOM, Hilt, Navigation-Compose, kotlinx-datetime already pinned in P0).
+- Dependencies: none outside arch §3. Coil is already pinned for image loading. The iOS Home tab does not animate the Korner cover, so Lottie is not added for P3.
+- Backend: zero new backend work. Every Firestore collection and document path read by Android matches the iOS app's reads against the shared `kornerz-72fba` project (`communities`, `communities/{id}/events`, `communities/{id}/members`, `users`). If a missing index surfaces during development, it is filed as a follow-up issue and does not block P3.
+- Localization: English only this phase per `project-brief.md` §11.7 and `phases.md` Principle 7; all new screens are RTL-safe and previewed under the `en-rXA` pseudo-locale.
+- Out of scope (deferred): video call entry point from a Korner (P9 Vonage integration), create-community wizard (P7), Korner admin controls (P7), joining/leaving a Korner (follow-up issue, not in iOS live flow), Korner search/filter chips (iOS shows a header placeholder — kept as a static element this phase), nook detail destination (P4), member profile destination (P6). Nook detail and member profile emit a `Coming in Phase N` snackbar from the P3 detail screen exactly like Home does in P2.

@@ -35,10 +35,17 @@ import com.kornerz.core.ui.theme.KornerzTheme
 fun HomeScreen(
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel(),
+    onNavigateToKornerDetail: (String) -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
-    LaunchedEffect(Unit) { HomeNavResolver.bind(snackbarHostState, viewModel.navEvents) }
+    LaunchedEffect(Unit) {
+        HomeNavResolver.bind(
+            snackbar = snackbarHostState,
+            events = viewModel.navEvents,
+            onNavigateToKornerDetail = onNavigateToKornerDetail,
+        )
+    }
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },

@@ -35,6 +35,7 @@ dependencies {
     implementation(project(":core:network"))
     implementation(project(":core:storage"))
     implementation(project(":feature:home"))
+    implementation(project(":feature:kornerz"))
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)

@@ -15,6 +15,7 @@ data class Nook(
     val id: String,
     @SerialName("communityId") val communityId: String,
     val title: String,
+    @SerialName("firebaseImageUrl") val coverUrl: String? = null,
     @SerialName("startDate") val startDate: Instant,
     @SerialName("isLive") val isLive: Boolean = false,
 )
