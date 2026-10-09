@@ -52,11 +52,16 @@ The app SHALL render a bottom navigation bar with exactly 5 tabs in this left-to
 - **THEN** the bottom navigation bar remains visible
 
 ### Requirement: Each tab renders an empty-state placeholder
-Until P2+, each of the 5 tabs SHALL render an empty-state placeholder screen with: the tab's title, a centered illustration placeholder, and the text "Coming in Phase N" where N is the phase number that will fill that tab. Tabs MUST NOT show real content in P0.
+The Home tab in `feature/shell` SHALL render `HomeScreen` (the populated Home tab introduced in P2) instead of the P0 placeholder. Until P3 / P4 / P5 / P10 ship their full destinations, the Kornerz, Nooks, Loops, and Klouders tabs SHALL continue to render their P0 empty-state placeholders with the text "Coming in Phase N" where N is the phase number that will fill that tab.
 
-#### Scenario: Empty state in P0
-- **WHEN** user opens any tab
-- **THEN** the tab content shows the placeholder empty state
+#### Scenario: Home tab shows populated content
+- **WHEN** a signed-in user opens the Home tab in P2+
+- **THEN** the Home tab content area displays `HomeScreen` with five sections (Header, Loop of the day, Upcoming nooks, Your Kornerz, Recent loops) populated from real data
+- **AND** no "Coming in Phase 2" text is shown
+
+#### Scenario: Empty state in non-Home tabs until their phase ships
+- **WHEN** user opens any tab other than Home before that tab's phase ships
+- **THEN** the tab content shows the placeholder empty state with the correct phase label
 - **AND** no real data, network calls, or repositories are invoked
 
 ### Requirement: Shell theming follows system dark/light mode
@@ -98,3 +103,4 @@ The 5-tab shell SHALL respect system status bar, navigation bar, and display cut
 - **WHEN** user rotates to landscape
 - **THEN** the shell relayouts correctly
 - **AND** no content is clipped
+
