@@ -26,21 +26,28 @@ import com.kornerz.feature.kornerz.KornerzNavEvent
 import com.kornerz.feature.kornerz.detail.KornerDetailNavEvent
 import com.kornerz.feature.kornerz.detail.KornerDetailScreen
 import com.kornerz.feature.kornerz.detail.KornerDetailViewModel
+import com.kornerz.feature.nooks.NooksRoute
+import com.kornerz.feature.nooks.detail.NookDetailNavEvent
+import com.kornerz.feature.nooks.detail.NookDetailScreen
+import com.kornerz.feature.nooks.detail.NookDetailViewModel
+import com.kornerz.feature.nooks.list.NooksScreen
 import kotlinx.coroutines.launch
 
 /**
  * Five-tab bottom-navigation shell. Mirrors iOS `AppTabController`.
  *
- * Phase 3 wires the Kornerz tab to a nested `NavHost` with two
- * destinations — `kornerz/list` (root list view) and
- * `kornerz/{kornerId}` (detail view). Home's carousel/dashboard
- * navigation now routes to the real Korner detail destination rather
- * than the P2 "Coming in Phase 3" snackbar.
+ * Phase 4 wires the Nooks tab to a nested `NavHost` with two
+ * destinations — `nooks/list` (root feed) and `nooks/{nookId}` (per-tab
+ * detail). The same `nooks/{nookId}` destination is also hosted as a
+ * nested route inside the Kornerz tab's `NavHost` so the Korner
+ * detail's nook tiles can push into it without leaving the Kornerz
+ * tab. The nook detail screen's "back" button uses
+ * `NavController.popBackStack()` so each tab sees its own back
+ * behavior — matches iOS `NookDetailView.swift`'s reliance on the
+ * system's per-tab `NavigationStack`.
  *
- * Pull-to-refresh, per-section loading state and "Coming in Phase N"
- * snackbars live in `feature/home`. Nook detail and Member profile
- * destinations are stubbed snackbars (P4 / P6) and resolved at the
- * shell level — the feature modules never touch `NavController`.
+ * The P3 "Coming in Phase 4" snackbar for nook detail is replaced
+ * with a real navigation call into the nested `nooks/{nookId}` route.
  */
 @Composable
 fun AppShell(
@@ -87,8 +94,23 @@ fun AppShell(
                     }
                 },
                 snackbarHostState = comingSoonSnackbar,
+                onNookDetail = { nookId ->
+                    navigateToNookDetailInKornerzTab(navController, nookId)
+                },
             )
-            nooksTabGraph()
+            nooksTabGraph(
+                onNookDetail = { nookId ->
+                    navigateToNookDetailInNooksTab(navController, nookId)
+                },
+                onKornerDetail = { kornerId ->
+                    navController.navigate(ShellTab.Kornerz.route) {
+                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                    navController.navigate(KornerzRoute.Detail.build(kornerId))
+                },
+            )
             loopsTabGraph()
             kloudersTabGraph(onLogout = viewModel::onLogout)
         }
@@ -112,6 +134,18 @@ private fun navigateToKornerDetail(navController: NavHostController, kornerId: S
         restoreState = true
     }
     navController.navigate(KornerzRoute.Detail.build(kornerId))
+}
+
+private fun navigateToNookDetailInKornerzTab(navController: NavHostController, nookId: String) {
+    navController.navigate(NooksRoute.Detail.build(nookId))
+}
+
+private fun navigateToNookDetailInNooksTab(navController: NavHostController, nookId: String) {
+    // Nooks tab's nested NavHost owns the detail route — just push
+    // into it via the shell NavController. The nested graph is
+    // entered as a child of the Nooks tab, so popBackStack returns
+    // to the Nooks tab list.
+    navController.navigate(NooksRoute.Detail.build(nookId))
 }
 
 private fun androidx.navigation.NavGraphBuilder.tabComposable(
@@ -143,16 +177,18 @@ internal fun androidx.navigation.NavGraphBuilder.homeTabGraph(
 }
 
 /**
- * Nested graph for the Kornerz tab — owns the list and detail routes
- * (per design decision "One feature module, one nested NavHost inside
- * the Kornerz tab"). Tab-level back-stack rule lives here so the bottom
- * bar visibility rule is satisfied without custom logic.
+ * Nested graph for the Kornerz tab — owns the list, detail, and
+ * nook-detail routes (per design decision "One feature module, one
+ * nested NavHost inside the Kornerz tab"). Tab-level back-stack
+ * rule lives here so the bottom bar visibility rule is satisfied
+ * without custom logic.
  */
 internal fun androidx.navigation.NavGraphBuilder.kornerzTabGraph(
     onNavEvent: (KornerzNavEvent) -> Unit = {},
     snackbarHostState: SnackbarHostState,
+    onNookDetail: (String) -> Unit = {},
 ) {
-composable(ShellTab.Kornerz.route) {
+    composable(ShellTab.Kornerz.route) {
         val nested = rememberNavController()
         val scope = rememberCoroutineScope()
         NavHost(
@@ -174,20 +210,86 @@ composable(ShellTab.Kornerz.route) {
                 KornerDetailScreen(
                     modifier = Modifier,
                     onNavEvent = { event ->
-                        val message = when (event) {
-                            is KornerDetailNavEvent.NavigateToNookDetail -> "Nook detail coming in Phase 4"
-                            is KornerDetailNavEvent.NavigateToMemberProfile -> "Member profile coming in Phase 6"
+                        when (event) {
+                            is KornerDetailNavEvent.NavigateToNookDetail -> {
+                                onNookDetail(event.nookId)
+                            }
+                            is KornerDetailNavEvent.NavigateToMemberProfile -> {
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("Member profile coming in Phase 6")
+                                }
+                            }
                         }
-                        scope.launch { snackbarHostState.showSnackbar(message) }
                     },
+                )
+            }
+            composable(
+                route = NooksRoute.Detail.PATTERN,
+                arguments = listOf(
+                    navArgument(NookDetailViewModel.ARG_NOOK_ID) { type = NavType.StringType },
+                ),
+            ) {
+                NookDetailScreen(
+                    modifier = Modifier,
+                    onNavEvent = { event ->
+                        when (event) {
+                            is NookDetailNavEvent.NavigateToKornerDetail -> {
+                                nested.navigate(KornerzRoute.Detail.build(event.kornerId))
+                            }
+                        }
+                    },
+                    onBack = { nested.popBackStack() },
                 )
             }
         }
     }
 }
 
-internal fun androidx.navigation.NavGraphBuilder.nooksTabGraph() =
-    tabComposable(ShellTab.Nooks)
+/**
+ * Nested graph for the Nooks tab — hosts the cross-Korner nooks feed
+ * list and the per-tab nook detail destination. Back-press inside
+ * `nooks/{nookId}` pops to `nooks/list`; the bottom bar stays
+ * pinned.
+ */
+internal fun androidx.navigation.NavGraphBuilder.nooksTabGraph(
+    onNookDetail: (String) -> Unit = {},
+    onKornerDetail: (String) -> Unit = {},
+) {
+    composable(ShellTab.Nooks.route) {
+        val nested = rememberNavController()
+        NavHost(
+            navController = nested,
+            startDestination = NooksRoute.List.route,
+        ) {
+            composable(NooksRoute.List.route) {
+                NooksScreen(
+                    modifier = Modifier,
+                    onNavEvent = { event ->
+                        when (event) {
+                            is com.kornerz.feature.nooks.list.NooksNavEvent.NavigateToNookDetail -> {
+                                onNookDetail(event.nookId)
+                            }
+                            is com.kornerz.feature.nooks.list.NooksNavEvent.NavigateToKornerDetail -> {
+                                onKornerDetail(event.kornerId)
+                            }
+                        }
+                    },
+                )
+            }
+            composable(
+                route = NooksRoute.Detail.PATTERN,
+                arguments = listOf(
+                    navArgument(NookDetailViewModel.ARG_NOOK_ID) { type = NavType.StringType },
+                ),
+            ) {
+                NookDetailScreen(
+                    modifier = Modifier,
+                    onBack = { nested.popBackStack() },
+                )
+            }
+        }
+    }
+}
 
 internal fun androidx.navigation.NavGraphBuilder.loopsTabGraph() =
     tabComposable(ShellTab.Loops)

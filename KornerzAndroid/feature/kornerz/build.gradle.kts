@@ -34,6 +34,7 @@ dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:network"))
     implementation(project(":core:storage"))
+    implementation(project(":feature:nooks"))
 
     implementation(libs.androidx.core.ktx)
 

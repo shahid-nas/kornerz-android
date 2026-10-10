@@ -46,10 +46,20 @@ fun KornerDetailContent(
             ?.takeIf { it.isNotBlank() }
             ?.let { AboutSection(description = it) }
         detail.nooks.firstOrNull { it.isLive }
-            ?.let { CurrentNookSection(nook = it, onNookClick = { id -> onEvent(KornerDetailEvent.NookTileClicked(id)) }) }
+            ?.let { CurrentNookSection(
+                nook = it,
+                parentKornerName = detail.korner.name,
+                parentKornerThemeColor = detail.korner.themeColor,
+                onNookClick = { id -> onEvent(KornerDetailEvent.NookTileClicked(id)) },
+            ) }
         val scheduled = detail.nooks.filterNot { it.isLive }
         if (scheduled.isNotEmpty()) {
-            NooksListSection(nooks = scheduled, onNookClick = { id -> onEvent(KornerDetailEvent.NookTileClicked(id)) })
+            NooksListSection(
+                nooks = scheduled,
+                parentKornerName = detail.korner.name,
+                parentKornerThemeColor = detail.korner.themeColor,
+                onNookClick = { id -> onEvent(KornerDetailEvent.NookTileClicked(id)) },
+            )
         }
         if (detail.members.isNotEmpty()) {
             MembersSection(members = detail.members, onMemberClick = { id -> onEvent(KornerDetailEvent.MemberTileClicked(id)) })

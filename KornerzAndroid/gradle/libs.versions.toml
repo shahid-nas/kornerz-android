@@ -44,6 +44,7 @@ junit-ext = "1.2.1"
 espresso = "3.6.1"
 mockk = "1.13.13"
 turbine = "1.2.0"
+coroutines-test = "1.9.0"
 
 [libraries]
 # Core AndroidX
@@ -100,6 +101,7 @@ androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "j
 androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso" }
 mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
 turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines-test" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

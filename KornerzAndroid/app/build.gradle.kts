@@ -137,6 +137,7 @@ dependencies {
     implementation(project(":feature:auth"))
     implementation(project(":feature:home"))
     implementation(project(":feature:kornerz"))
+    implementation(project(":feature:nooks"))
 
     // Tests
     testImplementation(libs.junit)

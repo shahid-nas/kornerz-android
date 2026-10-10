@@ -178,7 +178,10 @@ class KornerFirestoreApi @Inject constructor(
             ?: (get(FIELD_COMMUNITY_NAME_EN) as? String)
             ?: return null
         return Korner(
-            id = (get(FIELD_COMMUNITY_ID) as? String) ?: id,
+            // iOS sets `community.id = snapShot.documentID` — match that
+            // (don't prefer the `communityId` field which is a separate
+            // public identifier).
+            id = id,
             name = name,
             themeColor = (get(FIELD_COMMUNITY_THEME) as? String).orEmpty(),
             coverUrl = (get(FIELD_FIREBASE_IMAGE_URL) as? String)
