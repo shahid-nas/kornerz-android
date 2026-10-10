@@ -2,7 +2,7 @@
 
 ## Purpose
 TBD - created by archiving change phase-3-kornerz-tab. Update Purpose after archive.
-## Requirements
+## ADDED Requirements
 ### Requirement: Kornerz tab renders a browseable list of Kornerz
 The Kornerz tab root screen SHALL render all `Korner` items the signed-in user can see in a vertical `LazyColumn`, mirroring `SwiftUI/Dashboard/Korner/KornerzView.swift`. Each row SHALL render the Korner cover image (Coil-loaded with shimmer placeholder), the Korner name in Satoshi Bold 16sp, the Korner's theme color as a left-edge accent strip (4dp wide), and a trailing chevron indicating "tappable". The list SHALL be sorted alphabetically by Korner name (matches iOS `KornerzViewModel.fetchData()` ordering). A loading state SHALL render 6 shimmer placeholder rows while `AsyncValue.Loading` is active. An error state SHALL render a retry view that re-invokes `KornerzViewModel.refresh()`. An empty state SHALL render a centered illustration with copy "No Kornerz yet" (mirrors iOS `NoDataView` placeholder).
 

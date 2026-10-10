@@ -1,6 +1,6 @@
 ## MODIFIED Requirements
 
-### Requirement: Each tab renders a populated screen or an empty-state placeholder
+### Requirement: Each tab renders an empty-state placeholder
 The Home tab in `feature/shell` SHALL render `HomeScreen` (the populated Home tab introduced in P2) instead of the P0 placeholder. The Kornerz tab in `feature/shell` SHALL render `KornerzScreen` (the populated Kornerz tab introduced in P3) instead of the P0 "Coming in Phase 3" placeholder; the Kornerz tab hosts a nested `NavHost` with the list and detail destinations (see `kornerz-tab` and `korner-detail`). Until P4 / P5 / P10 ship their full destinations, the Nooks, Loops, and Klouders tabs SHALL continue to render their P0 empty-state placeholders with the text "Coming in Phase N" where N is the phase number that will fill that tab.
 
 #### Scenario: Home tab shows populated content

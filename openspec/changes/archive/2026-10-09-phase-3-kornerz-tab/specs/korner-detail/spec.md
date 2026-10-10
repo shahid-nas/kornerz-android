@@ -2,7 +2,7 @@
 
 ## Purpose
 TBD - created by archiving change phase-3-kornerz-tab. Update Purpose after archive.
-## Requirements
+## ADDED Requirements
 ### Requirement: Korner detail screen is reachable from the Kornerz tab and from Home
 The Korner detail destination `kornerz/{kornerId}` SHALL be reachable from (a) tapping a row in the Kornerz tab list, (b) tapping a tile in the Home tab's "Your Kornerz" carousel, and (c) tapping a tile in the shared `KornerzCarousel` composable. The destination SHALL receive `kornerId` as a nav-arg via `SavedStateHandle`. The destination SHALL be hosted inside the Kornerz tab's nested `NavHost` and SHALL preserve the bottom navigation bar visibility rule from `android-app-shell`.
 

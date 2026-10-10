@@ -2,7 +2,7 @@
 
 ## Purpose
 TBD - created by archiving change phase-3-kornerz-tab. Update Purpose after archive.
-## Requirements
+## ADDED Requirements
 ### Requirement: Korner model exists in core/model
 The `core/model` module SHALL define a `Korner` data class annotated with `@Serializable` matching the public subset of iOS `Model/Community.swift` consumed by the Kornerz tab and Korner detail screens. The data class SHALL contain exactly these fields: `id: String` (Firestore document id), `name: String`, `themeColor: String` (hex string, mapped to the iOS palette when missing — same fallback as `home-kornerz-carousel`), `coverUrl: String?`, `description: String?`, `membersCount: Int`, `isLive: Boolean` (true when at least one nook has `isLive = true`), and `isJoined: Boolean` (true when the signed-in user is a member).
 
