@@ -98,7 +98,10 @@ class NooksViewModelTest {
 private fun sampleKorner(id: String) = Korner(id = id, name = "Korner $id", themeColor = "#E27D5A")
 
 private fun mockHeaderVm(): TabHeaderViewModel =
-    TabHeaderViewModel(mockk<SessionRepository>(relaxed = true)).also { it.fetchData() }
+    TabHeaderViewModel(
+        mockk<SessionRepository>(relaxed = true),
+        mockk<com.kornerz.core.network.gamification.GamificationRepository>(relaxed = true),
+    ).also { it.fetchData() }
 private fun sampleUpcoming(nookId: String, kornerId: String) = UpcomingNookItem(
     nook = Nook(
         id = nookId,

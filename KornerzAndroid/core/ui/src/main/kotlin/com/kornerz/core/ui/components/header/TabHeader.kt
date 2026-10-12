@@ -8,24 +8,25 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.kornerz.core.model.AsyncValue
 import com.kornerz.core.model.User
+import com.kornerz.core.network.gamification.GamificationRepository
 import com.kornerz.core.storage.session.SessionRepository
 import com.kornerz.core.storage.session.SessionState
+import com.kornerz.core.ui.R
 import com.kornerz.core.ui.components.HomeShimmerPlaceholder
 import com.kornerz.core.ui.components.KornerzDiamondImage
+import com.kornerz.core.ui.theme.KornerzColors
 import com.kornerz.core.ui.theme.KornerzTheme
 import com.kornerz.core.ui.theme.Spacing
 import dagger.hilt.android.scopes.ViewModelScoped
@@ -52,10 +53,12 @@ data class TabHeaderData(
 )
 
 /**
- * Shared ViewModel backing the tab header across all five bottom-bar
- * tabs (Home / Kornerz / Nooks / Loops / Klouders). Reads the current
- * user from [SessionRepository]; P2 returns 0 points, P10 wires
- * `GamificationService` (mirrors iOS `HomeHeaderViewModel`).
+ * Shared ViewModel backing the tab header across all four bottom-bar
+ * tabs that surface it (Home / Kornerz / Nooks / Loops). Reads the
+ * current user from [SessionRepository] and the monthly points from
+ * [GamificationRepository] — mirrors iOS `HomeHeaderViewModel` which
+ * observes `AppHelper.shared.user` + `RepositoryFactory.gamification
+ * .getUserPoints` (lines 46–60 of `HomeHeaderViewModel.swift`).
  *
  * Scoped to its parent `@HiltViewModel` via [ViewModelScoped]
  * (architecture §2.6 — "per-ViewModel helpers (rare — prefer passing
@@ -65,46 +68,64 @@ data class TabHeaderData(
 @ViewModelScoped
 class TabHeaderViewModel @Inject constructor(
     private val sessionRepository: SessionRepository,
+    private val gamificationRepository: GamificationRepository,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private val _state = MutableStateFlow<AsyncValue<TabHeaderData>>(AsyncValue.Loading)
     val state: StateFlow<AsyncValue<TabHeaderData>> = _state.asStateFlow()
 
+    init {
+        // Auto-fetch on construction so every tab that injects the
+        // shared `TabHeaderViewModel` (Home, Kornerz, Nooks, Loops)
+        // actually receives a `Success` state on first composition.
+        // The previous behaviour required the host VM to call
+        // `refresh()` from its own `init { }` block — which only
+        // `HomeViewModel` did, leaving the Kornerz / Nooks / Loops
+        // tabs stuck on the 52-dp shimmer placeholder indefinitely.
+        fetchData()
+    }
+
     fun fetchData() {
         scope.launch {
-            _state.value = AsyncValue.Loading
             runCatching {
                 val session = sessionRepository.data.first()
-                when (session) {
-                    is SessionState.Authenticated -> TabHeaderData(
-                        user = session.user,
-                        points = 0,
-                    )
-                    SessionState.Anonymous -> error("not signed in")
-                    SessionState.Loading -> return@launch
+                if (session !is SessionState.Authenticated) return@runCatching null
+                val points = gamificationRepository.getUserPoints().getOrDefault(0)
+                TabHeaderData(
+                    user = session.user,
+                    points = points,
+                )
+            }.onSuccess { data ->
+                if (data != null) {
+                    _state.value = AsyncValue.Success(data)
                 }
-            }.onSuccess { _state.value = AsyncValue.Success(it) }
-                .onFailure { _state.value = AsyncValue.Error(it) }
+                // `data == null` (session not authenticated) — keep the
+                // current state. The next `fetchData()` (e.g. on a
+                // tab switch that re-hydrates the session) will pick
+                // up where we left off.
+            }.onFailure { _state.value = AsyncValue.Error(it) }
         }
     }
 }
 
 /**
- * Header row: 52dp diamond avatar (1:1 port of iOS
- * `DiamondImageView(size:52, radius:10)`) on the leading edge,
- * signed-in user display name, points badge on the trailing edge.
+ * Header row: 52-dp diamond avatar (1:1 port of iOS
+ * `DiamondImageView(size:52, radius:10)`) on the leading edge and
+ * a points badge on the trailing edge.
  *
  * Mirrors iOS `HomeHeaderView.body.contentView` layout:
  * `HStack(spacing: 16) { userImageView; Spacer(); userPointsView }`
  * with `.padding(.horizontal)`. The avatar is clickable and forwards
- * to [onAvatarTap] to match iOS `viewModel.onUserTap?()`. Modifier
- * last per architecture §4.
+ * to [onAvatarTap] to match iOS `viewModel.onUserTap?()`.
  *
- * Each tab feeds this composable from its parent ViewModel, which
- * injects the shared [TabHeaderViewModel] and exposes its state via
- * `AsyncValue<TabHeaderData>` — mirrors iOS, where every tab embeds
- * `HomeHeaderView` at the top of its scrollable content.
+ * Color tokens (per iOS source):
+ * - avatar background: `C2E2F3E` (`CharcoalLight`) stroke / `CF3F6FB`
+ *   (`PowderLight`) fill — `DiamondImageView` uses the iOS
+ *   `AppColor.CF3F6FB.swiftUIColor` for the background.
+ * - points icon: `R.drawable.ic_points` (mirrors iOS `icon_points`)
+ *   in `C2E2F3E` (Charcoal).
+ * - points text: Lato/Satoshi 14-pt Bold in `C1B1A23` (Ink).
  */
 @Composable
 fun TabHeaderContent(
@@ -130,19 +151,17 @@ fun TabHeaderContent(
 
 @Composable
 private fun LoadedHeader(data: TabHeaderData, onAvatarTap: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.space8),
+    ) {
         KornerzDiamondImage(
-            imageUrl = data.user.photoUrl,
-            fallbackAsset = null,
+            imageUrl = data.user.thumbnailURL,
+            fallbackAsset = "ic_user_placeholder",
             size = 52.dp,
             cornerRadius = 10.dp,
             modifier = Modifier.clickable(onClick = onAvatarTap),
-        )
-        Spacer(modifier = Modifier.width(Spacing.space8))
-        Text(
-            text = data.user.displayName.ifBlank { data.user.nickname },
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onBackground,
         )
         Spacer(modifier = Modifier.weight(1f))
         Row(
@@ -150,15 +169,15 @@ private fun LoadedHeader(data: TabHeaderData, onAvatarTap: () -> Unit) {
             horizontalArrangement = Arrangement.spacedBy(Spacing.space2),
         ) {
             Icon(
-                imageVector = Icons.Filled.Star,
+                painter = painterResource(id = R.drawable.ic_points),
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onBackground,
+                tint = KornerzColors.CharcoalLight,
                 modifier = Modifier.size(18.dp),
             )
             Text(
                 text = data.points.toString(),
                 style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onBackground,
+                color = KornerzColors.InkLight,
             )
         }
     }

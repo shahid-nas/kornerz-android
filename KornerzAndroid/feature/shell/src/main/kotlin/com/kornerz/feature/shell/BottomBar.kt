@@ -18,6 +18,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 /**
  * One row in the bottom navigation bar. P0 uses Material Icons as
  * placeholders; designer-supplied brand icons land in a follow-up.
+ *
+ * Profile is **not** a tab — it is pushed onto the root NavHost with
+ * the bottom bar hidden, mirroring the iOS `UserProfileVC` push from
+ * `HomeTabCoordinator.navigateToUserProfile()` (which sets
+ * `hidesBottomBarWhenPushed = true`). P6 surfaces Profile from the
+ * avatar tap in the Home / Kornerz / Nooks / Loops tabs.
  */
 internal enum class ShellTab(
     val label: String,

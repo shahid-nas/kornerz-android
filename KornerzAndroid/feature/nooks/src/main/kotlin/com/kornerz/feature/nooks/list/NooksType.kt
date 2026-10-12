@@ -8,5 +8,18 @@ package com.kornerz.feature.nooks.list
  */
 enum class NooksType(val title: String) {
     Live("Live"),
-    Upcoming("Upcoming"),
+    Upcoming("Upcoming");
+
+    /**
+     * Mirrors iOS `nooksType.titleNooks` (`NooksTabViewModel.swift:37`).
+     * Returns the title the header shows next to the leading icon —
+     * "Live Nooks" / "Upcoming Nooks" — so the section's name updates
+     * as the user toggles between tabs (matches iOS
+     * `TabHeaderView(title: viewModel.nooksType.titleNooks, ...)`).
+     */
+    val titleNooks: String
+        get() = when (this) {
+            Live -> "Live Nooks"
+            Upcoming -> "Upcoming Nooks"
+        }
 }

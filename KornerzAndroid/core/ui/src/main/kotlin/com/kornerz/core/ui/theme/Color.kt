@@ -134,10 +134,13 @@ object KornerzColors {
     val PurpleDark get() = KornerzPalette.PurpleDark
     val SlateLight get() = KornerzPalette.SlateLight
     val SlateDark get() = KornerzPalette.SlateDark
+    val PurpleGreyLight get() = KornerzPalette.PurpleGreyLight
+    val PurpleGreyDark get() = KornerzPalette.PurpleGreyDark
     val InkLight get() = KornerzPalette.InkLight
     val InkDark get() = KornerzPalette.InkDark
     val SmokeLight get() = KornerzPalette.SmokeLight
     val SmokeDark get() = KornerzPalette.SmokeDark
+    val MistLight get() = KornerzPalette.MistLight
     val RedLight get() = KornerzPalette.RedLight
     val RedDark get() = KornerzPalette.RedDark
     val CoralLight get() = KornerzPalette.CoralLight
@@ -148,4 +151,6 @@ object KornerzColors {
     // Sand mirrors iOS `AppColor.CEBE1D3`; used by the nooks tab
     // Live/Upcoming toggle underline.
     val SandLight get() = KornerzPalette.SandLight
+    val CharcoalLight get() = KornerzPalette.CharcoalLight
+    val CharcoalDark get() = KornerzPalette.CharcoalDark
 }

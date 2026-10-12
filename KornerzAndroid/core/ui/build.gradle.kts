@@ -31,6 +31,7 @@ android {
 dependencies {
     api(project(":core:model"))
     implementation(project(":core:storage"))
+    implementation(project(":core:network"))
 
     api(platform(libs.androidx.compose.bom))
     api(libs.androidx.compose.ui)

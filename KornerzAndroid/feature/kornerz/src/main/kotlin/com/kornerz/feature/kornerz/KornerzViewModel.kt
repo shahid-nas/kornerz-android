@@ -67,6 +67,10 @@ class KornerzViewModel @Inject constructor(
         }
     }
 
+    init {
+        refresh()
+    }
+
     fun refresh() {
         headerVm.fetchData()
         yourKornerzVm.fetchData()

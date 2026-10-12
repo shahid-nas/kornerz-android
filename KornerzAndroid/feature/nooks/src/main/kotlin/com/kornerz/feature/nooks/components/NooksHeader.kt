@@ -2,6 +2,7 @@ package com.kornerz.feature.nooks.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -28,13 +30,23 @@ import com.kornerz.feature.nooks.list.NooksType
 /**
  * Header for the Nooks tab list. 1:1 port of iOS `TabHeaderView.swift`
  * (`SwiftUI/Dashboard/Korner/Sections/TabHeaderView.swift`):
- *  - title + leading icon
+ *  - title (iOS passes the selected `NooksType.titleNooks` so the
+ *    header reads "Live Nooks" or "Upcoming Nooks" — `nooksTypeTitle`
+ *    below is the Android mirror) + leading icon
  *  - right-aligned Live/Upcoming toggle with an underline on the
  *    selected tab (the iOS underline color is `AppColor.CEBE1D3`).
  *
  * Tapping a tab forwards [onSelect] with the new [NooksType] — the
  * screen-level VM updates `state.selectedType` and
  * [com.kornerz.feature.nooks.list.NooksContent] re-renders.
+ *
+ * **Padding note:** iOS uses `.padding(.horizontal)` only
+ * (`TabHeaderView.body` line 25). The previous Android port had
+ * `.padding(horizontal = 16.dp, vertical = 8.dp)` which added 8-dp of
+ * top padding on top of the shared `TabHeaderContent` above it —
+ * that 8-dp gap was the duplicated top spacing reported against the
+ * Nooks tab. The fix removes the vertical padding and aligns the
+ * row to `Alignment.Bottom` (mirrors iOS `HStack(alignment: .bottom)`).
  */
 @Composable
 fun NooksHeader(
@@ -47,8 +59,8 @@ fun NooksHeader(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.Bottom,
     ) {
         if (leadingIcon != null) {
             Icon(
@@ -71,6 +83,12 @@ fun NooksHeader(
     }
 }
 
+/**
+ * Mirrors iOS `TabHeaderView.tabView`: `HStack(alignment: .top,
+ * spacing: 12) { VStack { Text; Rectangle(2pt) } }`. The 2-pt
+ * underline appears only on the selected tab, in `AppColor.CEBE1D3`
+ * (mirrored by [KornerzColors.SandLight]).
+ */
 @Composable
 private fun NooksTypeToggle(
     selected: NooksType,
@@ -80,6 +98,7 @@ private fun NooksTypeToggle(
     Row(
         modifier = modifier,
         verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         NooksType.values().forEach { type ->
             NooksTypeTab(
@@ -98,9 +117,7 @@ private fun NooksTypeTab(
     onClick: () -> Unit,
 ) {
     Column(
-        modifier = Modifier
-            .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 4.dp),
+        modifier = Modifier.clickable(onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
@@ -115,8 +132,8 @@ private fun NooksTypeTab(
         Spacer(modifier = Modifier.height(4.dp))
         Box(
             modifier = Modifier
+                .width(28.dp)
                 .height(2.dp)
-                .fillMaxWidth()
                 .background(
                     // iOS uses AppColor.CEBE1D3 (#EBE1D3 — sand). The
                     // M3 `primary` (purple) was the previous default
@@ -132,7 +149,7 @@ private fun NooksTypeTab(
 private fun NooksHeaderLivePreview() {
     KornerzTheme(darkTheme = false) {
         NooksHeader(
-            title = "Nooks",
+            title = NooksType.Live.titleNooks,
             selectedType = NooksType.Live,
             onSelect = {},
         )
@@ -144,7 +161,7 @@ private fun NooksHeaderLivePreview() {
 private fun NooksHeaderUpcomingPreview() {
     KornerzTheme(darkTheme = false) {
         NooksHeader(
-            title = "Nooks",
+            title = NooksType.Upcoming.titleNooks,
             selectedType = NooksType.Upcoming,
             onSelect = {},
         )

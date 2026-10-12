@@ -140,6 +140,8 @@ dependencies {
     implementation(project(":feature:loops"))
     implementation(project(":feature:nooks"))
     implementation(project(":feature:videocall"))
+    implementation(project(":feature:profile"))
+    implementation(project(":feature:notifications"))
 
     // Tests
     testImplementation(libs.junit)

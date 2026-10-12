@@ -39,12 +39,20 @@ import com.kornerz.feature.loops.loopsCommentNavArguments
 import com.kornerz.feature.loops.loopsDetailNavArguments
 import com.kornerz.feature.loops.loopsReplyNavArguments
 import com.kornerz.feature.loops.reply.ReplyScreen
+import com.kornerz.feature.notifications.NotificationsRoute
+import com.kornerz.feature.notifications.list.NotificationsScreen
 import com.kornerz.feature.nooks.NooksRoute
 import com.kornerz.feature.nooks.detail.NookDetailNavEvent
 import com.kornerz.feature.nooks.detail.NookDetailScreen
 import com.kornerz.feature.nooks.detail.NookDetailViewModel
 import com.kornerz.feature.nooks.list.NooksNavEvent
 import com.kornerz.feature.nooks.list.NooksScreen
+import com.kornerz.feature.profile.ProfileRoute
+import com.kornerz.feature.profile.changebasicinfo.ChangeBasicInfoScreen
+import com.kornerz.feature.profile.editbasicinfo.EditBasicInfoScreen
+import com.kornerz.feature.profile.privacy.PrivacyPolicyScreen
+import com.kornerz.feature.profile.successbasicinfo.ChangeBasicInfoSuccessScreen
+import com.kornerz.feature.profile.view.ProfileScreen
 import com.kornerz.feature.videocall.VideoCallNavEvent
 import com.kornerz.feature.videocall.VideocallRoute
 import com.kornerz.feature.videocall.videocallGraph
@@ -96,7 +104,9 @@ fun AppShell(
 
     Scaffold(
         bottomBar = {
-            val showBottomBar = currentRoute?.matches(Regex("videocall/.*")) == false
+            val showBottomBar = currentRoute?.matches(
+                Regex("videocall/.*|notifications/list|profile/.*"),
+            ) == false
             if (showBottomBar) {
                 KornerzBottomBar(
                     currentRoute = currentRoute,
@@ -118,14 +128,15 @@ fun AppShell(
                 onNavigateToLoopDetail = { id ->
                     navigateToLoopDetail(navController, id, onPending = { pendingLoopId = id })
                 },
+                onNavigateToProfile = {
+                    navController.navigate(ProfileRoute.View.route)
+                },
             )
             kornerzTabGraph(
                 onNavEvent = { event ->
                     when (event) {
                         KornerzNavEvent.NavigateToProfile ->
-                            scope.launch {
-                                comingSoonSnackbar.showSnackbar(PROFILE_SNACKBAR_MESSAGE)
-                            }
+                            navController.navigate(ProfileRoute.View.route)
                         is KornerzNavEvent.NavigateToKornerDetail -> {
                             pendingKornerId = event.kornerId
                         }
@@ -140,9 +151,7 @@ fun AppShell(
             )
             nooksTabGraph(
                 onProfileTap = {
-                    scope.launch {
-                        comingSoonSnackbar.showSnackbar(PROFILE_SNACKBAR_MESSAGE)
-                    }
+                    navController.navigate(ProfileRoute.View.route)
                 },
                 onNookDetail = { nookId ->
                     navigateToNookDetailInNooksTab(navController, nookId)
@@ -161,9 +170,7 @@ fun AppShell(
             )
             loopsTabGraph(
                 onProfileTap = {
-                    scope.launch {
-                        comingSoonSnackbar.showSnackbar(PROFILE_SNACKBAR_MESSAGE)
-                    }
+                    navController.navigate(ProfileRoute.View.route)
                 },
                 onLoopDetail = { id ->
                     navigateToLoopDetail(navController, id, onPending = { pendingLoopId = id })
@@ -171,13 +178,43 @@ fun AppShell(
                 pendingLoopId = pendingLoopId,
                 onPendingConsumed = { pendingLoopId = null },
             )
+            // P6 (task 9.1) — Profile is pushed onto the root NavHost
+            // (mirrors iOS `UserProfileVC.hidesBottomBarWhenPushed`).
+            // The bottom-bar visibility regex above matches
+            // `profile/.*` so the bar is hidden across every nested
+            // Profile destination.
+            profileGraph(
+                onOpenNotifications = { navController.navigate(NotificationsRoute.LIST) },
+                onShowError = { msg -> scope.launch { comingSoonSnackbar.showSnackbar(msg) } },
+            )
+            // P6 (task 9.1) — Notifications feed (top-level so the
+            // bottom bar can be hidden — see the regex above)
+            composable(NotificationsRoute.LIST) {
+                NotificationsScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenLoopComment = { loopId ->
+                        navController.navigate(LoopsRoute.Detail.build(loopId)) {
+                            popUpTo(ShellTab.Home.route) { saveState = true }
+                            launchSingleTop = true
+                        }
+                    },
+                    onOpenForumComment = { forumId ->
+                        // The forum screen is not in the live flow
+                        // for P6 — surface a "coming soon" snackbar
+                        // until P7 ships a forum route.
+                        scope.launch {
+                            comingSoonSnackbar.showSnackbar("Forum coming soon")
+                        }
+                    },
+                    onOpenDeeplink = { deeplink ->
+                        scope.launch {
+                            comingSoonSnackbar.showSnackbar("Deeplink coming in Phase 10")
+                        }
+                    },
+                    onShowAlert = { msg -> scope.launch { comingSoonSnackbar.showSnackbar(msg) } },
+                )
+            }
             kloudersTabGraph(onLogout = viewModel::onLogout)
-            // Registered at root so the JoinVideoCall callback in
-            // `nooksTabGraph` (which uses the shell-level root
-            // NavController) can navigate to it. The bottom-bar
-            // visibility check above matches `videocall/.*` so the
-            // bar is hidden while on this route regardless of which
-            // graph it lives in.
             videocallGraph(
                 onNavEvent = { event ->
                     when (event) {
@@ -258,12 +295,14 @@ private fun androidx.navigation.NavGraphBuilder.tabComposableWithLogout(
 internal fun androidx.navigation.NavGraphBuilder.homeTabGraph(
     onNavigateToKornerDetail: (String) -> Unit = {},
     onNavigateToLoopDetail: (String) -> Unit = {},
+    onNavigateToProfile: () -> Unit = {},
 ) {
     composable(ShellTab.Home.route) {
         HomeScreen(
             modifier = Modifier,
             onNavigateToKornerDetail = onNavigateToKornerDetail,
             onNavigateToLoopDetail = onNavigateToLoopDetail,
+            onNavigateToProfile = onNavigateToProfile,
         )
     }
 }
@@ -477,9 +516,60 @@ internal fun androidx.navigation.NavGraphBuilder.kloudersTabGraph(onLogout: () -
     tabComposableWithLogout(ShellTab.Klouders, onLogout)
 
 /**
- * Snackbar copy for avatar taps on every tab's shared header. The
- * Profile destination ships in P6 (architecture §10.4); until then the
- * shell surfaces this message wherever an avatar is tapped — matches
- * the iOS `HomeNavEvent.NavigateToProfile` placeholder behaviour.
+ * P6 (task 9.1) — Profile is **pushed** onto the root NavHost (not
+ * a tab), mirroring iOS `UserProfileVC.hidesBottomBarWhenPushed =
+ * true`. The bottom bar is hidden for every `profile/.*` route via
+ * the regex in `AppShell`'s `Scaffold.bottomBar`. The root
+ * `profile/view` composable hosts a nested NavHost that owns the
+ * edit-basic-info, change-basic-info (dialog), change-success, and
+ * privacy-policy destinations.
  */
-private const val PROFILE_SNACKBAR_MESSAGE = "Profile coming in Phase 6"
+internal fun androidx.navigation.NavGraphBuilder.profileGraph(
+    onOpenNotifications: () -> Unit,
+    onOpenLoopComment: (String) -> Unit = {},
+    onOpenForumComment: (String) -> Unit = {},
+    onOpenDeeplink: (String) -> Unit = {},
+    onShowAlert: (String) -> Unit = {},
+    onShowError: (String) -> Unit = {},
+) {
+    composable(ProfileRoute.View.route) {
+        val nested = rememberNavController()
+        androidx.navigation.compose.NavHost(
+            navController = nested,
+            startDestination = ProfileRoute.View.route,
+        ) {
+            composable(ProfileRoute.View.route) {
+                ProfileScreen(
+                    onNavigateToNotifications = onOpenNotifications,
+                    onNavigateToEditBasicInfo = { nested.navigate(ProfileRoute.EditBasicInfo.route) },
+                    onNavigateToPrivacyPolicy = { nested.navigate(ProfileRoute.PrivacyPolicy.route) },
+                    onNavigateToMyCommunities = { /* P7 deep link */ },
+                )
+            }
+            composable(ProfileRoute.EditBasicInfo.route) {
+                EditBasicInfoScreen(
+                    onBack = { nested.popBackStack() },
+                    onNavigateToChange = { field -> nested.navigate(ProfileRoute.ChangeBasicInfo.build(field.key)) },
+                )
+            }
+            dialog(
+                route = ProfileRoute.ChangeBasicInfo.PATTERN,
+                arguments = listOf(
+                    androidx.navigation.navArgument(ProfileRoute.ChangeBasicInfo.ARG_FIELD) { type = NavType.StringType },
+                ),
+            ) {
+                ChangeBasicInfoScreen(
+                    onNavigateToSuccess = { msg -> nested.navigate(ProfileRoute.ChangeBasicInfoSuccess.build(msg)) },
+                    onShowError = onShowError,
+                    onBack = { nested.popBackStack() },
+                )
+            }
+            composable(ProfileRoute.ChangeBasicInfoSuccess.PATTERN) {
+                ChangeBasicInfoSuccessScreen(onClose = { nested.popBackStack(ProfileRoute.EditBasicInfo.route, inclusive = false) })
+            }
+            composable(ProfileRoute.PrivacyPolicy.route) {
+                PrivacyPolicyScreen(onBack = { nested.popBackStack() })
+            }
+        }
+    }
+}

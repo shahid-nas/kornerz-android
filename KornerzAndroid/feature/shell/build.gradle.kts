@@ -39,6 +39,8 @@ dependencies {
     implementation(project(":feature:loops"))
     implementation(project(":feature:nooks"))
     implementation(project(":feature:videocall"))
+    implementation(project(":feature:profile"))
+    implementation(project(":feature:notifications"))
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)

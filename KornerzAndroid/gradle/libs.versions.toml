@@ -99,6 +99,7 @@ firebase-crashlytics-ktx = { group = "com.google.firebase", name = "firebase-cra
 firebase-messaging-ktx = { group = "com.google.firebase", name = "firebase-messaging-ktx" }
 firebase-config-ktx = { group = "com.google.firebase", name = "firebase-config-ktx" }
 firebase-functions-ktx = { group = "com.google.firebase", name = "firebase-functions-ktx" }
+firebase-storage-ktx = { group = "com.google.firebase", name = "firebase-storage-ktx" }
 
 # Media3 (ExoPlayer) — introduced in P5 per arch §3 amendment
 # (advances the original P9 schedule because the Loops detail screen
@@ -106,6 +107,13 @@ firebase-functions-ktx = { group = "com.google.firebase", name = "firebase-funct
 androidx-media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3" }
 androidx-media3-ui = { group = "androidx.media3", name = "media3-ui", version.ref = "media3" }
 androidx-media3-common = { group = "androidx.media3", name = "media3-common", version.ref = "media3" }
+
+# PDF viewer — introduced in P6 (phase-6-profile-and-notifications
+# proposal §3 amendment). Mirrors iOS PDFKit.PDFView for the
+# bundled `privacy/privacy_en.pdf` host in `feature/profile`. The
+# canonical 3.2.0-beta.1 tag was never cut on JitPack, so we pin
+# 3.1.0-beta.1 which is the most recent published build.
+android-pdf-viewer = { group = "com.github.barteksc", name = "AndroidPdfViewer", version = "3.1.0-beta.1" }
 
 # Test
 junit = { group = "junit", name = "junit", version.ref = "junit" }

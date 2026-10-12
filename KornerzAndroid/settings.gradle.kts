@@ -17,6 +17,8 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // P6 (task 1.3) — JitPack for `com.github.barteksc:android-pdf-viewer`
+        maven { url = uri("https://jitpack.io") }
     }
 }
 
@@ -35,3 +37,5 @@ include(":feature:kornerz")
 include(":feature:loops")
 include(":feature:nooks")
 include(":feature:videocall")
+include(":feature:profile")
+include(":feature:notifications")

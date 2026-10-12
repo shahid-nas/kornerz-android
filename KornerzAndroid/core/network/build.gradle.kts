@@ -49,6 +49,7 @@ dependencies {
     api(libs.firebase.messaging.ktx)
     api(libs.firebase.config.ktx)
     api(libs.firebase.functions.ktx)
+    api(libs.firebase.storage.ktx)
 
     // Hilt
     implementation(libs.hilt.android)
