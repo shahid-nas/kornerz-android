@@ -35,7 +35,7 @@ The app's root `NavHost` SHALL host exactly one of two child graphs at a time, s
 - **AND** the Login screen is shown with an empty back-stack
 
 ### Requirement: Five-tab bottom navigation shell
-The app SHALL render a bottom navigation bar with exactly 5 tabs in this left-to-right order: Home, Kornerz, Nooks, Loops, Klouders. Each tab SHALL be reachable by tapping its icon. The currently selected tab SHALL be visually distinguished. The bottom bar SHALL remain visible while navigating within a tab's nested graph. The Nooks tab SHALL host a nested `NavHost` with the `nooks/list` destination (introduced in P4, `nooks-tab` capability) as its start destination and `nooks/{nookId}` as a secondary destination reachable from any `NookCard` or `NookTile` tap (introduced in P4, `nook-detail` capability). The shell-level tab order, selection, insets, and theming requirements are otherwise unchanged from P3.
+The app SHALL render a bottom navigation bar with exactly 5 tabs in this left-to-right order: Home, Kornerz, Nooks, Loops, Klouders. Each tab SHALL be reachable by tapping its icon. The currently selected tab SHALL be visually distinguished. The bottom bar SHALL remain visible while navigating within a tab's nested graph. The Nooks tab SHALL host a nested `NavHost` with the `nooks/list` destination (introduced in P4, `nooks-tab` capability) as its start destination, `nooks/{nookId}` (introduced in P4, `nook-detail` capability) as a secondary destination reachable from any `NookCard` or `NookTile` tap, and `videocall/{sessionId}` (introduced in P9, `feature-videocall` capability) as a tertiary destination reachable from the Join button on a `LiveKornerCard` (introduced in P9, `nooks-tab` capability amendment). The shell-level tab order, selection, insets, and theming requirements are otherwise unchanged.
 
 #### Scenario: Tab order matches iOS
 - **WHEN** the app is launched on a signed-in session
@@ -51,6 +51,13 @@ The app SHALL render a bottom navigation bar with exactly 5 tabs in this left-to
 - **WHEN** user navigates from a tab root to a nested screen within that tab (e.g., from `nooks/list` to `nooks/{nookId}` inside the Nooks tab, or from `kornerz/{id}` to `nooks/{nookId}` inside the Kornerz tab)
 - **THEN** the bottom navigation bar remains visible
 - **AND** the originating tab remains selected
+
+#### Scenario: Bottom bar is hidden during a video call
+- **WHEN** user is on the `videocall/{sessionId}` destination inside the Nooks tab's nested `NavHost`
+- **THEN** the bottom navigation bar is hidden (iOS parity — the call is a full-screen experience)
+- **AND** pressing the system back button returns to `nooks/list` inside the Nooks tab
+- **AND** the bottom navigation bar reappears
+- **AND** the Nooks tab remains selected
 
 ### Requirement: Each tab renders a populated screen or empty-state placeholder
 The Home tab in `feature/shell` SHALL render `HomeScreen` (the populated Home tab introduced in P2) instead of the P0 placeholder. The Kornerz tab in `feature/shell` SHALL render `KornerzScreen` (the populated Kornerz tab introduced in P3) and SHALL continue to host its nested `NavHost` with the list and detail destinations. The Nooks tab in `feature/shell` SHALL render `NooksScreen` (the populated Nooks tab introduced in P4) instead of the P0 "Coming in Phase 4" placeholder; the Nooks tab hosts a nested `NavHost` with the list and detail destinations. Until P5 / P10 ship their full destinations, the Loops and Klouders tabs SHALL continue to render their P0 empty-state placeholders with the text "Coming in Phase N" where N is the phase number that will fill that tab.

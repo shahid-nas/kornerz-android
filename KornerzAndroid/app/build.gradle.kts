@@ -137,7 +137,9 @@ dependencies {
     implementation(project(":feature:auth"))
     implementation(project(":feature:home"))
     implementation(project(":feature:kornerz"))
+    implementation(project(":feature:loops"))
     implementation(project(":feature:nooks"))
+    implementation(project(":feature:videocall"))
 
     // Tests
     testImplementation(libs.junit)

@@ -48,6 +48,7 @@ fun LiveKornerCard(
     korner: Korner,
     accentColor: Color,
     onClick: (String) -> Unit,
+    onJoin: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -55,7 +56,10 @@ fun LiveKornerCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(accentColor)
-            .clickable { onClick(korner.id) }
+            .clickable {
+                val sessionId = korner.sessionId
+                if (sessionId != null) onJoin(sessionId) else onClick(korner.id)
+            }
             .padding(8.dp),
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -88,7 +92,9 @@ fun LiveKornerCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                JoinButton(accentColor = accentColor)
+                if (korner.sessionId != null) {
+                    JoinLabel()
+                }
                 Text(
                     text = "9 spots left",
                     color = Color.White,
@@ -111,18 +117,18 @@ fun LiveKornerCard(
 }
 
 @Composable
-private fun JoinButton(accentColor: Color) {
+private fun JoinLabel() {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
-            .background(Color(0xFF202020))
-            .padding(horizontal = 16.dp, vertical = 6.dp),
+            .background(Color(0xFF2E2F3E))
+            .padding(horizontal = 16.dp, vertical = 4.dp),
     ) {
         Text(
             text = "Join",
             color = Color.White,
             style = androidx.compose.ui.text.TextStyle(
-                fontWeight = FontWeight.Bold,
+                fontWeight = FontWeight.Normal,
                 fontSize = 12.sp,
             ),
         )
@@ -141,6 +147,7 @@ fun LiveKornerCard(
     parentKornerName: String,
     accentColor: Color,
     onClick: (String) -> Unit,
+    onJoin: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -148,7 +155,10 @@ fun LiveKornerCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(accentColor)
-            .clickable { onClick(nook.id) }
+            .clickable {
+                val sessionId = nook.sessionId
+                if (sessionId != null) onJoin(sessionId) else onClick(nook.id)
+            }
             .padding(8.dp),
         verticalAlignment = Alignment.Top,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -180,7 +190,9 @@ fun LiveKornerCard(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                JoinButton(accentColor = accentColor)
+                if (nook.sessionId != null) {
+                    JoinLabel()
+                }
                 Text(
                     text = "9 spots left",
                     color = Color.White,

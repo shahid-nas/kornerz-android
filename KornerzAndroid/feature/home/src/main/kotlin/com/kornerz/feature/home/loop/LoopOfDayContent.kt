@@ -71,14 +71,14 @@ fun LoopItem(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clickable { onClick(loop.id) },
+            .clickable { onClick(loop.id.orEmpty()) },
         verticalAlignment = Alignment.Top,
     ) {
         LoopThumbnail(loop = loop, accentIndex = accentIndex, modifier = Modifier.size(100.dp))
         Spacer(modifier = Modifier.size(Spacing.space6))
         Column(modifier = Modifier.fillMaxWidth()) {
             Text(
-                text = loop.title.ifEmpty { "Untitled loop" },
+                text = loop.title.orEmpty().ifEmpty { "Untitled loop" },
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
@@ -103,11 +103,13 @@ fun LoopItem(
                     maxLines = 3,
                 )
             }
-            Text(
-                text = loop.createdAt.timeAgoSince(),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            loop.createdAt?.let { createdAt ->
+                Text(
+                    text = createdAt.timeAgoSince(),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Spacer(Modifier.padding(top = Spacing.space2))
             StatsRow(loop = loop)
         }

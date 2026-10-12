@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Video call screen (P9). Strings live in feature/videocall so the
+         surface is co-located with its consumer. -->
+    <string name="video_call_authenticating">Authenticating</string>
+    <string name="video_call_connecting">Connecting</string>
+    <string name="video_call_waiting_for_others">Waiting for others to join</string>
+    <string name="video_call_error_title">We couldn\'t start the call</string>
+    <string name="video_call_try_again">Try again</string>
+    <string name="video_call_grant_permissions">Grant permissions</string>
+    <string name="video_call_end_call">End call</string>
+    <string name="video_call_flip_camera">Flip camera</string>
+    <string name="video_call_toggle_video">Toggle video</string>
+    <string name="video_call_toggle_audio">Toggle audio</string>
+    <string name="video_call_toggle_hand_raised">Toggle hand raised</string>
+</resources>

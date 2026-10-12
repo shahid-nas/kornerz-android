@@ -36,6 +36,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel(),
     onNavigateToKornerDetail: (String) -> Unit = {},
+    onNavigateToLoopDetail: (String) -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -44,6 +45,7 @@ fun HomeScreen(
             snackbar = snackbarHostState,
             events = viewModel.navEvents,
             onNavigateToKornerDetail = onNavigateToKornerDetail,
+            onNavigateToLoopDetail = onNavigateToLoopDetail,
         )
     }
 

@@ -22,4 +22,11 @@ data class Korner(
     val membersCount: Int = 0,
     @SerialName("isLive") val isLive: Boolean = false,
     @SerialName("isJoined") val isJoined: Boolean = false,
+    // P9: Vonage session id for the live Kornerz's nook; populated by
+    // the Firestore API when the Korner has a live nook associated.
+    @SerialName("sessionId") val sessionId: String? = null,
+    // Firestore `communityId` value — distinct from `id` (which is the
+    // Firestore document id). P9 uses this to join the Korner with
+    // the matching live `Events/{nookId}` document's `sessionId`.
+    @SerialName("communityId") val communityId: String? = null,
 )

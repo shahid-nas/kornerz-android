@@ -11,4 +11,5 @@ sealed interface NooksEvent {
     data class SelectType(val type: NooksType) : NooksEvent
     data class LiveCardClicked(val kornerId: String) : NooksEvent
     data class CardClicked(val nookId: String) : NooksEvent
+    data class JoinVideoCall(val sessionId: String) : NooksEvent
 }

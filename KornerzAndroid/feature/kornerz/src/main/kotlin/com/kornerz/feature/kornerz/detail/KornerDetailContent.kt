@@ -58,6 +58,7 @@ fun KornerDetailContent(
                 nooks = scheduled,
                 parentKornerName = detail.korner.name,
                 parentKornerThemeColor = detail.korner.themeColor,
+                parentKornerCoverUrl = detail.korner.coverUrl,
                 onNookClick = { id -> onEvent(KornerDetailEvent.NookTileClicked(id)) },
             )
         }

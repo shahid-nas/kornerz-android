@@ -34,6 +34,11 @@ dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:network"))
     implementation(project(":core:storage"))
+    // One-way edge: feature/home composes LoopItemView + LoopCardData
+    // from feature/loops so the Home recent-loops carousel shares the
+    // same row chrome as the Loops tab. Documented in
+    // feature/home/README per design.md D9.
+    implementation(project(":feature:loops"))
 
     implementation(libs.androidx.core.ktx)
 

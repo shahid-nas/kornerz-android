@@ -28,10 +28,63 @@ class NooksRepository @Inject constructor(
 
     /**
      * Fetches one page of approved Korners ordered by `viewsCount`
-     * descending. Mirrors iOS `fetchKornerz()`.
+     * descending, then enriches each Korner with the matching live
+     * Nook's `sessionId` (if any). The join tries two key forms
+     * because the Firestore Communities schema varies between the
+     * earlier "doc-id = communityId" deployments and the current
+     * "doc-id ≠ communityId" deployments:
+     *   1. `nook.communityId == korner.communityId` (the iOS-spec
+     *      relationship; `nook.communityId` reads from the
+     *      `eventCommunityId` field on the Event doc)
+     *   2. `nook.communityId == korner.id` (fallback for older
+     *      Communities docs where the public stable id equals the
+     *      Firestore document id)
      */
     fun fetchLiveKornerzPage(after: DocumentSnapshot?): Flow<Result<NookFirestoreApi.KornerPage>> = flow {
-        emit(api.fetchLiveKornerzPage(after = after))
+        val pageResult = api.fetchLiveKornerzPage(after = after)
+        pageResult.fold(
+            onSuccess = { page ->
+                val liveEvents = api.fetchLiveEvents()
+                    .getOrNull()
+                    ?.items
+                    .orEmpty()
+
+                val sessionIdByCommunityId = mutableMapOf<String, String>()
+                for (nook in liveEvents) {
+                    val communityId = nook.communityId.trim()
+                    val sessionId = nook.sessionId
+                    if (communityId.isNotEmpty() &&
+                        !sessionId.isNullOrBlank() &&
+                        !sessionIdByCommunityId.containsKey(communityId)
+                    ) {
+                        sessionIdByCommunityId[communityId] = sessionId
+                    }
+                }
+
+                val enriched = page.items.map { korner ->
+                    val candidateKeys = buildList {
+                        korner.communityId?.trim()?.takeIf { it.isNotEmpty() }?.let(::add)
+                        add(korner.id)
+                    }
+                    val sessionId = candidateKeys
+                        .mapNotNull { sessionIdByCommunityId[it] }
+                        .firstOrNull()
+                        ?: korner.sessionId
+                    if (sessionId != null) korner.copy(sessionId = sessionId) else korner
+                }
+
+                emit(
+                    Result.success(
+                        NookFirestoreApi.KornerPage(
+                            items = enriched,
+                            lastSnapshot = page.lastSnapshot,
+                            hasMore = page.hasMore,
+                        ),
+                    ),
+                )
+            },
+            onFailure = { emit(Result.failure(it)) },
+        )
     }
 
     /**

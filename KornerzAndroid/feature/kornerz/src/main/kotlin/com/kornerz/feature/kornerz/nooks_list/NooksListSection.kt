@@ -27,6 +27,7 @@ fun NooksListSection(
     nooks: List<Nook>,
     parentKornerName: String,
     parentKornerThemeColor: String,
+    parentKornerCoverUrl: String? = null,
     onNookClick: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -37,6 +38,7 @@ fun NooksListSection(
                 nook = nook,
                 publisher = null,
                 parentKornerName = parentKornerName,
+                parentKornerCoverUrl = parentKornerCoverUrl,
                 accentColor = nooksAccentColor(index + 1),
                 onClick = onNookClick,
             )

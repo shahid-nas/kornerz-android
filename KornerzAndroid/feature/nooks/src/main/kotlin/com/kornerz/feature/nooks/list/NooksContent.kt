@@ -82,6 +82,7 @@ private fun LiveSection(state: NooksState, onEvent: (NooksEvent) -> Unit) {
                         korner = korner,
                         accentColor = nooksAccentColor(index),
                         onClick = { id -> onEvent(NooksEvent.LiveCardClicked(id)) },
+                        onJoin = { sessionId -> onEvent(NooksEvent.JoinVideoCall(sessionId)) },
                     )
                     Spacer(modifier = Modifier.height(Spacing.space2))
                 }
@@ -110,6 +111,7 @@ private fun UpcomingSection(state: NooksState, onEvent: (NooksEvent) -> Unit) {
                         nook = item.nook,
                         publisher = item.publisher,
                         parentKornerName = item.parentKorner.name,
+                        parentKornerCoverUrl = item.parentKorner.coverUrl,
                         accentColor = nooksAccentColor(index),
                         onClick = { id -> onEvent(NooksEvent.CardClicked(id)) },
                     )

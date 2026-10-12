@@ -48,6 +48,7 @@ fun ScheduledNookCard(
     nook: Nook,
     publisher: User?,
     parentKornerName: String,
+    parentKornerCoverUrl: String?,
     accentColor: Color,
     onClick: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -104,7 +105,7 @@ fun ScheduledNookCard(
             )
         }
         TriangleCover(
-            imageUrl = null,
+            imageUrl = parentKornerCoverUrl,
             contentDescription = parentKornerName,
             corner = TriangleCorner.TopRight,
             size = 80.dp,
@@ -118,13 +119,13 @@ private fun AddButton() {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
-            .background(Color(0xFF202020))
-            .padding(horizontal = 16.dp, vertical = 6.dp),
+            .background(Color(0xFF2E2F3E))
+            .padding(horizontal = 16.dp, vertical = 4.dp),
     ) {
         Text(
             text = "Add",
             color = Color.White,
-            style = TextStyle(fontWeight = FontWeight.Bold, fontSize = 12.sp),
+            style = TextStyle(fontWeight = FontWeight.Normal, fontSize = 12.sp),
         )
     }
 }

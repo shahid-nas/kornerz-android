@@ -50,8 +50,8 @@ fun HomeContent(
 @Composable
 private fun LoopSection(value: AsyncValue<com.kornerz.core.model.Loop>, onEvent: (HomeEvent) -> Unit) {
     when (value) {
-        is AsyncValue.Success -> if (value.data.id.isNotEmpty()) {
-            LoopOfDayContent(loop = value.data, onClick = { onEvent(HomeEvent.LoopOfDayClicked(it)) })
+        is AsyncValue.Success -> value.data.id?.takeIf { it.isNotEmpty() }?.let { id ->
+            LoopOfDayContent(loop = value.data, onClick = { onEvent(HomeEvent.LoopOfDayClicked(id)) })
         }
         is AsyncValue.Error -> LoopOfDayRetrySection(onRetry = { onEvent(HomeEvent.LoopOfDayRetry) })
         AsyncValue.Loading -> LoopOfDayShimmerSection()

@@ -18,8 +18,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.kornerz.core.ui.theme.KornerzColors
 import com.kornerz.core.ui.theme.KornerzTheme
 import com.kornerz.feature.nooks.list.NooksType
 
@@ -59,8 +61,10 @@ fun NooksHeader(
         }
         Text(
             text = title,
+            // iOS `TabHeaderView` uses Lato(20, weight: .bold).
             style = MaterialTheme.typography.titleLarge,
             color = MaterialTheme.colorScheme.onBackground,
+            fontWeight = FontWeight.Bold,
             modifier = Modifier.weight(1f),
         )
         NooksTypeToggle(selected = selectedType, onSelect = onSelect)
@@ -101,6 +105,9 @@ private fun NooksTypeTab(
     ) {
         Text(
             text = label,
+            // iOS `TabHeaderView` uses Lato(12, weight: .regular) for
+            // both selected and unselected states; selection is
+            // indicated by the underline only.
             style = MaterialTheme.typography.labelMedium,
             color = if (isSelected) MaterialTheme.colorScheme.onBackground
                 else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -109,8 +116,12 @@ private fun NooksTypeTab(
         Box(
             modifier = Modifier
                 .height(2.dp)
+                .fillMaxWidth()
                 .background(
-                    if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                    // iOS uses AppColor.CEBE1D3 (#EBE1D3 — sand). The
+                    // M3 `primary` (purple) was the previous default
+                    // and reads off-style on the smoke/ink surface.
+                    if (isSelected) KornerzColors.SandLight else Color.Transparent,
                 ),
         )
     }

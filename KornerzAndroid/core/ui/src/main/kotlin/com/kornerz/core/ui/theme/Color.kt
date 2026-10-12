@@ -145,4 +145,7 @@ object KornerzColors {
     val SageLight get() = KornerzPalette.SageLight
     val AquaLight get() = KornerzPalette.AquaLight
     val SaffronLight get() = KornerzPalette.SaffronLight
+    // Sand mirrors iOS `AppColor.CEBE1D3`; used by the nooks tab
+    // Live/Upcoming toggle underline.
+    val SandLight get() = KornerzPalette.SandLight
 }

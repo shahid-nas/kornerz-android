@@ -73,6 +73,45 @@ class NookFirestoreApi @Inject constructor(
     }
 
     /**
+     * Live tab — fetch currently live Events (one-shot; not paged).
+     * Mirrors the live `Nook` source the iOS `fetchKornerz` joins
+     * against in the commingled flow — on Android the live
+     * `Korner.sessionId` is enriched from these via
+     * [NooksRepository.fetchLiveKornerzPage].
+     *
+     * Two-part union pulled client-side and deduped by Event id:
+     *  1. `eventType == "live"` marker rows (iOS-spec live flag).
+     *  2. `eventDateInit <= now` — events whose start has passed,
+     *     matching the iOS `startDate.compare(Date())` "live" test
+     *     in `AppHomeVC.swift`. This catches rows that mark a live
+     *     nook via date rather than an `eventType` field.
+     */
+    suspend fun fetchLiveEvents(
+        limit: Long = LIVE_PAGE_LIMIT,
+    ): Result<NookPage> = runCatching {
+        val now = Timestamp.now()
+        val byType = firestore.collection(COLLECTION_EVENTS)
+            .whereEqualTo(FIELD_EVENT_TYPE, FIELD_EVENT_TYPE_LIVE)
+            .limit(limit)
+            .get()
+            .await()
+        val byDate = firestore.collection(COLLECTION_EVENTS)
+            .whereLessThanOrEqualTo(FIELD_EVENT_DATE_INIT, now)
+            .limit(limit)
+            .get()
+            .await()
+        val combined = (byType.documents + byDate.documents)
+            .associateBy { it.id }
+            .values
+            .mapNotNull { it.data?.toNook(it.id) }
+        NookPage(
+            items = combined,
+            lastSnapshot = null,
+            hasMore = false,
+        )
+    }
+
+    /**
      * Upcoming tab — page of open Events for the next [days] days,
      * ordered by `eventDateFinish` ascending. Mirrors iOS
      * `eventRepository.fetchEventsForNextFewDays(after: eventLastSnapshot,
@@ -213,7 +252,9 @@ class NookFirestoreApi @Inject constructor(
         // iOS Event.CodingKeys — keep field names aligned so the same
         // Firestore document is consumable by both apps.
         val title = (get(FIELD_EVENT_TITLE) as? String) ?: return null
-        val communityId = (get(FIELD_EVENT_COMMUNITY_ID) as? String).orEmpty()
+        val communityId = (get(FIELD_EVENT_COMMUNITY_ID) as? String)
+            ?: (get(FIELD_COMMUNITY_ID_ON_EVENT) as? String)
+            .orEmpty()
         val startDate = (get(FIELD_EVENT_DATE_INIT) as? Timestamp)
             ?.toInstant()?.toKotlinInstant()
             ?: Instant.DISTANT_PAST
@@ -241,7 +282,8 @@ class NookFirestoreApi @Inject constructor(
             eventDateInit = startDate,
             eventDateFinish = endDate,
             type = type,
-            sessionId = (get(FIELD_SESSION_ID) as? String),
+            sessionId = (get(FIELD_SESSION_ID) as? String)
+                ?: (get(FIELD_SESSION_ID_UPPER) as? String),
             publisherId = (get(FIELD_PUBLISHER_ID) as? String),
         )
     }
@@ -261,6 +303,12 @@ class NookFirestoreApi @Inject constructor(
             membersCount = parseMembersCount(get(FIELD_COMMUNITY_MEMBERS_COUNT)),
             isLive = false,
             isJoined = false,
+            // Community.sessionID maps to Firestore "communitySessionId"
+            // per iOS Community.swift CodingKeys (not "sessionId" — the
+            // bare "sessionId" key on Communities never exists).
+            sessionId = (get(FIELD_COMMUNITY_SESSION_ID) as? String)
+                ?: (get(FIELD_SESSION_ID) as? String),
+            communityId = (get(FIELD_COMMUNITY_ID) as? String),
         )
     }
 
@@ -325,10 +373,18 @@ class NookFirestoreApi @Inject constructor(
         const val FIELD_EVENT_TITLE = "eventTitle"
         const val FIELD_EVENT_DESCRIPTION = "eventDescription"
         const val FIELD_EVENT_COMMUNITY_ID = "eventCommunityId"
+        const val FIELD_COMMUNITY_ID_ON_EVENT = "communityId"
         const val FIELD_EVENT_DATE_INIT = "eventDateInit"
         const val FIELD_EVENT_DATE_FINISH = "eventDateFinish"
         const val FIELD_EVENT_TYPE = "eventType"
+        const val FIELD_EVENT_TYPE_LIVE = "live"
         const val FIELD_SESSION_ID = "sessionId"
+        const val FIELD_SESSION_ID_UPPER = "sessionID"
+        // Mirrors iOS Community.swift CodingKeys: `sessionID =
+        // "communitySessionId"`. The Communities collection stores
+        // its live session id under this Firestore key, not the
+        // bare "sessionId".
+        const val FIELD_COMMUNITY_SESSION_ID = "communitySessionId"
         const val FIELD_PUBLISHER_ID = "publisherId"
         const val FIELD_FIREBASE_GUEST_IMAGE_URL = "firebaseGuestImageUrl"
         const val FIELD_GUEST_IMAGE = "guestImage"

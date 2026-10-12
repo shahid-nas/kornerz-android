@@ -35,6 +35,12 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.datetime)
 
+    // OkHttp (used by SessionTokenService for the Vonage session-token handshake)
+    api(libs.okhttp)
+
+    // Vonage (used by VonageSessionController)
+    api(libs.opentok.android.sdk)
+
     // Firebase (versions come from the BOM)
     implementation(platform(libs.firebase.bom))
     api(libs.firebase.auth.ktx)

@@ -191,6 +191,11 @@ class KornerFirestoreApi @Inject constructor(
             membersCount = parseMembersCount(get(FIELD_COMMUNITY_MEMBERS_COUNT)),
             isLive = false,
             isJoined = false,
+            communityId = (get(FIELD_COMMUNITY_ID) as? String),
+            // Mirrors iOS Community.swift CodingKeys: `sessionID =
+            // "communitySessionId"`.
+            sessionId = (get(FIELD_COMMUNITY_SESSION_ID) as? String)
+                ?: (get(FIELD_SESSION_ID) as? String),
         )
     }
 
@@ -241,6 +246,10 @@ class KornerFirestoreApi @Inject constructor(
         const val COLLECTION_MEMBERS = "members"
 
         const val FIELD_COMMUNITY_ID = "communityId"
+        const val FIELD_SESSION_ID = "sessionId"
+        // Mirrors iOS Community.swift CodingKeys: `sessionID =
+        // "communitySessionId"`.
+        const val FIELD_COMMUNITY_SESSION_ID = "communitySessionId"
         const val FIELD_COMMUNITY_NAME = "communityName"
         const val FIELD_COMMUNITY_NAME_EN = "communityNameEn"
         const val FIELD_COMMUNITY_APPROVED = "communityApproved"

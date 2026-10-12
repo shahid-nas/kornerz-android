@@ -9,4 +9,5 @@ package com.kornerz.feature.nooks.list
 sealed interface NooksNavEvent {
     data class NavigateToNookDetail(val nookId: String) : NooksNavEvent
     data class NavigateToKornerDetail(val kornerId: String) : NooksNavEvent
+    data class JoinVideoCall(val sessionId: String) : NooksNavEvent
 }

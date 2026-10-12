@@ -71,6 +71,8 @@ class NooksViewModel @Inject constructor(
                 emit(NooksNavEvent.NavigateToKornerDetail(event.kornerId))
             is NooksEvent.CardClicked ->
                 emit(NooksNavEvent.NavigateToNookDetail(event.nookId))
+            is NooksEvent.JoinVideoCall ->
+                emit(NooksNavEvent.JoinVideoCall(event.sessionId))
         }
     }
 
