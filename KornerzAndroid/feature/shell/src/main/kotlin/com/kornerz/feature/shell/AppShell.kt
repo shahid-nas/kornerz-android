@@ -43,6 +43,7 @@ import com.kornerz.feature.nooks.NooksRoute
 import com.kornerz.feature.nooks.detail.NookDetailNavEvent
 import com.kornerz.feature.nooks.detail.NookDetailScreen
 import com.kornerz.feature.nooks.detail.NookDetailViewModel
+import com.kornerz.feature.nooks.list.NooksNavEvent
 import com.kornerz.feature.nooks.list.NooksScreen
 import com.kornerz.feature.videocall.VideoCallNavEvent
 import com.kornerz.feature.videocall.VideocallRoute
@@ -74,6 +75,7 @@ fun AppShell(
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val comingSoonSnackbar = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     // Cross-tab navigation: the Kornerz tab hosts the
     // `kornerz/{kornerId}` destination inside its own nested
@@ -120,6 +122,10 @@ fun AppShell(
             kornerzTabGraph(
                 onNavEvent = { event ->
                     when (event) {
+                        KornerzNavEvent.NavigateToProfile ->
+                            scope.launch {
+                                comingSoonSnackbar.showSnackbar(PROFILE_SNACKBAR_MESSAGE)
+                            }
                         is KornerzNavEvent.NavigateToKornerDetail -> {
                             pendingKornerId = event.kornerId
                         }
@@ -133,6 +139,11 @@ fun AppShell(
                 },
             )
             nooksTabGraph(
+                onProfileTap = {
+                    scope.launch {
+                        comingSoonSnackbar.showSnackbar(PROFILE_SNACKBAR_MESSAGE)
+                    }
+                },
                 onNookDetail = { nookId ->
                     navigateToNookDetailInNooksTab(navController, nookId)
                 },
@@ -149,6 +160,11 @@ fun AppShell(
                 },
             )
             loopsTabGraph(
+                onProfileTap = {
+                    scope.launch {
+                        comingSoonSnackbar.showSnackbar(PROFILE_SNACKBAR_MESSAGE)
+                    }
+                },
                 onLoopDetail = { id ->
                     navigateToLoopDetail(navController, id, onPending = { pendingLoopId = id })
                 },
@@ -339,6 +355,7 @@ internal fun androidx.navigation.NavGraphBuilder.kornerzTabGraph(
  * reached cross-tab.
  */
 internal fun androidx.navigation.NavGraphBuilder.nooksTabGraph(
+    onProfileTap: () -> Unit = {},
     onNookDetail: (String) -> Unit = {},
     onKornerDetail: (String) -> Unit = {},
     onJoinVideoCall: (String) -> Unit = {},
@@ -354,13 +371,14 @@ internal fun androidx.navigation.NavGraphBuilder.nooksTabGraph(
                     modifier = Modifier,
                     onNavEvent = { event ->
                         when (event) {
-                            is com.kornerz.feature.nooks.list.NooksNavEvent.NavigateToNookDetail -> {
+                            NooksNavEvent.NavigateToProfile -> onProfileTap()
+                            is NooksNavEvent.NavigateToNookDetail -> {
                                 onNookDetail(event.nookId)
                             }
-                            is com.kornerz.feature.nooks.list.NooksNavEvent.NavigateToKornerDetail -> {
+                            is NooksNavEvent.NavigateToKornerDetail -> {
                                 onKornerDetail(event.kornerId)
                             }
-                            is com.kornerz.feature.nooks.list.NooksNavEvent.JoinVideoCall -> {
+                            is NooksNavEvent.JoinVideoCall -> {
                                 // Bubble to the shell so the call can
                                 // be routed through the root
                                 // NavController — the videocall
@@ -391,6 +409,7 @@ internal fun androidx.navigation.NavGraphBuilder.nooksTabGraph(
 }
 
 internal fun androidx.navigation.NavGraphBuilder.loopsTabGraph(
+    onProfileTap: () -> Unit = {},
     onLoopDetail: (String) -> Unit = {},
     pendingLoopId: String? = null,
     onPendingConsumed: () -> Unit = {},
@@ -412,8 +431,9 @@ internal fun androidx.navigation.NavGraphBuilder.loopsTabGraph(
                 LoopsScreen(
                     modifier = Modifier,
                     onNavEvent = { event ->
-                        if (event is LoopsNavEvent.NavigateToLoopDetail) {
-                            onLoopDetail(event.loopId)
+                        when (event) {
+                            LoopsNavEvent.NavigateToProfile -> onProfileTap()
+                            is LoopsNavEvent.NavigateToLoopDetail -> onLoopDetail(event.loopId)
                         }
                     },
                 )
@@ -455,3 +475,11 @@ internal fun androidx.navigation.NavGraphBuilder.loopsTabGraph(
 
 internal fun androidx.navigation.NavGraphBuilder.kloudersTabGraph(onLogout: () -> Unit) =
     tabComposableWithLogout(ShellTab.Klouders, onLogout)
+
+/**
+ * Snackbar copy for avatar taps on every tab's shared header. The
+ * Profile destination ships in P6 (architecture §10.4); until then the
+ * shell surfaces this message wherever an avatar is tapped — matches
+ * the iOS `HomeNavEvent.NavigateToProfile` placeholder behaviour.
+ */
+private const val PROFILE_SNACKBAR_MESSAGE = "Profile coming in Phase 6"

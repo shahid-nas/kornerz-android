@@ -1,4 +1,4 @@
-package com.kornerz.feature.home.header
+package com.kornerz.core.ui.components.header
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -22,22 +22,93 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.kornerz.core.model.AsyncValue
 import com.kornerz.core.model.User
+import com.kornerz.core.storage.session.SessionRepository
+import com.kornerz.core.storage.session.SessionState
 import com.kornerz.core.ui.components.HomeShimmerPlaceholder
 import com.kornerz.core.ui.components.KornerzDiamondImage
 import com.kornerz.core.ui.theme.KornerzTheme
-import com.kornerz.feature.home.HomeHeaderData
+import com.kornerz.core.ui.theme.Spacing
+import dagger.hilt.android.scopes.ViewModelScoped
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+/**
+ * Avatar / points projection rendered at the top of every bottom-bar
+ * tab (architecture §2.5 — features consume shared UI from `:core:ui`).
+ *
+ * Mirrors iOS `HomeHeaderView` / `HomeHeaderData`:
+ * `kornerz/Kornerz/SwiftUI/Dashboard/HomeTab/Sections/HeaderView/`.
+ */
+data class TabHeaderData(
+    val user: User,
+    val points: Int,
+)
+
+/**
+ * Shared ViewModel backing the tab header across all five bottom-bar
+ * tabs (Home / Kornerz / Nooks / Loops / Klouders). Reads the current
+ * user from [SessionRepository]; P2 returns 0 points, P10 wires
+ * `GamificationService` (mirrors iOS `HomeHeaderViewModel`).
+ *
+ * Scoped to its parent `@HiltViewModel` via [ViewModelScoped]
+ * (architecture §2.6 — "per-ViewModel helpers (rare — prefer passing
+ * via constructor)") and instantiated per-host because the section
+ * shares the host's coroutine scope.
+ */
+@ViewModelScoped
+class TabHeaderViewModel @Inject constructor(
+    private val sessionRepository: SessionRepository,
+) {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+    private val _state = MutableStateFlow<AsyncValue<TabHeaderData>>(AsyncValue.Loading)
+    val state: StateFlow<AsyncValue<TabHeaderData>> = _state.asStateFlow()
+
+    fun fetchData() {
+        scope.launch {
+            _state.value = AsyncValue.Loading
+            runCatching {
+                val session = sessionRepository.data.first()
+                when (session) {
+                    is SessionState.Authenticated -> TabHeaderData(
+                        user = session.user,
+                        points = 0,
+                    )
+                    SessionState.Anonymous -> error("not signed in")
+                    SessionState.Loading -> return@launch
+                }
+            }.onSuccess { _state.value = AsyncValue.Success(it) }
+                .onFailure { _state.value = AsyncValue.Error(it) }
+        }
+    }
+}
 
 /**
  * Header row: 52dp diamond avatar (1:1 port of iOS
- * `DiamondImageView(size:52, radius:10)`) on the leading edge, signed-in
- * user display name, points badge on the trailing edge.
+ * `DiamondImageView(size:52, radius:10)`) on the leading edge,
+ * signed-in user display name, points badge on the trailing edge.
  *
- * Mirrors iOS `HomeHeaderView.swift` layout. Modifier last per
- * architecture §4.
+ * Mirrors iOS `HomeHeaderView.body.contentView` layout:
+ * `HStack(spacing: 16) { userImageView; Spacer(); userPointsView }`
+ * with `.padding(.horizontal)`. The avatar is clickable and forwards
+ * to [onAvatarTap] to match iOS `viewModel.onUserTap?()`. Modifier
+ * last per architecture §4.
+ *
+ * Each tab feeds this composable from its parent ViewModel, which
+ * injects the shared [TabHeaderViewModel] and exposes its state via
+ * `AsyncValue<TabHeaderData>` — mirrors iOS, where every tab embeds
+ * `HomeHeaderView` at the top of its scrollable content.
  */
 @Composable
-fun HomeHeaderContent(
-    state: AsyncValue<HomeHeaderData>,
+fun TabHeaderContent(
+    state: AsyncValue<TabHeaderData>,
     onAvatarTap: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -58,7 +129,7 @@ fun HomeHeaderContent(
 }
 
 @Composable
-private fun LoadedHeader(data: HomeHeaderData, onAvatarTap: () -> Unit) {
+private fun LoadedHeader(data: TabHeaderData, onAvatarTap: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         KornerzDiamondImage(
             imageUrl = data.user.photoUrl,
@@ -93,15 +164,13 @@ private fun LoadedHeader(data: HomeHeaderData, onAvatarTap: () -> Unit) {
     }
 }
 
-private val Spacing = com.kornerz.core.ui.theme.Spacing
-
-@Preview(showBackground = true, name = "Header — light")
+@Preview(showBackground = true, name = "TabHeader — light")
 @Composable
-private fun HomeHeaderLightPreview() {
+private fun TabHeaderLightPreview() {
     KornerzTheme(darkTheme = false) {
-        HomeHeaderContent(
+        TabHeaderContent(
             state = AsyncValue.Success(
-                HomeHeaderData(
+                TabHeaderData(
                     user = User(
                         id = "u1",
                         email = "u@example.com",
@@ -116,13 +185,13 @@ private fun HomeHeaderLightPreview() {
     }
 }
 
-@Preview(showBackground = true, name = "Header — dark")
+@Preview(showBackground = true, name = "TabHeader — dark")
 @Composable
-private fun HomeHeaderDarkPreview() {
+private fun TabHeaderDarkPreview() {
     KornerzTheme(darkTheme = true) {
-        HomeHeaderContent(
+        TabHeaderContent(
             state = AsyncValue.Success(
-                HomeHeaderData(
+                TabHeaderData(
                     user = User(
                         id = "u1",
                         email = "u@example.com",
@@ -137,10 +206,10 @@ private fun HomeHeaderDarkPreview() {
     }
 }
 
-@Preview(showBackground = true, name = "Header — loading")
+@Preview(showBackground = true, name = "TabHeader — loading")
 @Composable
-private fun HomeHeaderLoadingPreview() {
+private fun TabHeaderLoadingPreview() {
     KornerzTheme(darkTheme = false) {
-        HomeHeaderContent(state = AsyncValue.Loading, onAvatarTap = {})
+        TabHeaderContent(state = AsyncValue.Loading, onAvatarTap = {})
     }
 }

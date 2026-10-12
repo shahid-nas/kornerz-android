@@ -5,6 +5,8 @@ import com.kornerz.core.model.Korner
 import com.kornerz.core.model.Nook
 import com.kornerz.core.model.UpcomingNookItem
 import com.kornerz.core.model.User
+import com.kornerz.core.storage.session.SessionRepository
+import com.kornerz.core.ui.components.header.TabHeaderViewModel
 import com.kornerz.feature.nooks.data.NooksRepository
 import com.kornerz.feature.nooks.data.NooksUpcomingPage
 import com.kornerz.core.network.nooks.NookFirestoreApi
@@ -58,7 +60,7 @@ class NooksViewModelTest {
                 ),
             ),
         )
-        val vm = NooksViewModel(repo)
+        val vm = NooksViewModel(repo, mockHeaderVm())
         val state = vm.state.first {
             it.live is AsyncValue.Success && it.upcoming is AsyncValue.Success
         }
@@ -83,7 +85,7 @@ class NooksViewModelTest {
                 NooksUpcomingPage(items = emptyList(), lastSnapshot = null, hasMore = false),
             ),
         )
-        val vm = NooksViewModel(repo)
+        val vm = NooksViewModel(repo, mockHeaderVm())
         vm.state.first { it.live is AsyncValue.Success && it.upcoming is AsyncValue.Success }
 
         vm.onEvent(NooksEvent.CardClicked("n99"))
@@ -94,6 +96,9 @@ class NooksViewModelTest {
 }
 
 private fun sampleKorner(id: String) = Korner(id = id, name = "Korner $id", themeColor = "#E27D5A")
+
+private fun mockHeaderVm(): TabHeaderViewModel =
+    TabHeaderViewModel(mockk<SessionRepository>(relaxed = true)).also { it.fetchData() }
 private fun sampleUpcoming(nookId: String, kornerId: String) = UpcomingNookItem(
     nook = Nook(
         id = nookId,

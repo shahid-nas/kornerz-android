@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.firestore.DocumentSnapshot
 import com.kornerz.core.model.AsyncValue
+import com.kornerz.core.ui.components.header.TabHeaderViewModel
 import com.kornerz.feature.nooks.data.NooksRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -19,7 +20,10 @@ import javax.inject.Inject
 
 /**
  * Hilt-managed ViewModel for the Nooks tab list. Owns two paging
- * state machines (live + upcoming) backed by [NooksRepository].
+ * state machines (live + upcoming) backed by [NooksRepository], plus
+ * the shared `TabHeaderViewModel` so the avatar + points row sits
+ * above the feed (mirrors iOS, where every tab embeds
+ * `HomeHeaderView` at the top of its scroll content).
  *
  * Architecture §2.1 / §2.4 / §2.6: emits navigation through a
  * buffered [Channel]; supports cursor-based pagination for both
@@ -29,6 +33,7 @@ import javax.inject.Inject
 @HiltViewModel
 class NooksViewModel @Inject constructor(
     private val repository: NooksRepository,
+    private val headerVm: TabHeaderViewModel,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(NooksState())
@@ -48,6 +53,7 @@ class NooksViewModel @Inject constructor(
     private var upcomingCursor: DocumentSnapshot? = null
 
     init {
+        headerVm.fetchData()
         loadLiveInitial()
         loadUpcomingInitial()
     }
@@ -55,6 +61,7 @@ class NooksViewModel @Inject constructor(
     fun onEvent(event: NooksEvent) {
         when (event) {
             NooksEvent.Refresh -> {
+                headerVm.fetchData()
                 loadLiveInitial()
                 loadUpcomingInitial()
             }
@@ -62,6 +69,7 @@ class NooksViewModel @Inject constructor(
                 loadLiveInitial()
                 loadUpcomingInitial()
             }
+            NooksEvent.AvatarTapped -> emit(NooksNavEvent.NavigateToProfile)
             NooksEvent.LoadMoreLive -> loadLiveMore()
             NooksEvent.LoadMoreUpcoming -> loadUpcomingMore()
             is NooksEvent.SelectType -> {

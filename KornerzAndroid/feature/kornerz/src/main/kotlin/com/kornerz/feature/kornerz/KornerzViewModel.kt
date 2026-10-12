@@ -2,6 +2,7 @@ package com.kornerz.feature.kornerz
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.kornerz.core.ui.components.header.TabHeaderViewModel
 import com.kornerz.feature.kornerz.sections.NewThisWeekKornerzSectionViewModel
 import com.kornerz.feature.kornerz.sections.RecommendedKornerzSectionViewModel
 import com.kornerz.feature.kornerz.sections.YourKornerzSectionViewModel
@@ -22,21 +23,28 @@ import javax.inject.Inject
  * `KornerzState`, mirroring the iOS `KornerzTabViewModel` which owns
  * three `KornerzCarouselViewModel` instances.
  *
+ * Also composes the shared `TabHeaderViewModel` so the avatar +
+ * points row sits above the carousels — matches iOS, where every tab
+ * embeds `HomeHeaderView` at the top of its scroll content.
+ *
  * Architecture §2.1 / §2.4 / §2.6: emits navigation through a buffered
  * [Channel]; composes screen state from independent sub-VMs.
  */
 @HiltViewModel
 class KornerzViewModel @Inject constructor(
+    private val headerVm: TabHeaderViewModel,
     private val yourKornerzVm: YourKornerzSectionViewModel,
     private val recommendedVm: RecommendedKornerzSectionViewModel,
     private val newThisWeekVm: NewThisWeekKornerzSectionViewModel,
 ) : ViewModel() {
 
     val state: StateFlow<KornerzState> = combine(
+        headerVm.state,
         yourKornerzVm.state,
         combine(recommendedVm.state, newThisWeekVm.state) { r, n -> r to n },
-    ) { your, recommendedAndNew ->
+    ) { header, your, recommendedAndNew ->
         KornerzState(
+            header = header,
             yourKornerz = your,
             recommended = recommendedAndNew.first,
             newThisWeek = recommendedAndNew.second,
@@ -54,11 +62,13 @@ class KornerzViewModel @Inject constructor(
         when (event) {
             KornerzEvent.Refresh -> refresh()
             KornerzEvent.Retry -> refresh()
+            KornerzEvent.AvatarTapped -> emit(KornerzNavEvent.NavigateToProfile)
             is KornerzEvent.RowClicked -> emit(KornerzNavEvent.NavigateToKornerDetail(event.kornerId))
         }
     }
 
     fun refresh() {
+        headerVm.fetchData()
         yourKornerzVm.fetchData()
         recommendedVm.fetchData()
         newThisWeekVm.fetchData()

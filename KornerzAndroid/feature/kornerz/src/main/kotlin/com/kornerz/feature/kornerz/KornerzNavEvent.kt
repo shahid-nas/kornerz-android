@@ -6,5 +6,6 @@ package com.kornerz.feature.kornerz
  * these and routes via `NavController.navigate(...)`.
  */
 sealed interface KornerzNavEvent {
+    data object NavigateToProfile : KornerzNavEvent
     data class NavigateToKornerDetail(val kornerId: String) : KornerzNavEvent
 }

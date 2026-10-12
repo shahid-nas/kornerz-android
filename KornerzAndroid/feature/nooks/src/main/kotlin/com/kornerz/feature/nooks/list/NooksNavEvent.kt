@@ -7,6 +7,7 @@ package com.kornerz.feature.nooks.list
  * per-tab detail destination.
  */
 sealed interface NooksNavEvent {
+    data object NavigateToProfile : NooksNavEvent
     data class NavigateToNookDetail(val nookId: String) : NooksNavEvent
     data class NavigateToKornerDetail(val kornerId: String) : NooksNavEvent
     data class JoinVideoCall(val sessionId: String) : NooksNavEvent

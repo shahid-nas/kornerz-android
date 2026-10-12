@@ -8,8 +8,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.kornerz.core.model.AsyncValue
+import com.kornerz.core.ui.components.header.TabHeaderContent
 import com.kornerz.core.ui.theme.Spacing
-import com.kornerz.feature.home.header.HomeHeaderContent
 import com.kornerz.feature.home.loop.LoopOfDayContent
 import com.kornerz.feature.home.loop.LoopOfDayRetrySection
 import com.kornerz.feature.home.loop.LoopOfDayShimmerSection
@@ -35,7 +35,7 @@ fun HomeContent(
         verticalArrangement = Arrangement.spacedBy(Spacing.space4),
     ) {
         item(key = "header") {
-            HomeHeaderContent(
+            TabHeaderContent(
                 state = state.header,
                 onAvatarTap = { onEvent(HomeEvent.AvatarTapped) },
             )

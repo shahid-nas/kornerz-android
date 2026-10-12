@@ -79,7 +79,7 @@ private fun HomeScreenPreview() {
         HomeContent(
             state = HomeState(
                 header = com.kornerz.core.model.AsyncValue.Success(
-                    HomeHeaderData(
+                    com.kornerz.core.ui.components.header.TabHeaderData(
                         user = com.kornerz.core.model.User(
                             id = "u1",
                             email = "u@example.com",

@@ -3,6 +3,7 @@ package com.kornerz.feature.nooks.list
 import com.kornerz.core.model.AsyncValue
 import com.kornerz.core.model.Korner
 import com.kornerz.core.model.UpcomingNookItem
+import com.kornerz.core.ui.components.header.TabHeaderData
 
 /**
  * UiState for the Nooks tab list (architecture §2.2).
@@ -15,9 +16,12 @@ import com.kornerz.core.model.UpcomingNookItem
  *    `NooksTabViewModel.nooks`.
  *
  * [selectedType] drives which section is rendered (mirrors iOS
- * `NooksType`).
+ * `NooksType`). [header] mirrors the iOS `HomeHeaderView` row that
+ * iOS embeds on every tab — shared via `:core:ui` so Android tabs can
+ * match (architecture §2.5).
  */
 data class NooksState(
+    val header: AsyncValue<TabHeaderData> = AsyncValue.Loading,
     val selectedType: NooksType = NooksType.Live,
     val live: AsyncValue<LiveSectionState> = AsyncValue.Loading,
     val upcoming: AsyncValue<UpcomingSectionState> = AsyncValue.Loading,

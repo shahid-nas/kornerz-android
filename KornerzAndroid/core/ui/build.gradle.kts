@@ -1,7 +1,9 @@
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.kapt)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.hilt)
 }
 
 android {
@@ -28,6 +30,7 @@ android {
 
 dependencies {
     api(project(":core:model"))
+    implementation(project(":core:storage"))
 
     api(platform(libs.androidx.compose.bom))
     api(libs.androidx.compose.ui)
@@ -38,6 +41,17 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     implementation(libs.androidx.lifecycle.runtime.compose)
+    api(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.activity.compose)
     implementation(libs.coil.compose)
+
+    implementation(libs.hilt.android)
+    kapt(libs.hilt.compiler)
+    implementation(libs.androidx.hilt.navigation.compose)
+
+    implementation(libs.kotlinx.coroutines.android)
+}
+
+kapt {
+    correctErrorTypes = true
 }

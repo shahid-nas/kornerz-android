@@ -58,15 +58,15 @@ class LoopFirestoreApi @Inject constructor(
         cursor: LoopCursor?,
         pageSize: Int = DEFAULT_PAGE_SIZE,
     ): Flow<Result<PagingResult<Loop>>> = flow {
-        // Lazy anonymous sign-in: the iOS app assumes a logged-in
-        // user (`AppHelper.shared.loggedInUser?.id`) for the "Your
-        // Loops" filter. Android's auth flow signs in lazily on
-        // certain actions; trigger the same anonymous sign-in here
-        // so the user id is populated by the time the user taps the
-        // filter. Matches `FirestoreAuthApi.signInFirebaseAnonymously`.
-        val currentUserId = ensureSignedIn()?.uid
+        // "Your Loops" is gated on a real signed-in user — matches
+        // iOS `AppHelper.shared.loggedInUser?.id` in
+        // `LoopsTabViewModel.fetchUserLoops()`. We deliberately do
+        // NOT auto sign-in anonymously here: a fresh anonymous UID
+        // has no published loops, so the query would silently return
+        // an empty page instead of telling the user the real reason.
+        val currentUserId = currentUserIdOrNull()
         if (filter == LoopsFilter.YOUR_LOOPS && currentUserId.isNullOrBlank()) {
-            emit(Result.failure(IllegalStateException("Sign in to view your loops")))
+            emit(Result.failure(LoopsRequireSignInException()))
             return@flow
         }
         val pageResult = runCatching {
@@ -187,21 +187,6 @@ class LoopFirestoreApi @Inject constructor(
     }
 
     private fun currentUserIdOrNull(): String? = auth.currentUser?.uid
-
-    /**
-     * Returns the currently signed-in user, signing in anonymously if
-     * no user is set yet. Mirrors `FirestoreAuthApi`'s
-     * `signInFirebaseAnonymously` lazy sign-in pattern. Returns
-     * `null` if sign-in fails (e.g., no network).
-     */
-    private suspend fun ensureSignedIn(): com.google.firebase.auth.FirebaseUser? {
-        auth.currentUser?.let { return it }
-        return runCatching {
-            val result = auth.signInAnonymously().await()
-            result.user
-        }.onFailure { Log.w(TAG, "ensureSignedIn: ${it.message}") }
-            .getOrNull()
-    }
 
     private fun Map<String, Any?>.toLoop(id: String): Loop? = Loop(
         id = id,

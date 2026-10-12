@@ -23,6 +23,7 @@ import com.kornerz.core.model.User
 import com.kornerz.core.ui.components.HomeShimmerPlaceholder
 import com.kornerz.core.ui.components.KornerzEmptyState
 import com.kornerz.core.ui.components.KornerzErrorState
+import com.kornerz.core.ui.components.header.TabHeaderContent
 import com.kornerz.core.ui.theme.KornerzTheme
 import com.kornerz.core.ui.theme.Spacing
 import com.kornerz.feature.nooks.components.LiveKornerCard
@@ -49,6 +50,10 @@ fun NooksContent(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
+        TabHeaderContent(
+            state = state.header,
+            onAvatarTap = { onEvent(NooksEvent.AvatarTapped) },
+        )
         NooksHeader(
             title = "Nooks",
             selectedType = state.selectedType,

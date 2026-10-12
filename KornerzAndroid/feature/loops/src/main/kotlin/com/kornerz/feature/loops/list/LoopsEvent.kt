@@ -5,6 +5,7 @@ import com.kornerz.core.model.LoopsFilter
 sealed interface LoopsEvent {
     data object Refresh : LoopsEvent
     data object Retry : LoopsEvent
+    data object AvatarTapped : LoopsEvent
     data class LoopClicked(val loopId: String) : LoopsEvent
     data class FilterChanged(val filter: LoopsFilter) : LoopsEvent
     data object SearchToggled : LoopsEvent

@@ -8,5 +8,6 @@ package com.kornerz.feature.kornerz
 sealed interface KornerzEvent {
     data object Refresh : KornerzEvent
     data object Retry : KornerzEvent
+    data object AvatarTapped : KornerzEvent
     data class RowClicked(val kornerId: String) : KornerzEvent
 }

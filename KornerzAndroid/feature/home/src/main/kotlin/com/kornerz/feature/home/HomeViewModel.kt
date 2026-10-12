@@ -2,7 +2,7 @@ package com.kornerz.feature.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.kornerz.feature.home.header.HomeHeaderViewModel
+import com.kornerz.core.ui.components.header.TabHeaderViewModel
 import com.kornerz.feature.home.loop.LoopOfDayViewModel
 import com.kornerz.feature.home.recent_loops.RecentLoopsViewModel
 import com.kornerz.feature.home.upcoming_nooks.UpcomingNooksViewModel
@@ -20,7 +20,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val headerVm: HomeHeaderViewModel,
+    private val headerVm: TabHeaderViewModel,
     private val loopOfDayVm: LoopOfDayViewModel,
     private val upcomingNooksVm: UpcomingNooksViewModel,
     private val yourKornerzVm: YourKornerzViewModel,

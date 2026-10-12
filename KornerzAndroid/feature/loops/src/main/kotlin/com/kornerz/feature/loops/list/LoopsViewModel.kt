@@ -8,6 +8,7 @@ import com.kornerz.core.model.LoopsFilter
 import com.kornerz.core.network.community.CommunitiesRepository
 import com.kornerz.core.network.loops.LoopCursor
 import com.kornerz.core.network.user.UsersRepository
+import com.kornerz.core.ui.components.header.TabHeaderViewModel
 import com.kornerz.feature.loops.components.LoopCardData
 import com.kornerz.feature.loops.components.RandomColorService
 import com.kornerz.feature.loops.data.LoopMapper
@@ -20,11 +21,14 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -33,6 +37,10 @@ import javax.inject.Inject
  * Hilt-managed ViewModel for the Loops tab. Owns the feed
  * `MutableStateFlow<LoopsState>`, a per-filter cursor, and the
  * debounced search flow. Mirrors iOS `LoopsTabViewModel`.
+ *
+ * Also composes the shared `TabHeaderViewModel` so the avatar +
+ * points row sits above the feed (mirrors iOS, where every tab
+ * embeds `HomeHeaderView` at the top of its scroll content).
  */
 @OptIn(FlowPreview::class)
 @HiltViewModel
@@ -40,10 +48,19 @@ class LoopsViewModel @Inject constructor(
     private val loopRepository: LoopRepository,
     private val usersRepository: UsersRepository,
     private val communitiesRepository: CommunitiesRepository,
+    private val headerVm: TabHeaderViewModel,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LoopsState())
-    val state: StateFlow<LoopsState> = _state.asStateFlow()
+    val state: StateFlow<LoopsState> = combine(
+        _state,
+        headerVm.state,
+    ) { s, header -> s.copy(header = header) }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = _state.value,
+        )
 
     private val _navEvents = Channel<LoopsNavEvent>(Channel.BUFFERED)
     val navEvents: Flow<LoopsNavEvent> = _navEvents.receiveAsFlow()
@@ -54,14 +71,19 @@ class LoopsViewModel @Inject constructor(
     private var lastDocument: LoopCursor? = null
 
     init {
+        headerVm.fetchData()
         loadInitial()
         observeSearch()
     }
 
     fun onEvent(event: LoopsEvent) {
         when (event) {
-            LoopsEvent.Refresh -> loadInitial()
+            LoopsEvent.Refresh -> {
+                headerVm.fetchData()
+                loadInitial()
+            }
             LoopsEvent.Retry -> loadInitial()
+            LoopsEvent.AvatarTapped -> emit(LoopsNavEvent.NavigateToProfile)
             is LoopsEvent.LoopClicked -> emit(LoopsNavEvent.NavigateToLoopDetail(event.loopId))
             is LoopsEvent.FilterChanged -> {
                 if (_state.value.selectedFilter != event.filter) {

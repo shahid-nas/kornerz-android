@@ -20,6 +20,7 @@ import com.kornerz.core.ui.components.HomeShimmerPlaceholder
 import com.kornerz.core.ui.components.KornerzCarousel
 import com.kornerz.core.ui.components.KornerzErrorState
 import com.kornerz.core.ui.components.KornerzHeaderView
+import com.kornerz.core.ui.components.header.TabHeaderContent
 import com.kornerz.core.ui.theme.KornerzTheme
 import com.kornerz.core.ui.theme.Spacing
 import com.kornerz.feature.kornerz.KornerzEvent
@@ -28,7 +29,8 @@ import com.kornerz.feature.kornerz.KornerzState
 /**
  * Stateless renderer for the Kornerz tab. Mirrors iOS `KornerzTabView`
  * (`ScrollView { VStack { HomeHeader; 3× KornerzCarouselView } }`):
- *   - `KornerzHeaderView` at the top
+ *   - Shared avatar + points header (1:1 with iOS `HomeHeaderView`)
+ *   - Tab title row (`KornerzHeaderView` mirrors iOS `TabHeaderView`)
  *   - Three horizontal carousels: Your Kornerz, Recommended for you,
  *     New this week.
  *
@@ -47,6 +49,12 @@ fun KornerzContent(
         contentPadding = PaddingValues(vertical = Spacing.space4),
     ) {
         item(key = "header") {
+            TabHeaderContent(
+                state = state.header,
+                onAvatarTap = { onEvent(KornerzEvent.AvatarTapped) },
+            )
+        }
+        item(key = "kornerzTitle") {
             KornerzHeaderView(title = "Kornerz")
         }
         section("your", "Your Kornerz", state.yourKornerz, onEvent)

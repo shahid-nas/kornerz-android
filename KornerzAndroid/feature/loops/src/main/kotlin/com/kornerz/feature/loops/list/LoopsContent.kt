@@ -33,10 +33,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.kornerz.core.model.AsyncValue
 import com.kornerz.core.model.LoopsFilter
+import com.kornerz.core.network.loops.LoopsRequireSignInException
 import com.kornerz.core.ui.components.HomeShimmerPlaceholder
 import com.kornerz.core.ui.components.KornerzEmptyState
 import com.kornerz.core.ui.components.KornerzErrorState
 import com.kornerz.core.ui.components.KornerzSearchField
+import com.kornerz.core.ui.components.header.TabHeaderContent
 import com.kornerz.core.ui.theme.KornerzTheme
 import com.kornerz.core.ui.theme.Spacing
 import com.kornerz.feature.loops.components.LoopCardData
@@ -59,6 +61,10 @@ fun LoopsContent(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
+        TabHeaderContent(
+            state = state.header,
+            onAvatarTap = { onEvent(LoopsEvent.AvatarTapped) },
+        )
         LoopsHeader()
         LoopsFilterSection(
             state = state,
@@ -67,10 +73,16 @@ fun LoopsContent(
         )
         when (val feed = state.feed) {
             is AsyncValue.Loading -> ShimmerList()
-            is AsyncValue.Error -> KornerzErrorState(
-                message = "Loops failed to load",
-                onRetry = { onEvent(LoopsEvent.Retry) },
-            )
+            is AsyncValue.Error -> {
+                val message = when (feed.throwable) {
+                    is LoopsRequireSignInException -> "Please sign in to view your loops"
+                    else -> "Loops failed to load"
+                }
+                KornerzErrorState(
+                    message = message,
+                    onRetry = { onEvent(LoopsEvent.Retry) },
+                )
+            }
             is AsyncValue.Success -> SuccessList(
                 state = state,
                 paging = feed.data,

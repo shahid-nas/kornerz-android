@@ -6,6 +6,7 @@ package com.kornerz.feature.nooks.list
 sealed interface NooksEvent {
     data object Refresh : NooksEvent
     data object Retry : NooksEvent
+    data object AvatarTapped : NooksEvent
     data object LoadMoreLive : NooksEvent
     data object LoadMoreUpcoming : NooksEvent
     data class SelectType(val type: NooksType) : NooksEvent
