@@ -82,19 +82,15 @@ import com.kornerz.feature.community.admin.components.CommunityItemRow
 fun AdminCommunitiesListScreen(
     onBack: () -> Unit,
     onShowError: (String) -> Unit,
+    onOpenCommunityDetail: (String) -> Unit,
     viewModel: AdminCommunitiesListViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel) {
         viewModel.navEvents.collect { event ->
             when (event) {
-                is AdminCommunitiesListNavEvent.OpenCommunityDetail -> {
-                    // P7 placeholder — community-detail-as-admin is
-                    // documented as removed-dead-code; surface a
-                    // "Coming soon" toast via the shell's snackbar
-                    // (see `admin-communities-list` spec).
-                    onShowError("Coming soon")
-                }
+                is AdminCommunitiesListNavEvent.OpenCommunityDetail ->
+                    onOpenCommunityDetail(event.code)
                 AdminCommunitiesListNavEvent.Back -> onBack()
                 is AdminCommunitiesListNavEvent.ShowError -> onShowError(event.message)
             }

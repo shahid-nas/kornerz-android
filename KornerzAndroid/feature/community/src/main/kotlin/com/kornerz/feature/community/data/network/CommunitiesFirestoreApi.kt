@@ -105,14 +105,26 @@ class CommunitiesFirestoreApi @Inject constructor(
         }
 
     /**
-     * Returns a single community by its 6-char [code] (the document
-     * key), or `null` if missing.
+     * Returns a single community by its 6-char [code], or `null` if
+     * missing.
+     *
+     * Mirrors iOS `FirestoreService/APICommunity.swift` line 475
+     * `getCommunityDetailsFor` which filters on the `communityId`
+     * field instead of the document id. The Android schema stores
+     * the same 6-char code in the `idCommunity` field (mirrors iOS)
+     * and as the document id for Android-created communities; the
+     * mapper at the bottom of this file parses both schemas. We
+     * try `communityId` (the iOS field, used by the older schema
+     * and the larger production dataset) first, then fall back to
+     * `idCommunity` for Android-created docs.
      */
     suspend fun fetchByCode(code: String): Community? {
         if (code.isBlank()) return null
-        val doc = collection.document(code).get().await()
-        if (!doc.exists()) return null
-        return doc.toCommunityOrNull()
+        val ios = collection.whereEqualTo(FIELD_COMMUNITY_ID_IOS, code).get().await()
+            .documents.firstOrNull()?.toCommunityOrNull()
+        if (ios != null) return ios
+        return collection.whereEqualTo(FIELD_ID_COMMUNITY, code).get().await()
+            .documents.firstOrNull()?.toCommunityOrNull()
     }
 
     /**

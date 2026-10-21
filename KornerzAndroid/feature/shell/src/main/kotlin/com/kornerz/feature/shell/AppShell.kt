@@ -55,6 +55,8 @@ import com.kornerz.feature.profile.successbasicinfo.ChangeBasicInfoSuccessScreen
 import com.kornerz.feature.profile.view.ProfileScreen
 import com.kornerz.feature.community.CommunityRoute
 import com.kornerz.feature.community.admin.AdminCommunitiesListScreen
+import com.kornerz.feature.community.admin.detail.CommunityDetailScreen
+import com.kornerz.feature.community.admin.detail.CommunityDetailViewModel
 import com.kornerz.feature.videocall.VideoCallNavEvent
 import com.kornerz.feature.videocall.VideocallRoute
 import com.kornerz.feature.videocall.videocallGraph
@@ -107,7 +109,7 @@ fun AppShell(
     Scaffold(
         bottomBar = {
             val showBottomBar = currentRoute?.matches(
-                Regex("videocall/.*|notifications/list|profile/.*|community/admin/list"),
+                Regex("videocall/.*|notifications/list|profile/.*|community/admin/.*"),
             ) == false
             if (showBottomBar) {
                 KornerzBottomBar(
@@ -198,6 +200,23 @@ fun AppShell(
             // row in the profile menu.
             composable(CommunityRoute.AdminList.route) {
                 AdminCommunitiesListScreen(
+                    onBack = { navController.popBackStack() },
+                    onShowError = { msg -> scope.launch { comingSoonSnackbar.showSnackbar(msg) } },
+                    onOpenCommunityDetail = { code ->
+                        navController.navigate(CommunityRoute.AdminDetail.build(code))
+                    },
+                )
+            }
+            // P7+ (community-detail parity) — read-only stats dashboard
+            // for an owned community. Pushed after a row tap on the
+            // admin list. Mirrors iOS `CommunityDetailAsAdminVC`.
+            composable(
+                route = CommunityRoute.AdminDetail.route,
+                arguments = listOf(
+                    navArgument(CommunityDetailViewModel.ARG_CODE) { type = NavType.StringType },
+                ),
+            ) {
+                CommunityDetailScreen(
                     onBack = { navController.popBackStack() },
                     onShowError = { msg -> scope.launch { comingSoonSnackbar.showSnackbar(msg) } },
                 )
