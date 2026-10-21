@@ -3,9 +3,7 @@ package com.kornerz.feature.community.admin.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -30,68 +28,53 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.kornerz.core.model.Community
 import com.kornerz.core.ui.R
+import com.kornerz.core.ui.theme.Satoshi
 
 /**
- * A single row in the admin-owned-communities list (P7, task 5.3).
- * Mirrors iOS `CommunityItemView.swift` lines 12–88.
+ * A single row in the admin-owned-communities list. Mirrors iOS
+ * `CommunityItemView.swift` lines 10–58 (P7 + parity fix):
  *
- * Layout: 56-pt circular cover on the left, vertically-stacked
- * name + description in the middle, trailing vertical stack of two
- * count pills on the right. 73-pt tall rounded card on
- * `colorScheme.surface` with `colorScheme.outlineVariant` 1-pt stroke.
+ *  - 60-pt circular cover thumbnail on the left (KFImage / `splash`
+ *    placeholder on iOS, Coil / `ic_community_placeholder` on
+ *    Android). Wrapped in a theme gradient if the URL is missing.
+ *  - Community name in Satoshi Bold 16-pt, 3-line cap, leading
+ *    (`InkLight` / `C1B1A23`), filling the middle.
+ *  - Trailing "See all" pill button — Satoshi Bold 14-pt
+ *    `PurpleLight` / `C5D47ED` text, 1-pt `C E5E5EA` rounded-20pt
+ *    outline. Tapping it fires [onClick] (iOS routes the user to
+ *    `CommunityDetailAsAdminVC`).
+ *
+ * The whole row is 65-pt tall (per iOS `.frame(height: 65)`), with no
+ * card chrome — iOS renders the row directly inside a plain `List`,
+ * not inside a rounded card.
  */
 @Composable
 fun CommunityItemRow(
     community: Community,
-    memberCount: Int,
-    nookCount: Int,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(73.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp),
+            .height(65.dp)
+            .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        CoverThumbnail(community = community, modifier = Modifier.size(56.dp))
+        CoverThumbnail(community = community, modifier = Modifier.size(60.dp))
         Spacer(Modifier.width(12.dp))
-        Column(
+        Text(
+            text = community.name,
+            fontFamily = Satoshi,
+            fontWeight = FontWeight.Bold,
+            fontSize = 16.sp,
+            color = Color(0xFF1B1A23),
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Text(
-                text = community.name,
-                color = Color(0xFF353446),
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            val description = community.description
-            if (!description.isNullOrBlank()) {
-                Text(
-                    text = description,
-                    color = Color(0xFF9E9EAE),
-                    fontSize = 13.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
+        )
         Spacer(Modifier.width(8.dp))
-        Column(
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-            horizontalAlignment = Alignment.End,
-        ) {
-            CountPill(label = "Members", value = memberCount)
-            CountPill(label = "Nooks", value = nookCount)
-        }
+        SeeAllPill(onClick = onClick)
     }
 }
 
@@ -115,7 +98,7 @@ private fun CoverThumbnail(
                 model = coverUrl,
                 contentDescription = community.name,
                 modifier = Modifier
-                    .size(56.dp)
+                    .size(60.dp)
                     .clip(CircleShape),
             )
         } else {
@@ -123,7 +106,7 @@ private fun CoverThumbnail(
                 model = R.drawable.ic_community_placeholder,
                 contentDescription = community.name,
                 modifier = Modifier
-                    .size(56.dp)
+                    .size(60.dp)
                     .clip(CircleShape),
                 loading = { /* placeholder while loading */ },
                 error = {
@@ -141,27 +124,31 @@ private fun CoverThumbnail(
     }
 }
 
+/**
+ * iOS `CommunityItemView` trailing "See all" pill — Satoshi Bold
+ * 14-pt `PurpleLight` (`C5D47ED`) text on transparent background with
+ * 1-pt `C E5E5EA` rounded 20-pt outline.
+ */
 @Composable
-private fun CountPill(label: String, value: Int) {
-    Row(
+private fun SeeAllPill(onClick: () -> Unit) {
+    Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xFFF2F4F6))
-            .padding(horizontal = 8.dp, vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .clip(RoundedCornerShape(20.dp))
+            .border(
+                width = 1.dp,
+                color = Color(0xFFE5E5EA),
+                shape = RoundedCornerShape(20.dp),
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center,
     ) {
         Text(
-            text = label,
-            color = Color(0xFF9E9EAE),
-            fontSize = 11.sp,
+            text = "See all",
+            fontFamily = Satoshi,
             fontWeight = FontWeight.Bold,
-        )
-        Spacer(Modifier.width(4.dp))
-        Text(
-            text = value.toString(),
-            color = Color(0xFF353446),
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp,
+            color = Color(0xFF5D47ED),
         )
     }
 }

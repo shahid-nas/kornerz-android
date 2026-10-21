@@ -57,10 +57,33 @@ class AdminCommunitiesRepository @Inject constructor(
     }
 
     /**
-     * Returns the raw list of communities owned by [userCode] (no
-     * per-row count enrichment). Used by the admin list VM which
-     * wants the plain list and then loads per-row counts lazily.
+     * Returns the list of communities [userCode] administers, fetched
+     * with the same two-step join iOS uses for the admin-owned list.
+     *
+     *  1. `CommunityAdm.whereField("userId", == userCode).limit(100)`
+     *     → list of `communityId`s the user is admin of (mirrors iOS
+     *     `AdminCommunitiesRepository.fetchCommunityAdminList` lines
+     *     76–106).
+     *  2. `Communities.whereField("communityId", in: ids).
+     *        whereField("communityApproved", == true)` →
+     *     the actual `Community` docs (mirrors iOS
+     *     `AdminCommunitiesRepository.fetchCommunities(withIds:)`
+     *     lines 108–138). The mapper inside [CommunitiesFirestoreApi]
+     *     is tolerant of both the iOS-written (old) schema and the
+     *     Android-written (new) schema, so docs written by either
+     *     platform parse.
+     *
+     * Used by `AdminCommunitiesListViewModel.load()`; the screen then
+     * calls `CommunitiesRepository.fetchCount(code, kind)` per row for
+     * the member/nook badges.
      */
     suspend fun fetchOwnedByUser(userCode: String): Result<List<Community>> =
-        communitiesApi.fetchOwnedByUser(userCode)
+        runCatching {
+            if (userCode.isBlank()) return@runCatching emptyList()
+            val communityIds = communitiesApi
+                .fetchCommunityAdmIdsByUser(userCode)
+                .getOrThrow()
+            if (communityIds.isEmpty()) return@runCatching emptyList()
+            communitiesApi.fetchByCommunityIds(communityIds).getOrThrow()
+        }
 }

@@ -3,16 +3,11 @@ package com.kornerz.feature.community.admin
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kornerz.core.model.AsyncValue
-import com.kornerz.core.model.Community
 import com.kornerz.core.storage.session.SessionRepository
 import com.kornerz.core.storage.session.SessionState
 import com.kornerz.feature.community.data.AdminCommunitiesRepository
-import com.kornerz.feature.community.data.CommunityCountKind
-import com.kornerz.feature.community.data.CommunitiesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,15 +19,19 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * ViewModel for the admin-owned-communities list (P7, task 7.2).
- * Mirrors iOS `AdminCommunityListController.viewDidLoad` (lines 38–71)
- * — the initial `Communities.whereEqualTo("userId", userCode)` query
- * followed by per-row count queries in parallel via `coroutineScope {
- * async { ... } }`.
+ * ViewModel for the admin-owned-communities list (P7, task 7.2 +
+ * parity fix). Mirrors iOS `AdminCommunityListViewModel.fetchData()`
+ * lines 76–118 — the two-step `CommunityAdm.whereField("userId",
+ * == userId).limit(100)` join followed by `Communities.whereField(
+ * "communityId", in: ids).whereField("communityApproved", == true)`,
+ * batched in groups of 30 because Firestore caps `whereIn` at 30.
+ *
+ * Search filtering is performed client-side at the screen layer
+ * (mirrors iOS `AdminCommunityListViewModel.filteredCommunities` on
+ * lines 20–26). Real-time updates are NOT used on either platform.
  */
 @HiltViewModel
 class AdminCommunitiesListViewModel @Inject constructor(
-    private val communitiesRepository: CommunitiesRepository,
     private val adminCommunitiesRepository: AdminCommunitiesRepository,
     private val sessionRepository: SessionRepository,
 ) : ViewModel() {
@@ -89,7 +88,6 @@ class AdminCommunitiesListViewModel @Inject constructor(
                             isRefreshing = false,
                         )
                     }
-                    populateRowCounts(communities)
                 },
                 onFailure = { throwable ->
                     val message = throwable.message ?: "Failed to load communities"
@@ -103,21 +101,6 @@ class AdminCommunitiesListViewModel @Inject constructor(
                     _navEvents.trySend(AdminCommunitiesListNavEvent.ShowError(message))
                 },
             )
-        }
-    }
-
-    private fun populateRowCounts(communities: List<Community>) {
-        viewModelScope.launch {
-            val counts = coroutineScope {
-                communities.map { community ->
-                    async {
-                        val members = communitiesRepository.fetchCount(community.code, CommunityCountKind.Members)
-                        val nooks = communitiesRepository.fetchCount(community.code, CommunityCountKind.Nooks)
-                        community.code to (members to nooks)
-                    }
-                }.map { it.await() }
-            }.toMap()
-            _state.update { it.copy(rowCounts = counts) }
         }
     }
 }

@@ -4,15 +4,20 @@ import com.kornerz.core.model.AsyncValue
 import com.kornerz.core.model.Community
 
 /**
- * State for the admin-owned-communities list (P7, task 7.1).
- * The per-row [rowCounts] map is populated by
- * [AdminCommunitiesListViewModel] in parallel after the first load
- * (mirrors iOS `AdminCommunityListController`).
+ * State for the admin-owned-communities list (P7 +
+ * `admin-communities-list` spec, revised to match iOS
+ * `AdminCommunityListViewModel`).
+ *
+ * The list is one-shot (no real-time listener on either platform),
+ * fed by `AdminCommunitiesRepository.fetchOwnedByUser` via the
+ * two-step `CommunityAdm → Communities(whereIn)` join. Search filtering
+ * is a UI-only concern handled in
+ * [AdminCommunitiesListContent] (mirrors iOS's `viewModel.filter` +
+ * `viewModel.filteredCommunities` computed property).
  */
 data class AdminCommunitiesListState(
     val items: AsyncValue<List<Community>> = AsyncValue.Loading,
     val isRefreshing: Boolean = false,
-    val rowCounts: Map<String, Pair<Int, Int>> = emptyMap(),
     val error: String? = null,
 )
 
