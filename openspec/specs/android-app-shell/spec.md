@@ -35,42 +35,77 @@ The app's root `NavHost` SHALL host exactly one of two child graphs at a time, s
 - **AND** the Login screen is shown with an empty back-stack
 
 ### Requirement: Five-tab bottom navigation shell
-The app SHALL render a bottom navigation bar with exactly 5 tabs in this left-to-right order: Home, Kornerz, Nooks, Loops, **Profile** (introduced in P6, `user-profile` capability). The Klouders tab SHALL continue to render its P0 empty-state placeholder with the text "Coming in Phase 10" until P10 ships; the placeholder SHALL move to a 6th tab position or remain in tab order 5 per stakeholder decision (current decision: keep 5 tabs, Profile replaces Klouders in tab 5 visually; Klouders remains an unreachable stub until P10). Each tab SHALL be reachable by tapping its icon. The currently selected tab SHALL be visually distinguished. The bottom bar SHALL remain visible while navigating within a tab's nested graph. The Nooks tab SHALL host a nested `NavHost` with the `nooks/list` destination (introduced in P4, `nooks-tab` capability) as its start destination, `nooks/{nookId}` (introduced in P4, `nook-detail` capability) as a secondary destination reachable from any `NookCard` or `NookTile` tap, and `videocall/{sessionId}` (introduced in P9, `feature-videocall` capability) as a tertiary destination reachable from the Join button on a `LiveKornerCard` (introduced in P9, `nooks-tab` capability amendment). The Loops tab SHALL host a nested `NavHost` with the `loops/list` destination (introduced in P5, `loops-tab` capability) as its start destination, `loops/{loopId}` (introduced in P5, `loop-detail` capability) as a secondary destination reachable from any `LoopItemView` tap, `loops/{loopId}/comment` (introduced in P5, `loop-comments` capability) as a `dialog` route reachable from the loop detail's add-comment row, and `loops/{loopId}/reply/{commentId}` (introduced in P5, `loop-comments` capability) as a tertiary destination reachable from any `LoopCommentView` `onReply` affordance. The **Profile** tab (introduced in P6) SHALL host a nested `NavHost` with destinations `profile/view` (the populated Profile tab, introduced in P6, `user-profile` capability) as the start destination, `profile/edit-basic-info` (introduced in P6, `profile-edit-basic-info` capability), `profile/edit-basic-info/{field}` (introduced in P6, `profile-edit-basic-info-field` capability, registered as a `dialog` route), `profile/edit-basic-info/{field}/success` (also a `dialog` route), and `profile/privacy-policy` (introduced in P6, `privacy-policy-pdf` capability). The app-level NavHost SHALL additionally host a top-level `notifications/list` destination (introduced in P6, `notifications-list` capability) reachable from the Profile tab's Notifications menu row. The shell-level tab order, selection, insets, and theming requirements are otherwise unchanged.
 
-(modified to add the Profile tab and the notifications list route)
+The app SHALL render a bottom navigation bar with exactly 5 tabs in
+this left-to-right order: Home, Kornerz, Nooks, Loops, Klouders. Each
+tab SHALL be reachable by tapping its icon. The currently selected tab
+SHALL be visually distinguished. The bottom bar SHALL remain visible
+while navigating within a tab's nested graph. The Nooks tab SHALL host
+a nested `NavHost` with the `nooks/list` destination (introduced in
+P4, `nooks-tab` capability) as its start destination, `nooks/{nookId}`
+(introduced in P4, `nook-detail` capability) as a secondary
+destination reachable from any `NookCard` or `NookTile` tap, and
+`videocall/{sessionId}` (introduced in P9, `feature-videocall`
+capability) as a tertiary destination reachable from the Join button
+on a `LiveKornerCard` (introduced in P9, `nooks-tab` capability
+amendment). The Loops tab SHALL host a nested `NavHost` with the
+`loops/list` destination (introduced in P5, `loops-tab` capability)
+as its start destination, `loops/{loopId}` (introduced in P5,
+`loop-detail` capability) as a secondary destination reachable from
+any `LoopItemView` tap, `loops/{loopId}/comment` (introduced in P5,
+`loop-comments` capability) as a `dialog` route reachable from the
+loop detail's add-comment row, and `loops/{loopId}/reply/{commentId}`
+(introduced in P5, `loop-comments` capability) as a tertiary
+destination reachable from any `LoopCommentView` `onReply` affordance.
+The Profile tab SHALL host a nested `NavHost` with `profile/view`
+(introduced in P6, `user-profile` capability) as its start
+destination, and `profile/edit-basic-info`,
+`profile/edit-basic-info/{field}` (dialog),
+`profile/edit-basic-info/{field}/success`, `profile/privacy-policy`
+as secondary destinations reachable from the corresponding menu rows
+(introduced in P6, `user-profile` + `profile-edit-basic-info` +
+`privacy-policy-pdf` capabilities). The shell SHALL register one
+additional top-level, full-screen (bottom-bar-hidden) route alongside
+the shell graph: `community/admin/list`.
 
-#### Scenario: Tab order matches iOS
-- **WHEN** the app is launched on a signed-in session
-- **THEN** the tabs appear in order: Home, Kornerz, Nooks, Loops, Profile
+The previous P7 draft also registered a `community/create` route
+pushed from the Profile tab. **That route is removed** after the iOS
+audit — iOS `UserProfileVC` does not surface a "Create Community"
+menu row, and the iOS `CreateCommunityHomeVC` is unreachable dead
+code. Android now mirrors iOS exactly and does not register a
+`community/create` route.
 
-#### Scenario: Tab selection
-- **WHEN** user taps the Nooks tab
-- **THEN** the Nooks tab content area displays `NooksScreen` (the populated Nooks tab introduced in P4) instead of the P0 "Coming in Phase 4" placeholder
-- **AND** the Nooks tab icon shows selected state
-- **AND** the previously selected tab shows unselected state
+#### Scenario: Five-tab shell renders
+- **WHEN** the shell composable is first composed for an authenticated session
+- **THEN** the bottom bar renders with exactly 5 tabs in the order Home, Kornerz, Nooks, Loops, Profile
 
-#### Scenario: Bottom bar persists within a tab
-- **WHEN** user navigates from a tab root to a nested screen within that tab (e.g., from `nooks/list` to `nooks/{nookId}` inside the Nooks tab, or from `kornerz/{id}` to `nooks/{nookId}` inside the Kornerz tab, or from `profile/view` to `profile/edit-basic-info` inside the Profile tab)
-- **THEN** the bottom navigation bar remains visible
-- **AND** the originating tab remains selected
+#### Scenario: Nooks tab nested navigation
+- **WHEN** user taps the Nooks tab and then taps a `NookCard`
+- **THEN** the bottom bar remains visible and the `nooks/{nookId}` destination renders inside the tab's nested NavHost
 
-#### Scenario: Bottom bar is hidden during a video call
-- **WHEN** user is on the `videocall/{sessionId}` destination inside the Nooks tab's nested `NavHost`
-- **THEN** the bottom navigation bar is hidden (iOS parity — the call is a full-screen experience)
-- **AND** pressing the system back button returns to `nooks/list` inside the Nooks tab
-- **AND** the bottom navigation bar reappears
-- **AND** the Nooks tab remains selected
+#### Scenario: Loops tab nested navigation
+- **WHEN** user taps the Loops tab and then taps a `LoopItemView`
+- **THEN** the bottom bar remains visible and the `loops/{loopId}` destination renders inside the tab's nested NavHost
 
-#### Scenario: Profile tab shows populated content in P6+
-- **WHEN** a signed-in user opens the Profile tab in P6+
-- **THEN** the Profile tab content area displays `ProfileScreen` (the populated Profile tab introduced in P6, `user-profile` capability) instead of the P0 "Coming in Phase 6" placeholder
-- **AND** the bottom navigation bar remains visible
+#### Scenario: Loops dialog route preserves bottom bar
+- **WHEN** user opens `loops/{loopId}/comment` and `loops/{loopId}/reply/{commentId}` dialog routes
+- **THEN** the bottom bar stays visible behind the dialog scrim
 
-#### Scenario: Tap Notifications menu row routes to notifications list
-- **WHEN** user taps the Notifications menu row inside `ProfileScreen`
-- **THEN** the shell routes to the app-level `notifications/list` destination
-- **AND** the bottom navigation bar is hidden (the notifications list is a full-screen push, mirroring iOS `UserProfileVC.swift` line 253 which pushes `NotificationsController` as a full-screen route on the global nav stack — iOS hides the tab bar on push)
-- **AND** pressing system back returns to the Profile tab's `profile/view` destination
+#### Scenario: Profile tab nested navigation
+- **WHEN** user taps the Profile tab and then taps Edit Basic Info / Privacy Policy / Change Basic Info (Field)
+- **THEN** the bottom bar stays visible and the matching nested profile destination renders inside the Profile tab's nested NavHost
+
+#### Scenario: Admin list route hides bottom bar (full-screen)
+- **WHEN** user navigates to `community/admin/list` from Profile
+- **THEN** the bottom bar fades out and the admin list renders full-screen (mirrors iOS push from `UserProfileVC.openMyCommunities`)
+
+#### Scenario: Back from admin list returns to Profile
+- **WHEN** user taps the back button in the top app bar of `community/admin/list`
+- **THEN** shell pops back to the Profile tab
+
+#### Scenario: Account deletion routes back to auth graph
+- **WHEN** the shared `userDeletedHisAccount` event bus emits (introduced in P6, `account-deletion` capability)
+- **THEN** the root NavHost clears the shell graph and switches to the auth graph, matching the existing logout behavior
 
 ### Requirement: Loops tab hosts nested NavHost for loops, comment sheet, and reply screen
 The Loops tab in `feature/shell` SHALL host a nested `NavHost` with destinations in this order: `loops/list` (the populated Loops tab introduced in P5, `loops-tab` capability) as the start destination; `loops/{loopId}` (the loop detail destination introduced in P5, `loop-detail` capability) reachable from any `LoopItemView` tap inside the Loops feed or the Home recent loops carousel (P2 `home-recent-loops` capability amendment in P5); `loops/{loopId}/comment` (the create-comment sheet introduced in P5, `loop-comments` capability) registered as a `dialog` route reachable from the loop detail's add-comment row; `loops/{loopId}/reply/{commentId}` (the reply thread introduced in P5, `loop-comments` capability) reachable from any `LoopCommentView` `onReply` affordance. The bottom navigation bar SHALL remain visible across `loops/list` and `loops/{loopId}`. The bottom navigation bar SHALL remain visible across `loops/{loopId}/comment` (iOS parity — the create-comment modal is centered, not full-screen). The bottom navigation bar SHALL remain visible across `loops/{loopId}/reply/{commentId}` (iOS parity — the reply screen is a regular destination, not full-screen). The Klouders tab SHALL continue to render its P0 empty-state placeholder with the text "Coming in Phase 10" until P10 ships.
@@ -195,4 +230,18 @@ The app's root `NavHost` SHALL observe the `userDeletedHisAccount` event bus. Wh
 #### Scenario: Failed account deletion does not route away
 - **WHEN** `deleteUserAccount` Cloud Function returns an error
 - **THEN** `AccountDeletionViewModel` exposes the error and the shell graph remains on the Profile tab
+
+### Requirement: CommunityRoute sealed class models the P7 admin list
+The shell's navigation contract SHALL expose a `CommunityRoute` sealed
+class with one case: `AdminList` (maps to `community/admin/list`).
+The `AppShell` composable SHALL register this route as a top-level
+route outside any tab's nested NavHost, and SHALL include it in the
+set of routes that hide the bottom navigation bar.
+
+The previous P7 draft added a `Create` case. **Cancelled after iOS
+audit.**
+
+#### Scenario: CommunityRoute.AdminList is registered
+- **WHEN** the shell composable is composed
+- **THEN** the route `community/admin/list` is registered as a `composable("community/admin/list")` top-level destination and hides the bottom bar
 

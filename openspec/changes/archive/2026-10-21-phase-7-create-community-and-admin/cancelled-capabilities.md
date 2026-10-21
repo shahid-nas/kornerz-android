@@ -1,7 +1,14 @@
-# create-community-wizard Specification
+# Cancelled capabilities (phase-7, after iOS audit)
 
-## Purpose
-TBD - created by archiving change phase-7-create-community-and-admin. Update Purpose after archive.
+These two capabilities were scoped in the P7 proposal, then **cancelled** after an
+audit of the iOS source tree. They carry no `## ADDED Requirements`, so they are not
+delta specs and cannot be synced into `openspec/specs/`. Their rationale is preserved
+here for future reference.
+
+
+---
+
+## create-community-wizard
 
 ## Status: CANCELLED after iOS audit
 
@@ -34,3 +41,27 @@ write surfaces are removed because they have no caller.
 If a future phase reintroduces community creation on Android, the
 wizard should be re-scoped with iOS parity in mind — i.e. the entry
 point (if any) should be defined first, not the wizard surface.
+
+
+---
+
+## firebase-storage-upload
+
+## Status: CANCELLED after iOS audit
+
+The `CommunityStorageApi.uploadCover(...)` v4 signed-URL upload helper
+was scoped as the second concrete consumer of the v4 pipeline (the
+first being P6's `UserStorageApi.uploadAvatar`). After the iOS audit
+showed that iOS does not surface a Create Community flow, the
+`CommunityStorageApi` had no consumer and was removed from the
+Android port.
+
+The P6 `UserStorageApi.uploadAvatar` remains the sole v4 signed-URL
+consumer in the codebase. Future phases that need a cover / image
+upload helper can reintroduce the `CommunityStorageApi` (or a more
+general `MediaStorageApi`) following the same `StorageSignedUrlClient`
++ `runCatching` pattern.
+
+The P7 proposal's `## ADDED Requirements` in this spec file are
+treated as cancelled. The P6 `firebase-storage-avatar-upload` spec
+is the canonical reference for the v4 upload pattern.

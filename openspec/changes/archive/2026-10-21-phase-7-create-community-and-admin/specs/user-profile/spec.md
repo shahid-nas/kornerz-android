@@ -40,8 +40,7 @@ port (matches iOS).
 **CANCELLED** — no Create Community row exists.
 
 ### Requirement: Profile "Logout" menu row triggers full sign-out
-The always-visible "Logout" menu row (matching iOS line 100
-`logout` cell) SHALL emit `ProfileNavEvent.OpenLogout` which the
+The Profile screen SHALL render an always-visible "Logout" menu row (matching iOS line 100 `logout` cell) that emits `ProfileNavEvent.OpenLogout`, which the
 shell routes to `ShellViewModel.onLogout()`. The handler clears the
 FCM token via `FcmTokenRegistrar.clearOnLogout()` and emits
 `ShellNavEvent.Logout`; the root NavHost then swaps back to the
@@ -53,9 +52,7 @@ auth graph (matches iOS `UserProfileVC.setupMenuList` line 102 +
 - **THEN** the FCM token is cleared, `ShellNavEvent.Logout` fires, and the root NavHost switches to the auth graph (matches iOS lines 225–235)
 
 ### Requirement: Profile "Delete Account" menu row opens the confirmation dialog
-The always-visible "Delete Account" menu row (matching iOS line 105
-`deleteAccount` cell) SHALL emit `ProfileNavEvent.OpenDeleteAccount`
-which the Profile screen catches and forwards to
+The Profile screen SHALL render an always-visible "Delete Account" menu row (matching iOS line 105 `deleteAccount` cell) that emits `ProfileNavEvent.OpenDeleteAccount`, which the Profile screen catches and forwards to
 `AccountDeletionViewModel.onEvent(AccountDeletionEvent.OpenConfirm)`
 — the screen renders the existing
 `AccountDeletionConfirmDialog` (P6). On confirm, the VM calls
@@ -80,9 +77,8 @@ fire `ShellNavEvent.Logout` → auth graph), and emits
 - **THEN** the dialog dismisses and no Firestore / FCM / session work runs
 
 ### Requirement: Profile "My Communities" menu row routes to the admin list (not a P6 placeholder toast)
-The conditionally-visible "My Communities" menu row (added in P6 per
-its `user-profile` spec, visible when `ownedCommunityCount > 0`)
-SHALL emit `ProfileNavEvent.OpenMyCommunities` which the shell routes
+The Profile screen SHALL emit `ProfileNavEvent.OpenMyCommunities` from the conditionally-visible "My Communities" menu row (added in P6 per
+its `user-profile` spec, visible when `ownedCommunityCount > 0`), which the shell routes
 to `community/admin/list`. The P6 implementation emitted a
 `toast("Coming in Phase 7")` placeholder; this phase replaces the
 toast with the real navigation. Mirrors iOS
