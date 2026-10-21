@@ -11,9 +11,12 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -37,7 +40,15 @@ class NooksViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(NooksState())
-    val state: StateFlow<NooksState> = _state.asStateFlow()
+    val state: StateFlow<NooksState> = combine(
+        _state,
+        headerVm.state,
+    ) { s, header -> s.copy(header = header) }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.Eagerly,
+            initialValue = _state.value,
+        )
 
     private val _navEvents = Channel<NooksNavEvent>(Channel.BUFFERED)
     val navEvents: Flow<NooksNavEvent> = _navEvents.receiveAsFlow()

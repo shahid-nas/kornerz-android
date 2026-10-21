@@ -53,6 +53,8 @@ import com.kornerz.feature.profile.editbasicinfo.EditBasicInfoScreen
 import com.kornerz.feature.profile.privacy.PrivacyPolicyScreen
 import com.kornerz.feature.profile.successbasicinfo.ChangeBasicInfoSuccessScreen
 import com.kornerz.feature.profile.view.ProfileScreen
+import com.kornerz.feature.community.CommunityRoute
+import com.kornerz.feature.community.admin.AdminCommunitiesListScreen
 import com.kornerz.feature.videocall.VideoCallNavEvent
 import com.kornerz.feature.videocall.VideocallRoute
 import com.kornerz.feature.videocall.videocallGraph
@@ -105,7 +107,7 @@ fun AppShell(
     Scaffold(
         bottomBar = {
             val showBottomBar = currentRoute?.matches(
-                Regex("videocall/.*|notifications/list|profile/.*"),
+                Regex("videocall/.*|notifications/list|profile/.*|community/admin/list"),
             ) == false
             if (showBottomBar) {
                 KornerzBottomBar(
@@ -185,8 +187,21 @@ fun AppShell(
             // Profile destination.
             profileGraph(
                 onOpenNotifications = { navController.navigate(NotificationsRoute.LIST) },
+                onOpenMyCommunities = { navController.navigate(CommunityRoute.AdminList.route) },
+                onOpenLogout = { viewModel.onLogout() },
                 onShowError = { msg -> scope.launch { comingSoonSnackbar.showSnackbar(msg) } },
             )
+            // P7 (task 9.2) — Admin-owned-communities list is a
+            // top-level route (mirrors iOS `UserProfileVC.openMyCommunities`).
+            // The P7 create-community wizard route was removed after
+            // the iOS audit — iOS does not surface a Create Community
+            // row in the profile menu.
+            composable(CommunityRoute.AdminList.route) {
+                AdminCommunitiesListScreen(
+                    onBack = { navController.popBackStack() },
+                    onShowError = { msg -> scope.launch { comingSoonSnackbar.showSnackbar(msg) } },
+                )
+            }
             // P6 (task 9.1) — Notifications feed (top-level so the
             // bottom bar can be hidden — see the regex above)
             composable(NotificationsRoute.LIST) {
@@ -526,6 +541,8 @@ internal fun androidx.navigation.NavGraphBuilder.kloudersTabGraph(onLogout: () -
  */
 internal fun androidx.navigation.NavGraphBuilder.profileGraph(
     onOpenNotifications: () -> Unit,
+    onOpenMyCommunities: () -> Unit = {},
+    onOpenLogout: () -> Unit = {},
     onOpenLoopComment: (String) -> Unit = {},
     onOpenForumComment: (String) -> Unit = {},
     onOpenDeeplink: (String) -> Unit = {},
@@ -543,7 +560,9 @@ internal fun androidx.navigation.NavGraphBuilder.profileGraph(
                     onNavigateToNotifications = onOpenNotifications,
                     onNavigateToEditBasicInfo = { nested.navigate(ProfileRoute.EditBasicInfo.route) },
                     onNavigateToPrivacyPolicy = { nested.navigate(ProfileRoute.PrivacyPolicy.route) },
-                    onNavigateToMyCommunities = { /* P7 deep link */ },
+                    onNavigateToMyCommunities = onOpenMyCommunities,
+                    onNavigateToLogout = onOpenLogout,
+                    onNavigateToDeleteAccount = { /* dialog is owned by the ProfileScreen itself */ },
                 )
             }
             composable(ProfileRoute.EditBasicInfo.route) {

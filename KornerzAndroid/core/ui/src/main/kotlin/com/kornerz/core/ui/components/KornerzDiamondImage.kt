@@ -60,7 +60,14 @@ fun KornerzDiamondImage(
                 SubcomposeAsyncImage(
                     model = imageUrl,
                     contentDescription = null,
-                    contentScale = ContentScale.Crop,
+                    // `FillBounds` (vs `Crop`) ignores the source's
+                    // aspect ratio and stretches the image to cover
+                    // the entire diamond. The previous `Crop` setting
+                    // rendered the image as `Fit` for any source
+                    // whose aspect ratio didn't match the diamond's,
+                    // which produced the visible letterbox inside the
+                    // rotated shape.
+                    contentScale = ContentScale.FillBounds,
                     modifier = Modifier
                         .size(size)
                         .rotate(-45f),
@@ -88,7 +95,7 @@ private fun FallbackBadgeContent(
         SubcomposeAsyncImage(
             model = resolved,
             contentDescription = null,
-            contentScale = ContentScale.Crop,
+            contentScale = ContentScale.FillBounds,
             modifier = modifier.size(size).rotate(-45f),
         )
     } else {

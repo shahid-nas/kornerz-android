@@ -53,7 +53,7 @@ import com.kornerz.core.ui.theme.KornerzColors
 @Composable
 fun UserInfoHeader(
     user: User,
-    ownedCommunityCount: Int,
+    adminCommunitiesCount: Int,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -131,7 +131,7 @@ fun UserInfoHeader(
             StatPill(label = "Calls", value = "0", modifier = Modifier.weight(1f))
             StatPill(
                 label = "Communities",
-                value = ownedCommunityCount.toString(),
+                value = adminCommunitiesCount.toString(),
                 modifier = Modifier.weight(1f),
             )
         }

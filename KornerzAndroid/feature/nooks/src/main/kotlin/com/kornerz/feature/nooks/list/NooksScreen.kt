@@ -2,16 +2,11 @@ package com.kornerz.feature.nooks.list
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -28,6 +23,16 @@ import com.kornerz.feature.nooks.list.NooksNavEvent as ListNooksNavEvent
  * shell route graph (`AppShell`) can switch tabs / push details
  * without `NooksScreen` ever referencing `NavController` directly
  * (architecture §2.4 / §7.10).
+ *
+ * **Layout note:** the previous implementation wrapped the content
+ * in a Material 3 `Scaffold` for the snackbar slot, but `Scaffold`
+ * defaults to `contentWindowInsets` that include the bottom system
+ * nav bar. The shell's `NavigationBar` already consumes that inset
+ * (via `NavigationBarDefaults.windowInsets`), so the `Scaffold` was
+ * double-counting it and producing a visible gap between the
+ * scrollable list and the bottom tab bar. This file now uses a
+ * plain `Box` — the snackbar was never used here anyway, the shell
+ * owns the shared `SnackbarHostState` (via `comingSoonSnackbar`).
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,7 +42,6 @@ fun NooksScreen(
     onNavEvent: (ListNooksNavEvent) -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(viewModel) {
         viewModel.navEvents.collect { event -> onNavEvent(event) }
@@ -45,21 +49,12 @@ fun NooksScreen(
 
     val isRefreshing = state.live is AsyncValue.Loading && state.upcoming is AsyncValue.Loading
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        modifier = modifier,
-    ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
+    Box(modifier = modifier.fillMaxSize()) {
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = { viewModel.onEvent(NooksEvent.Refresh) },
         ) {
-            PullToRefreshBox(
-                isRefreshing = isRefreshing,
-                onRefresh = { viewModel.onEvent(NooksEvent.Refresh) },
-            ) {
-                NooksContent(state = state, onEvent = viewModel::onEvent)
-            }
+            NooksContent(state = state, onEvent = viewModel::onEvent)
         }
     }
 }

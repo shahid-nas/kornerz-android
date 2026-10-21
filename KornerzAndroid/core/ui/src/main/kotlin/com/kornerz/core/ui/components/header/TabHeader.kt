@@ -6,8 +6,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -29,7 +34,8 @@ import com.kornerz.core.ui.components.KornerzDiamondImage
 import com.kornerz.core.ui.theme.KornerzColors
 import com.kornerz.core.ui.theme.KornerzTheme
 import com.kornerz.core.ui.theme.Spacing
-import dagger.hilt.android.scopes.ViewModelScoped
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -38,7 +44,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 /**
  * Avatar / points projection rendered at the top of every bottom-bar
@@ -60,12 +65,21 @@ data class TabHeaderData(
  * observes `AppHelper.shared.user` + `RepositoryFactory.gamification
  * .getUserPoints` (lines 46–60 of `HomeHeaderViewModel.swift`).
  *
- * Scoped to its parent `@HiltViewModel` via [ViewModelScoped]
- * (architecture §2.6 — "per-ViewModel helpers (rare — prefer passing
- * via constructor)") and instantiated per-host because the section
- * shares the host's coroutine scope.
+ * Scoped as `@Singleton` so the four tab VMs all read from the
+ * **same** state flow. The previous `@ViewModelScoped` setup
+ * created one `TabHeaderViewModel` per tab — four separate state
+ * machines, four independent session subscriptions, and one tab
+ * (Nooks) was reliably stuck on the Loading shimmer because its
+ * instance was constructed before the `SessionRepository` DataStore
+ * had emitted `Authenticated`. With a singleton, the header
+ * resolves once at app start and every tab reads the same state.
+ *
+ * The coroutine scope is owned by the singleton (SupervisorJob +
+ * `Dispatchers.Main.immediate`) and lives for the application
+ * lifetime, so the session collection never gets cancelled by a
+ * tab navigation.
  */
-@ViewModelScoped
+@Singleton
 class TabHeaderViewModel @Inject constructor(
     private val sessionRepository: SessionRepository,
     private val gamificationRepository: GamificationRepository,
@@ -76,35 +90,53 @@ class TabHeaderViewModel @Inject constructor(
     val state: StateFlow<AsyncValue<TabHeaderData>> = _state.asStateFlow()
 
     init {
-        // Auto-fetch on construction so every tab that injects the
-        // shared `TabHeaderViewModel` (Home, Kornerz, Nooks, Loops)
-        // actually receives a `Success` state on first composition.
-        // The previous behaviour required the host VM to call
-        // `refresh()` from its own `init { }` block — which only
-        // `HomeViewModel` did, leaving the Kornerz / Nooks / Loops
-        // tabs stuck on the 52-dp shimmer placeholder indefinitely.
-        fetchData()
+        // Observe the session continuously and re-resolve the header
+        // every time the session transitions. This handles the
+        // cold-start race where the tab VM is constructed before the
+        // DataStore-backed `SessionRepository.data` has emitted
+        // `Authenticated` — the previous `first()` implementation
+        // bailed in that case and left the header stuck on
+        // `AsyncValue.Loading` (shimmer).
+        scope.launch {
+            sessionRepository.data.collect { session ->
+                if (session is SessionState.Authenticated) {
+                    resolveHeader(user = session.user)
+                }
+                // else: keep state at the previous value. The header
+                // composable renders a full-width shimmer strip in the
+                // `Loading` state so the user sees a non-empty header
+                // while the session hydrates.
+            }
+        }
     }
 
+    /**
+     * Re-fetches the points count for the current user and emits
+     * `Success(TabHeaderData(user, points))`. Failure on the points
+     * query surfaces as a `Success` with `points = 0` (the user
+     * should see their own header even if the gamification server
+     * is down). Other failures (e.g. the user object deserializing
+     * wrong) fall through to `Error`.
+     */
+    private suspend fun resolveHeader(user: com.kornerz.core.model.User) {
+        runCatching {
+            val points = gamificationRepository.getUserPoints().getOrDefault(0)
+            TabHeaderData(user = user, points = points)
+        }.onSuccess { data -> _state.value = AsyncValue.Success(data) }
+            .onFailure { _state.value = AsyncValue.Error(it) }
+    }
+
+    /**
+     * Re-fetches the header on demand. Hosts can still call this from
+     * their pull-to-refresh handler (the [HomeViewModel.refresh] /
+     * [NooksViewModel.refresh] / etc. paths). Internally we just emit
+     * the current user again through [resolveHeader] to refresh the
+     * points count without re-waiting on the session flow.
+     */
     fun fetchData() {
         scope.launch {
-            runCatching {
-                val session = sessionRepository.data.first()
-                if (session !is SessionState.Authenticated) return@runCatching null
-                val points = gamificationRepository.getUserPoints().getOrDefault(0)
-                TabHeaderData(
-                    user = session.user,
-                    points = points,
-                )
-            }.onSuccess { data ->
-                if (data != null) {
-                    _state.value = AsyncValue.Success(data)
-                }
-                // `data == null` (session not authenticated) — keep the
-                // current state. The next `fetchData()` (e.g. on a
-                // tab switch that re-hydrates the session) will pick
-                // up where we left off.
-            }.onFailure { _state.value = AsyncValue.Error(it) }
+            val session = sessionRepository.data.first()
+            if (session is SessionState.Authenticated) resolveHeader(session.user)
         }
     }
 }
@@ -141,9 +173,45 @@ fun TabHeaderContent(
     ) {
         when (state) {
             is AsyncValue.Success -> LoadedHeader(state.data, onAvatarTap)
-            is AsyncValue.Error -> Box(modifier = Modifier.size(52.dp))
-            AsyncValue.Loading -> HomeShimmerPlaceholder(modifier = Modifier.size(52.dp)) {
-                Box(modifier = Modifier.size(52.dp))
+            // Render the full header layout (avatar + 0-point badge)
+            // for Loading + Error states — matches the iOS
+            // `.redacted(reason: .placeholder)` behaviour. The
+            // previous implementation collapsed to a 52-dp shimmer
+            // box, which made the header look missing on tabs where
+            // `TabHeaderViewModel.fetchData` bailed early (e.g. when
+            // the session is still hydrating from DataStore).
+            is AsyncValue.Error -> LoadedHeader(
+                data = TabHeaderData(
+                    user = User(id = "", email = "", displayName = "", nickname = ""),
+                    points = 0,
+                ),
+                onAvatarTap = onAvatarTap,
+            )
+            AsyncValue.Loading -> HomeShimmerPlaceholder(
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                // Mirror the real layout so the shimmer takes up
+                // exactly the height of the success-state header
+                // (42-dp avatar + spacer + 18-dp points badge).
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    Box(
+                        modifier = Modifier
+                            .size(18.dp)
+                            .clip(CircleShape),
+                    )
+                    Spacer(modifier = Modifier.width(Spacing.space2))
+                    Box(
+                        modifier = Modifier
+                            .width(24.dp)
+                            .height(14.dp),
+                    )
+                }
             }
         }
     }
@@ -159,8 +227,13 @@ private fun LoadedHeader(data: TabHeaderData, onAvatarTap: () -> Unit) {
         KornerzDiamondImage(
             imageUrl = data.user.thumbnailURL,
             fallbackAsset = "ic_user_placeholder",
-            size = 52.dp,
-            cornerRadius = 10.dp,
+            // 42-dp diamond avatar (reduced from the iOS port's
+            // 52-dp `DiamondImageView(size:52, radius:10)` per the
+            // design review — the iOS spec reads large on Android's
+            // display at 1× density). 8-dp corner radius preserves
+            // the iOS diamond ratio (10/52 ≈ 8/42 ≈ 0.19).
+            size = 42.dp,
+            cornerRadius = 8.dp,
             modifier = Modifier.clickable(onClick = onAvatarTap),
         )
         Spacer(modifier = Modifier.weight(1f))

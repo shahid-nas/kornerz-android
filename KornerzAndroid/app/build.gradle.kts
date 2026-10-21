@@ -142,6 +142,7 @@ dependencies {
     implementation(project(":feature:videocall"))
     implementation(project(":feature:profile"))
     implementation(project(":feature:notifications"))
+    implementation(project(":feature:community"))
 
     // Tests
     testImplementation(libs.junit)

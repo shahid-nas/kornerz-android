@@ -4,10 +4,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -55,7 +58,14 @@ fun NooksContent(
     onEvent: (NooksEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier.fillMaxWidth()) {
+    // Two-tier layout: the shared header (avatar + points) and the
+    // "Nooks" sub-header are sticky at the top; only the list of
+    // Live / Upcoming nooks scrolls. This is the iOS NooksTabView
+    // decomposition `ScrollView { VStack { header; tabHeader;
+    // scroll(items) } }` rewritten so the scroll surface is the
+    // section only — matches the design review preference that the
+    // header row never scrolls out of view.
+    Column(modifier = modifier.fillMaxSize()) {
         TabHeaderContent(
             state = state.header,
             onAvatarTap = { onEvent(NooksEvent.AvatarTapped) },
@@ -65,15 +75,33 @@ fun NooksContent(
             selectedType = state.selectedType,
             onSelect = { type -> onEvent(NooksEvent.SelectType(type)) },
         )
+        // The section's `verticalScroll` is the single scrollable
+        // surface inside the parent `PullToRefreshBox`, so the
+        // pull-to-refresh gesture still resolves to `NooksEvent.Refresh`.
+        // `weight(1f)` makes the section take the remaining vertical
+        // space so the scroll's bottom edge sits flush against the
+        // shell's bottom tab bar (no extra padding between them).
         when (state.selectedType) {
-            NooksType.Live -> LiveSection(state = state, onEvent = onEvent)
-            NooksType.Upcoming -> UpcomingSection(state = state, onEvent = onEvent)
+            NooksType.Live -> LiveSection(
+                state = state,
+                onEvent = onEvent,
+                modifier = Modifier.weight(1f),
+            )
+            NooksType.Upcoming -> UpcomingSection(
+                state = state,
+                onEvent = onEvent,
+                modifier = Modifier.weight(1f),
+            )
         }
     }
 }
 
 @Composable
-private fun LiveSection(state: NooksState, onEvent: (NooksEvent) -> Unit) {
+private fun LiveSection(
+    state: NooksState,
+    onEvent: (NooksEvent) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     when (val value = state.live) {
         is AsyncValue.Loading -> ShimmerRows()
         is AsyncValue.Error -> KornerzErrorState(
@@ -87,8 +115,9 @@ private fun LiveSection(state: NooksState, onEvent: (NooksEvent) -> Unit) {
                 return
             }
             Column(
-                modifier = Modifier
+                modifier = modifier
                     .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
                     .padding(horizontal = Spacing.space4, vertical = Spacing.space4),
                 verticalArrangement = Arrangement.spacedBy(Spacing.space2),
             ) {
@@ -106,7 +135,11 @@ private fun LiveSection(state: NooksState, onEvent: (NooksEvent) -> Unit) {
 }
 
 @Composable
-private fun UpcomingSection(state: NooksState, onEvent: (NooksEvent) -> Unit) {
+private fun UpcomingSection(
+    state: NooksState,
+    onEvent: (NooksEvent) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     when (val value = state.upcoming) {
         is AsyncValue.Loading -> ShimmerRows()
         is AsyncValue.Error -> KornerzErrorState(
@@ -120,8 +153,9 @@ private fun UpcomingSection(state: NooksState, onEvent: (NooksEvent) -> Unit) {
                 return
             }
             Column(
-                modifier = Modifier
+                modifier = modifier
                     .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
                     .padding(horizontal = Spacing.space4, vertical = Spacing.space4),
                 verticalArrangement = Arrangement.spacedBy(Spacing.space2),
             ) {

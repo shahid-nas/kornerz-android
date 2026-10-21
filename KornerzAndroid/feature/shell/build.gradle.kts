@@ -41,6 +41,7 @@ dependencies {
     implementation(project(":feature:videocall"))
     implementation(project(":feature:profile"))
     implementation(project(":feature:notifications"))
+    implementation(project(":feature:community"))
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)

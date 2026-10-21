@@ -19,6 +19,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -26,8 +29,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kornerz.core.model.AsyncValue
-import com.kornerz.core.model.User
 import com.kornerz.core.ui.components.rememberKornerzImagePicker
+import com.kornerz.feature.profile.accountdeletion.AccountDeletionConfirmDialog
+import com.kornerz.feature.profile.accountdeletion.AccountDeletionViewModel
 import com.kornerz.feature.profile.components.KornerzErrorState
 import com.kornerz.feature.profile.components.KornerzLoadingView
 import com.kornerz.feature.profile.components.ProfileMenuRow
@@ -35,6 +39,13 @@ import com.kornerz.feature.profile.components.UserInfoHeader
 
 /**
  * The bottom-nav Profile tab root (P6, screen 7.1).
+ *
+ * P7 audit revision: the menu list now mirrors iOS
+ * `UserProfileVC.setupMenuList()` (lines 75–110) row-for-row in this
+ * phase's scope — Notifications / My Data / [conditional My
+ * Communities] / Privacy Policy / Logout / Delete Account. The
+ * always-visible "Create Community" row that the previous P7 draft
+ * added (and that iOS does not surface) was removed.
  */
 @Composable
 fun ProfileScreen(
@@ -42,9 +53,14 @@ fun ProfileScreen(
     onNavigateToEditBasicInfo: () -> Unit,
     onNavigateToPrivacyPolicy: () -> Unit,
     onNavigateToMyCommunities: () -> Unit,
+    onNavigateToLogout: () -> Unit,
+    onNavigateToDeleteAccount: () -> Unit,
+    onShowDeleteAccountError: (String) -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel(),
+    deletionViewModel: AccountDeletionViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val deletionState by deletionViewModel.state.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel) {
         viewModel.navEvents.collect { event ->
             when (event) {
@@ -52,6 +68,27 @@ fun ProfileScreen(
                 ProfileNavEvent.OpenEditBasicInfo -> onNavigateToEditBasicInfo()
                 ProfileNavEvent.OpenPrivacyPolicy -> onNavigateToPrivacyPolicy()
                 ProfileNavEvent.OpenMyCommunities -> onNavigateToMyCommunities()
+                ProfileNavEvent.OpenLogout -> onNavigateToLogout()
+                ProfileNavEvent.OpenDeleteAccount -> {
+                    deletionViewModel.onEvent(
+                        com.kornerz.feature.profile.accountdeletion.AccountDeletionEvent.OpenConfirm
+                    )
+                }
+            }
+        }
+    }
+    LaunchedEffect(deletionViewModel) {
+        deletionViewModel.navEvents.collect { event ->
+            when (event) {
+                is com.kornerz.feature.profile.accountdeletion.AccountDeletionNavEvent.NavigateToAuth -> {
+                    // The VM has already cleared the local session +
+                    // emitted the `userDeletedHisAccount` event bus
+                    // (which `ShellViewModel` consumes to fire
+                    // `ShellNavEvent.Logout` → swaps the root NavHost
+                    // back to the auth graph). Nothing else to do here.
+                }
+                is com.kornerz.feature.profile.accountdeletion.AccountDeletionNavEvent.ShowError ->
+                    onShowDeleteAccountError(event.message)
             }
         }
     }
@@ -65,7 +102,22 @@ fun ProfileScreen(
         onEditBasicInfoTap = viewModel::onEditBasicInfoTap,
         onPrivacyPolicyTap = viewModel::onPrivacyPolicyTap,
         onMyCommunitiesTap = viewModel::onMyCommunitiesTap,
+        onLogoutTap = viewModel::onLogoutTap,
+        onDeleteAccountTap = viewModel::onDeleteAccountTap,
         onAvatarPicked = onAvatarPicked,
+    )
+    AccountDeletionConfirmDialog(
+        state = deletionState,
+        onCancel = {
+            deletionViewModel.onEvent(
+                com.kornerz.feature.profile.accountdeletion.AccountDeletionEvent.Cancel
+            )
+        },
+        onConfirm = {
+            deletionViewModel.onEvent(
+                com.kornerz.feature.profile.accountdeletion.AccountDeletionEvent.Confirm
+            )
+        },
     )
 }
 
@@ -82,7 +134,7 @@ fun ProfileContentPreview() {
                 firebaseImageUrl = null,
             ),
         ),
-        ownedCommunityCount = 3,
+        adminCommunitiesCount = 3,
     )
     ProfileContent(
         state = state,
@@ -90,6 +142,8 @@ fun ProfileContentPreview() {
         onEditBasicInfoTap = {},
         onPrivacyPolicyTap = {},
         onMyCommunitiesTap = {},
+        onLogoutTap = {},
+        onDeleteAccountTap = {},
         onAvatarPicked = {},
     )
 }
@@ -101,6 +155,8 @@ fun ProfileContent(
     onEditBasicInfoTap: () -> Unit,
     onPrivacyPolicyTap: () -> Unit,
     onMyCommunitiesTap: () -> Unit,
+    onLogoutTap: () -> Unit,
+    onDeleteAccountTap: () -> Unit,
     onAvatarPicked: (Bitmap) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -139,7 +195,7 @@ fun ProfileContent(
                     ) {
                         UserInfoHeader(
                             user = current,
-                            ownedCommunityCount = state.ownedCommunityCount,
+                            adminCommunitiesCount = state.adminCommunitiesCount,
                         )
                     }
                 }
@@ -163,7 +219,7 @@ fun ProfileContent(
                         modifier = Modifier.padding(horizontal = 16.dp),
                     )
                 }
-                if (state.ownedCommunityCount > 0) {
+                if (state.adminCommunitiesCount > 0) {
                     item {
                         ProfileMenuRow(
                             iconRes = android.R.drawable.ic_menu_myplaces,
@@ -178,6 +234,27 @@ fun ProfileContent(
                         iconRes = android.R.drawable.ic_menu_help,
                         title = "Privacy Policy",
                         onClick = onPrivacyPolicyTap,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                }
+                // P7 audit revision: add the iOS `logout` (line 100)
+                // and `deleteAccount` (line 105) rows that the
+                // Android port was previously missing. Both reuse
+                // the existing `ShellViewModel.onLogout()` +
+                // `AccountDeletionViewModel` plumbing.
+                item {
+                    ProfileMenuRow(
+                        iconRes = android.R.drawable.ic_lock_power_off,
+                        title = "Logout",
+                        onClick = onLogoutTap,
+                        modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                }
+                item {
+                    ProfileMenuRow(
+                        iconRes = android.R.drawable.ic_menu_delete,
+                        title = "Delete Account",
+                        onClick = onDeleteAccountTap,
                         modifier = Modifier.padding(horizontal = 16.dp),
                     )
                 }

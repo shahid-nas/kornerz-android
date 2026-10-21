@@ -8,7 +8,7 @@ import com.kornerz.core.model.User
  */
 data class ProfileState(
     val user: AsyncValue<User> = AsyncValue.Loading,
-    val ownedCommunityCount: Int = 0,
+    val adminCommunitiesCount: Int = 0,
     val isUploadingImage: Boolean = false,
 )
 
@@ -25,4 +25,15 @@ sealed interface ProfileNavEvent {
     data object OpenEditBasicInfo : ProfileNavEvent
     data object OpenPrivacyPolicy : ProfileNavEvent
     data object OpenMyCommunities : ProfileNavEvent
+    /** Emitted by the "Logout" menu row. The shell collector routes
+     *  this to [com.kornerz.feature.shell.ShellViewModel.onLogout] which
+     *  clears the FCM token + emits `ShellNavEvent.Logout` (mirrors
+     *  iOS `UserProfileVC.setupMenuList` line 100 `logout` row → line
+     *  225 logout handler). */
+    data object OpenLogout : ProfileNavEvent
+    /** Emitted by the "Delete Account" menu row. The shell collector
+     *  shows the [com.kornerz.feature.profile.accountdeletion.
+     *  AccountDeletionConfirmDialog] (mirrors iOS line 105
+     *  `deleteAccount` row → line 249 `deleteAccount` handler). */
+    data object OpenDeleteAccount : ProfileNavEvent
 }

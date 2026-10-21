@@ -99,7 +99,9 @@ private fun sampleKorner(id: String) = Korner(id = id, name = "Korner $id", them
 
 private fun mockHeaderVm(): TabHeaderViewModel =
     TabHeaderViewModel(
-        mockk<SessionRepository>(relaxed = true),
+        mockk<SessionRepository>(relaxed = true).also {
+            io.mockk.coEvery { it.data } returns flowOf(com.kornerz.core.storage.session.SessionState.Anonymous)
+        },
         mockk<com.kornerz.core.network.gamification.GamificationRepository>(relaxed = true),
     ).also { it.fetchData() }
 private fun sampleUpcoming(nookId: String, kornerId: String) = UpcomingNookItem(

@@ -50,10 +50,9 @@ class CommunitiesRepository @Inject constructor(
             val name = (data[FIELD_COMMUNITY_NAME] as? String) ?: return@mapNotNull null
             Community(
                 id = id,
+                code = id,
                 name = name,
-                coverUrl = data[FIELD_FIREBASE_IMAGE_URL] as? String,
-                themeColor = null,
-                isMember = true,
+                firebaseImageURL = data[FIELD_FIREBASE_IMAGE_URL] as? String,
             )
         }
     }
@@ -76,10 +75,9 @@ class CommunitiesRepository @Inject constructor(
         val resolvedName = (data[FIELD_COMMUNITY_NAME] as? String) ?: name
         return Community(
             id = id,
+            code = id,
             name = resolvedName,
-            coverUrl = data[FIELD_FIREBASE_IMAGE_URL] as? String,
-            themeColor = null,
-            isMember = true,
+            firebaseImageURL = data[FIELD_FIREBASE_IMAGE_URL] as? String,
         )
     }
 
@@ -99,10 +97,9 @@ class CommunitiesRepository @Inject constructor(
         val name = (data[FIELD_COMMUNITY_NAME] as? String) ?: return null
         return Community(
             id = resolvedId,
+            code = resolvedId,
             name = name,
-            coverUrl = data[FIELD_FIREBASE_IMAGE_URL] as? String,
-            themeColor = null,
-            isMember = true,
+            firebaseImageURL = data[FIELD_FIREBASE_IMAGE_URL] as? String,
         )
     }
 
