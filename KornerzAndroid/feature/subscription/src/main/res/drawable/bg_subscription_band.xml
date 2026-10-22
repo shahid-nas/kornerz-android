@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Stand-in for the plans screen's 320-pt top image band.
+
+  iOS references `Image("subscription_bg")` at
+  `kornerz/Kornerz/InAppPurchase/SubscriptionScreen.swift:29`, but
+  `subscription_bg` is NOT in the iOS asset catalog — the live iOS screen
+  renders a blank band there today. Reproducing a broken asset on Android
+  would be pointless, so this deliberate substitution ships a working
+  gradient band in the Kornerz palette instead.
+
+  It is a vector rather than a bitmap so it stays crisp at every density
+  and adds nothing to the APK's raster payload.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="360dp"
+    android:height="320dp"
+    android:viewportWidth="360"
+    android:viewportHeight="320">
+
+    <!-- Aqua → plum diagonal wash, sampled from KornerzColors. -->
+    <path android:pathData="M0,0h360v320h-360z">
+        <aapt:attr xmlns:aapt="http://schemas.android.com/aapt"
+            name="android:fillColor">
+            <gradient
+                android:startX="0"
+                android:startY="0"
+                android:endX="360"
+                android:endY="320"
+                android:type="linear">
+                <item android:offset="0.0" android:color="#FF68B6CC" />
+                <item android:offset="0.55" android:color="#FF9E9EAE" />
+                <item android:offset="1.0" android:color="#FF5D47ED" />
+            </gradient>
+        </aapt:attr>
+    </path>
+
+    <!-- Soft concentric "cloud" arcs, echoing the Klouder motif without
+         depending on any bitmap asset. -->
+    <path
+        android:fillAlpha="0.18"
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M180,92m-108,0a108,108 0,1 1,216 0a108,108 0,1 1,-216 0" />
+    <path
+        android:fillAlpha="0.14"
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M180,92m-74,0a74,74 0,1 1,148 0a74,74 0,1 1,-148 0" />
+    <path
+        android:fillAlpha="0.12"
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M180,92m-42,0a42,42 0,1 1,84 0a42,42 0,1 1,-84 0" />
+</vector>

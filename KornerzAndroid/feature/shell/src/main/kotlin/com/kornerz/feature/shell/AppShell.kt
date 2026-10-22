@@ -11,8 +11,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
+import kotlinx.coroutines.flow.StateFlow
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -63,6 +66,39 @@ import com.kornerz.feature.videocall.videocallGraph
 import kotlinx.coroutines.launch
 
 /**
+ * A top-level, full-screen destination contributed to the shell's
+ * `NavHost` by the composition root.
+ *
+ * P8 introduces this seam because `feature/shell` may not depend on
+ * `feature/subscription` (`docs/architecture.md` §2.5 — only `app` imports
+ * the feature modules), yet the subscription routes must be registered on
+ * the shell's **root** `NavHost`, outside every tab's nested graph, so
+ * neither activates a bottom tab. `app` passes the concrete
+ * `SubscriptionRoute.Plans` / `Success` entries here at the composition
+ * root, which keeps the dependency direction correct instead of
+ * reversing it.
+ */
+data class ShellExtraRoute(
+    val route: String,
+    val content: @Composable (ShellExtraRouteScope) -> Unit,
+)
+
+/**
+ * Everything a contributed top-level route needs from the shell: its
+ * controller, the Profile tab's nested controller (so the paywall can
+ * reach the existing `profile/privacy-policy` destination instead of
+ * shipping a second copy of the PDF viewer), and the paywall-gate hooks.
+ */
+class ShellExtraRouteScope internal constructor(
+    val navController: NavHostController,
+    val openPrivacyPolicy: () -> Unit,
+    val onPremiumGateRequests: StateFlow<Int>,
+    val onOpenTermsOfUse: (String) -> Unit,
+    val onPremiumRouteOpened: () -> Unit,
+    val onPremiumRouteClosed: () -> Unit,
+)
+
+/**
  * Five-tab bottom-navigation shell. Mirrors iOS `AppTabController`.
  *
  * Phase 4 wires the Nooks tab to a nested `NavHost` with two
@@ -83,9 +119,45 @@ fun AppShell(
     navController: NavHostController = rememberNavController(),
     onLogout: () -> Unit = {},
     viewModel: ShellViewModel = hiltViewModel(),
+    extraRoutes: List<ShellExtraRoute> = emptyList(),
+    onNavigateToPremium: () -> Unit = {},
 ) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
+
+    // Hoisted out of `profileGraph` so a top-level route — the P8 paywall
+    // — can reach the *existing* `profile/privacy-policy` destination
+    // rather than shipping a second copy of the PDF viewer.
+    val profileNavController = rememberNavController()
+
+    val applicationContext = LocalContext.current.applicationContext
+
+    // The paywall gate fires from exactly two places, both owned by
+    // `ShellViewModel`. The shell's only job is to act on a rising edge of
+    // the request counter: no destination-change or tab-switch evaluation
+    // exists here.
+    val premiumGateRequests by viewModel.premiumGateRequests.collectAsState()
+    LaunchedEffect(premiumGateRequests) {
+        if (premiumGateRequests > 0 && currentRoute != SubscriptionRoutePatterns.PLANS) {
+            viewModel.onPremiumRouteOpened()
+            navController.navigate(SubscriptionRoutePatterns.PLANS) {
+                launchSingleTop = true
+            }
+        }
+    }
+
+    val extraRouteScope = remember(navController, viewModel) {
+        ShellExtraRouteScope(
+            navController = navController,
+            openPrivacyPolicy = {
+                profileNavController.navigate(ProfileRoute.PrivacyPolicy.route)
+            },
+            onPremiumGateRequests = viewModel.premiumGateRequests,
+            onOpenTermsOfUse = { url -> applicationContext.openExternally(url) },
+            onPremiumRouteOpened = viewModel::onPremiumRouteOpened,
+            onPremiumRouteClosed = viewModel::onPremiumRouteClosed,
+        )
+    }
     val comingSoonSnackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
@@ -108,8 +180,15 @@ fun AppShell(
 
     Scaffold(
         bottomBar = {
+            // `subscription/.*` added in P8: both subscription routes are
+            // full-screen and hide the bar, mirroring iOS presenting them
+            // modally with `.fullScreen`
+            // (`AppTabController.swift:217-220`).
             val showBottomBar = currentRoute?.matches(
-                Regex("videocall/.*|notifications/list|profile/.*|community/admin/.*"),
+                Regex(
+                    "videocall/.*|notifications/list|profile/.*|community/admin/.*" +
+                        "|subscription/.*",
+                ),
             ) == false
             if (showBottomBar) {
                 KornerzBottomBar(
@@ -188,6 +267,8 @@ fun AppShell(
             // `profile/.*` so the bar is hidden across every nested
             // Profile destination.
             profileGraph(
+                profileNavController = profileNavController,
+                onOpenPremium = onNavigateToPremium,
                 onOpenNotifications = { navController.navigate(NotificationsRoute.LIST) },
                 onOpenMyCommunities = { navController.navigate(CommunityRoute.AdminList.route) },
                 onOpenLogout = { viewModel.onLogout() },
@@ -257,8 +338,36 @@ fun AppShell(
                     }
                 },
             )
+            // P8 — the subscription routes are registered on the root
+            // NavHost, outside every tab's nested NavHost, so no bottom
+            // tab becomes active and the bottom-bar-hidden regex above
+            // applies to them like any other full-screen route.
+            extraRoutes.forEach { extra ->
+                composable(extra.route) { extra.content(extraRouteScope) }
+            }
         }
     }
+}
+
+/**
+ * The P8 subscription route strings, duplicated here as literals because
+ * `feature/shell` may not import `feature/subscription`
+ * (`docs/architecture.md` §2.5). `app` registers the very same strings via
+ * `SubscriptionRoute`, so the two must stay in step — the parity is
+ * asserted by the `subscription-plans` navigation tests.
+ */
+internal object SubscriptionRoutePatterns {
+    const val PLANS = "subscription/plans"
+    const val SUCCESS = "subscription/success"
+}
+
+/** iOS `SubscriptionViewModel.swift:152-157` opens the EULA externally. */
+private fun android.content.Context.openExternally(url: String) {
+    val intent = android.content.Intent(
+        android.content.Intent.ACTION_VIEW,
+        android.net.Uri.parse(url),
+    ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+    runCatching { startActivity(intent) }
 }
 
 private fun navigateToTab(navController: NavHostController, tab: ShellTab) {
@@ -559,6 +668,8 @@ internal fun androidx.navigation.NavGraphBuilder.kloudersTabGraph(onLogout: () -
  * privacy-policy destinations.
  */
 internal fun androidx.navigation.NavGraphBuilder.profileGraph(
+    profileNavController: androidx.navigation.NavHostController,
+    onOpenPremium: () -> Unit = {},
     onOpenNotifications: () -> Unit,
     onOpenMyCommunities: () -> Unit = {},
     onOpenLogout: () -> Unit = {},
@@ -569,13 +680,14 @@ internal fun androidx.navigation.NavGraphBuilder.profileGraph(
     onShowError: (String) -> Unit = {},
 ) {
     composable(ProfileRoute.View.route) {
-        val nested = rememberNavController()
+        val nested = profileNavController
         androidx.navigation.compose.NavHost(
             navController = nested,
             startDestination = ProfileRoute.View.route,
         ) {
             composable(ProfileRoute.View.route) {
                 ProfileScreen(
+                    onNavigateToPremium = onOpenPremium,
                     onNavigateToNotifications = onOpenNotifications,
                     onNavigateToEditBasicInfo = { nested.navigate(ProfileRoute.EditBasicInfo.route) },
                     onNavigateToPrivacyPolicy = { nested.navigate(ProfileRoute.PrivacyPolicy.route) },

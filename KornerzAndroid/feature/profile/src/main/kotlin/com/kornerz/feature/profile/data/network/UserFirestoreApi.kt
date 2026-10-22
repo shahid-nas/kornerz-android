@@ -153,6 +153,22 @@ class UserFirestoreApi @Inject constructor(
             .await()
     }
 
+    /**
+     * Decodes a `Users/{email}` document into a [User].
+     *
+     * P8 hard fix: the four premium/subscription fields are now mapped.
+     * Previously this function dropped all four, so **every** Profile read
+     * returned a user that looked permanently free — which made both the
+     * Profile row's trailing label and the paywall gate's entitlement
+     * input wrong for every user, including an iOS subscriber whose
+     * `subscriptionExpiryDate` was months in the future.
+     *
+     * Note that mapping `isUserPremium` does **not** make it the premium
+     * decision input: the gate and the row both read
+     * [User.isUserPremiumNow], which is derived from
+     * `subscriptionExpiryDate`. The bit is still mapped because it is part
+     * of the shared document shape and the DataStore round trip.
+     */
     private fun com.google.firebase.firestore.DocumentSnapshot.toUserOrNull(): User? {
         val data = data ?: return null
         val email = (data[FIELD_EMAIL] as? String) ?: return null
@@ -169,11 +185,36 @@ class UserFirestoreApi @Inject constructor(
             language = data[FIELD_LANGUAGE] as? String,
             photoUrl = data[FIELD_PHOTO_URL] as? String,
             fcmToken = data[FIELD_TOKEN_PUSH] as? String,
+            // P8: the four premium fields, previously dropped on the floor.
+            isPremium = data[FIELD_IS_USER_PREMIUM] as? Boolean ?: false,
+            subscriptionExpiryDate = data[FIELD_SUBSCRIPTION_EXPIRY]?.toInstantString(),
+            subscriptionType = data[FIELD_SUBSCRIPTION_TYPE] as? String,
+            subscriptionPlatform = data[FIELD_SUBSCRIPTION_PLATFORM] as? String,
             firebaseImageUrl = data[FIELD_FIREBASE_IMAGE_URL] as? String,
             firebaseThumbnailUrl = data[FIELD_FIREBASE_THUMBNAIL_URL] as? String,
             image = data[FIELD_IMAGE] as? String,
             thumbnail = data[FIELD_THUMBNAIL] as? String,
+            thumbnailType = data[FIELD_THUMBNAIL_TYPE] as? String,
         )
+    }
+
+    /**
+     * Normalises a Firestore subscription-expiry value to the ISO-8601
+     * `String?` the [User] model stores.
+     *
+     * The Kotlin-side type is `String?` because `SessionRecord` serializes
+     * the whole [User] into one DataStore JSON document (a Firestore
+     * `Timestamp` is not `@Serializable`). Android writes a `Timestamp`;
+     * an older document may hold an ISO-8601 string. Both are accepted, and
+     * an unrecognised shape degrades to `null` — which makes
+     * `isUserPremiumNow` `false` rather than crashing the Profile screen.
+     */
+    private fun Any.toInstantString(): String? = when (this) {
+        is com.google.firebase.Timestamp -> runCatching {
+            kotlinx.datetime.Instant.fromEpochMilliseconds(toDate().time).toString()
+        }.getOrNull()
+        is String -> this
+        else -> null
     }
 
     /**
@@ -215,10 +256,18 @@ class UserFirestoreApi @Inject constructor(
         private const val FIELD_LANGUAGE = "language"
         private const val FIELD_PHOTO_URL = "photoUrl"
         private const val FIELD_TOKEN_PUSH = "tokenPush"
+        // P8 — the four premium/subscription keys, added alongside the
+        // existing P1/P6 set. `isUserPremium` is mapped but never used as
+        // the premium decision input; see `User.isUserPremiumNow`.
+        private const val FIELD_IS_USER_PREMIUM = "isUserPremium"
+        private const val FIELD_SUBSCRIPTION_EXPIRY = "subscriptionExpiryDate"
+        private const val FIELD_SUBSCRIPTION_TYPE = "subscriptionType"
+        private const val FIELD_SUBSCRIPTION_PLATFORM = "subscriptionPlatform"
         private const val FIELD_FIREBASE_IMAGE_URL = "firebaseImageUrl"
         private const val FIELD_FIREBASE_THUMBNAIL_URL = "firebaseThumbnailUrl"
         private const val FIELD_IMAGE = "image"
         private const val FIELD_THUMBNAIL = "thumbnail"
+        private const val FIELD_THUMBNAIL_TYPE = "thumbnailType"
         private const val FIELD_REGISTRATION_DATE = "userDateRegister"
     }
 }

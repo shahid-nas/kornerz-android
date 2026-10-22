@@ -3,6 +3,7 @@ package com.kornerz.kornerz
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -22,6 +23,11 @@ import com.kornerz.feature.auth.AUTH_GRAPH_ROUTE
 import com.kornerz.feature.auth.authGraph
 import com.kornerz.feature.shell.AppShell
 import com.kornerz.feature.splash.SplashScreen
+import com.kornerz.feature.subscription.navigation.SubscriptionRoute
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.android.components.ActivityComponent
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -46,6 +52,14 @@ fun AppRoot(
 ) {
     val forceUpdateState by forceUpdateViewModel.state.collectAsStateWithLifecycle()
     val applicationId = LocalContext.current.packageName
+
+    val applicationContext = LocalContext.current.applicationContext
+    val premiumGate = remember(applicationContext) {
+        EntryPointAccessors.fromApplication(
+            applicationContext,
+            PremiumGateEntryPoint::class.java,
+        ).premiumGate()
+    }
 
     val navigateToAuthGraph: () -> Unit = {
         navController.navigate(AUTH_GRAPH_ROUTE) {
@@ -76,7 +90,18 @@ fun AppRoot(
             onNavigateToShellGraph = navigateToShellGraph,
         )
         composable(Routes.SHELL_GRAPH) {
-            AppShell(onLogout = navigateToAuthGraph)
+            // P8 — the composition root supplies the concrete subscription
+            // routes, because only `app` may import both `feature/shell`
+            // and `feature/subscription`.
+            AppShell(
+                onLogout = navigateToAuthGraph,
+                extraRoutes = rememberSubscriptionRoutes(premiumGate),
+                onNavigateToPremium = {
+                    navController.navigate(SubscriptionRoute.Plans.route) {
+                        launchSingleTop = true
+                    }
+                },
+            )
         }
     }
 

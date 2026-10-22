@@ -40,3 +40,6 @@ include(":feature:videocall")
 include(":feature:profile")
 include(":feature:notifications")
 include(":feature:community")
+// P8 — premium / IAP. Imported only by `app` per `docs/architecture.md`
+// §2.5; the shell reaches it through `SubscriptionRoute`.
+include(":feature:subscription")

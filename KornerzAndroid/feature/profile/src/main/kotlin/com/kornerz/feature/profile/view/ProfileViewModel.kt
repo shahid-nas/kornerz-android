@@ -3,10 +3,13 @@ package com.kornerz.feature.profile.view
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kornerz.core.model.AsyncValue
+import com.kornerz.core.model.SubscriptionProductType
 import com.kornerz.core.model.User
 import com.kornerz.feature.community.data.AdminCommunitiesRepository
 import com.kornerz.feature.profile.data.UserProfileRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -84,12 +87,45 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
+    fun onPremiumTap() = _navEvents.trySend(ProfileNavEvent.OpenPremium)
     fun onNotificationsTap() = _navEvents.trySend(ProfileNavEvent.OpenNotifications)
     fun onEditBasicInfoTap() = _navEvents.trySend(ProfileNavEvent.OpenEditBasicInfo)
     fun onPrivacyPolicyTap() = _navEvents.trySend(ProfileNavEvent.OpenPrivacyPolicy)
     fun onMyCommunitiesTap() = _navEvents.trySend(ProfileNavEvent.OpenMyCommunities)
     fun onLogoutTap() = _navEvents.trySend(ProfileNavEvent.OpenLogout)
     fun onDeleteAccountTap() = _navEvents.trySend(ProfileNavEvent.OpenDeleteAccount)
+
+    /**
+     * The Premium row's trailing label, derived from the **session**
+     * [User] already observed above — so it updates whenever the session
+     * flow re-emits, with no extra fetch.
+     *
+     * | Condition | Label |
+     * |---|---|
+     * | `isUserPremiumNow == false` | `Premium` (the marketing word) |
+     * | premium + `video_call_monthly` | `Monthly` |
+     * | premium + `video_call_yearly_sub` | `Yearly` |
+     * | premium + unrecognized / absent type | `Active until {yyyy-MM-dd}` |
+     *
+     * The premium decision reads [User.isUserPremiumNow], never the raw
+     * `isPremium` bit, which is write-only on both platforms.
+     */
+    fun premiumTrailingText(): String {
+        val user = currentUser() ?: return PREMIUM_LABEL
+        if (!user.isUserPremiumNow) return PREMIUM_LABEL
+        return when (SubscriptionProductType.fromRawValue(user.subscriptionType)) {
+            SubscriptionProductType.MONTHLY -> PLAN_LABEL_MONTHLY
+            SubscriptionProductType.YEARLY -> PLAN_LABEL_YEARLY
+            // Rendered in the device's own zone: the expiry is an absolute
+            // instant, so "until" must read as a local date to the person
+            // looking at it.
+            null -> user.subscriptionExpiryInstant
+                ?.toLocalDateTime(TimeZone.currentSystemDefault())
+                ?.date
+                ?.let { "$ACTIVE_UNTIL_PREFIX$it" }
+                ?: PREMIUM_LABEL
+        }
+    }
 
     fun uploadAvatar(userCode: String, bitmap: android.graphics.Bitmap) {
         viewModelScope.launch {
@@ -107,4 +143,11 @@ class ProfileViewModel @Inject constructor(
     }
 
     fun currentUser(): User? = (_state.value.user as? AsyncValue.Success)?.data
+
+    private companion object {
+        const val PREMIUM_LABEL = "Premium"
+        const val PLAN_LABEL_MONTHLY = "Monthly"
+        const val PLAN_LABEL_YEARLY = "Yearly"
+        const val ACTIVE_UNTIL_PREFIX = "Active until "
+    }
 }

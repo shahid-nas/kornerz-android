@@ -35,6 +35,9 @@ media3 = "1.4.1"
 vonage-android-sdk = "2.34.0"
 okhttp = "4.12.0"
 
+# Google Play Billing (P8 — premium / IAP)
+billing = "7.0.0"
+
 # Firebase
 firebase-bom = "33.5.1"
 firebase-crashlytics = "3.0.2"
@@ -90,6 +93,13 @@ kotlinx-datetime = { group = "org.jetbrains.kotlinx", name = "kotlinx-datetime",
 # Video calling (P9)
 opentok-android-sdk = { group = "com.opentok.android", name = "opentok-android-sdk", version.ref = "vonage-android-sdk" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
+
+# Google Play Billing — introduced in P8 (phase-8-premium-iap). The
+# repository's FIRST Play-services dependency. Backs the
+# `feature/subscription` `BillingClientApi` wrapper; the AAR also
+# contributes `com.android.vending.BILLING` to the merged manifest, so
+# no explicit `<uses-permission>` is written in `app/src/main`.
+android-billing = { group = "com.android.billingclient", name = "billing-ktx", version.ref = "billing" }
 
 # Firebase (versions come from the BOM)
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebase-bom" }

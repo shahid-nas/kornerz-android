@@ -21,6 +21,20 @@ sealed interface ProfileEvent {
 }
 
 sealed interface ProfileNavEvent {
+    /**
+     * Emitted by the "Premium" menu row. The shell collector routes it to
+     * `SubscriptionRoute.Plans`.
+     *
+     * **Android-only row with no iOS parity target:**
+     * `UserProfileVC.setupMenuList()`
+     * (`kornerz/Kornerz/HomeVC/ProfileVC/UserProfileVC.swift:75-110`)
+     * inserts no premium cell and `TypeOfUserInfoCell` (`:11-22`) has no
+     * premium case — iOS reaches the paywall only through two automatic
+     * gates. The row is still required, because without it a free user who
+     * dismisses the automatic paywall has no way back to the plans screen,
+     * which would make the dismissal affordance a dead end.
+     */
+    data object OpenPremium : ProfileNavEvent
     data object OpenNotifications : ProfileNavEvent
     data object OpenEditBasicInfo : ProfileNavEvent
     data object OpenPrivacyPolicy : ProfileNavEvent

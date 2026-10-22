@@ -127,6 +127,13 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.datetime)
 
+    // Google Play Billing (P8). `app` carries it for the Play-services
+    // license-check surface and manifest merging; the wrapper itself
+    // lives in `feature/subscription`. Deliberately not added to
+    // `core/*` so the Play dependency's blast radius stays at two
+    // modules (`android-build` spec).
+    implementation(libs.android.billing)
+
     // Internal modules
     implementation(project(":core:model"))
     implementation(project(":core:network"))
@@ -143,6 +150,7 @@ dependencies {
     implementation(project(":feature:profile"))
     implementation(project(":feature:notifications"))
     implementation(project(":feature:community"))
+    implementation(project(":feature:subscription"))
 
     // Tests
     testImplementation(libs.junit)

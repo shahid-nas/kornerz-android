@@ -49,6 +49,7 @@ import com.kornerz.feature.profile.components.UserInfoHeader
  */
 @Composable
 fun ProfileScreen(
+    onNavigateToPremium: () -> Unit,
     onNavigateToNotifications: () -> Unit,
     onNavigateToEditBasicInfo: () -> Unit,
     onNavigateToPrivacyPolicy: () -> Unit,
@@ -64,6 +65,7 @@ fun ProfileScreen(
     LaunchedEffect(viewModel) {
         viewModel.navEvents.collect { event ->
             when (event) {
+                ProfileNavEvent.OpenPremium -> onNavigateToPremium()
                 ProfileNavEvent.OpenNotifications -> onNavigateToNotifications()
                 ProfileNavEvent.OpenEditBasicInfo -> onNavigateToEditBasicInfo()
                 ProfileNavEvent.OpenPrivacyPolicy -> onNavigateToPrivacyPolicy()
@@ -98,6 +100,8 @@ fun ProfileScreen(
     }
     ProfileContent(
         state = state,
+        premiumTrailingText = viewModel.premiumTrailingText(),
+        onPremiumTap = viewModel::onPremiumTap,
         onNotificationsTap = viewModel::onNotificationsTap,
         onEditBasicInfoTap = viewModel::onEditBasicInfoTap,
         onPrivacyPolicyTap = viewModel::onPrivacyPolicyTap,
@@ -138,6 +142,8 @@ fun ProfileContentPreview() {
     )
     ProfileContent(
         state = state,
+        premiumTrailingText = "Yearly",
+        onPremiumTap = {},
         onNotificationsTap = {},
         onEditBasicInfoTap = {},
         onPrivacyPolicyTap = {},
@@ -151,6 +157,7 @@ fun ProfileContentPreview() {
 @Composable
 fun ProfileContent(
     state: ProfileState,
+    onPremiumTap: () -> Unit,
     onNotificationsTap: () -> Unit,
     onEditBasicInfoTap: () -> Unit,
     onPrivacyPolicyTap: () -> Unit,
@@ -158,6 +165,7 @@ fun ProfileContent(
     onLogoutTap: () -> Unit,
     onDeleteAccountTap: () -> Unit,
     onAvatarPicked: (Bitmap) -> Unit,
+    premiumTrailingText: String = "Premium",
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current

@@ -40,6 +40,13 @@ dependencies {
     // Hilt
     implementation(libs.hilt.android)
     kapt(libs.hilt.compiler)
+
+    // Tests — `SessionRepository` is exercised over a real file-backed
+    // DataStore in a temp directory, which is the only way to assert the
+    // atomicity and no-transient-`Anonymous` guarantees P8's `updateUser`
+    // makes. No Robolectric: the DataStore file backend is pure JVM.
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
 }
 
 kapt {

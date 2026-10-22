@@ -31,8 +31,6 @@ class SessionRepository @Inject constructor(
     private val dataStore: DataStore<SessionRecord>,
 ) {
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-
     /**
      * Stream of session state. Emits [SessionState.Loading] until the
      * first DataStore read completes, then [Anonymous] / [Authenticated]
@@ -63,6 +61,35 @@ class SessionRepository @Inject constructor(
                 user = emptyUser(),
             )
         }
+    }
+
+    /**
+     * Patches the cached [User] without touching the auth credentials.
+     *
+     * Reads the current [SessionRecord], applies [transform] to its
+     * `user` field, and writes the record back with `token` and
+     * `expiresAt` preserved **verbatim** — all inside a single
+     * `dataStore.updateData` block, so the write stays atomic and the
+     * file can never be left holding an updated user beside a stale
+     * token.
+     *
+     * Exists because [setSession] is the only other write path and it
+     * demands a live auth token that the P8 billing flow does not have
+     * and must not need. Called after every successful purchase, revoke,
+     * and server reconciliation so the cached user's premium fields stay
+     * in step with Firestore.
+     *
+     * The anonymous-detection invariants in [SessionRecord.toState] are
+     * untouched: a patch over an anonymous record stays anonymous, and a
+     * patch over a valid authenticated record never emits a transient
+     * `SessionState.Anonymous`. Returns `Result.failure` on any read or
+     * write error rather than throwing.
+     */
+    suspend fun updateUser(transform: (User) -> User): Result<Unit> = runCatching {
+        dataStore.updateData { current ->
+            current.copy(user = transform(current.user))
+        }
+        Unit
     }
 
     /**
