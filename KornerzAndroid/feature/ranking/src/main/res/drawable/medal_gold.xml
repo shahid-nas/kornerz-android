@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Klouders leaderboard's gold medal.
+
+  Ported from the iOS asset
+  `kornerz/Kornerz/Resources/Assets.xcassets/Images/Medal/medal-gold.imageset/
+  gold-medal-svgrepo-com.svg` (P10 task 5.5). The SVG's `viewBox` is
+  `-3.5 0 32 32`; the artwork is therefore wrapped in a group translated
+  by +3.5 on the x axis so the viewport maps one-to-one onto the
+  original. Every path, fill and gradient is carried over verbatim —
+  the SVG's linear gradients become Android `<gradient>` fills.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="32dp"
+    android:height="32dp"
+    android:viewportWidth="32"
+    android:viewportHeight="32">
+
+    <group android:translateX="3.5">
+
+        <!-- Left ribbon, lit half -->
+        <path
+            android:fillColor="#CE4444"
+            android:pathData="M9.73795 18.8436L12.9511 20.6987L6.42625 32L4.55349 27.8233L9.73795 18.8436Z" />
+
+        <!-- Left ribbon, shadow half -->
+        <path
+            android:fillColor="#983535"
+            android:pathData="M9.73795 18.8436L6.52483 16.9885L0 28.2898L4.55349 27.8233L9.73795 18.8436Z" />
+
+        <!-- Right ribbon, shadow half -->
+        <path
+            android:fillColor="#983535"
+            android:pathData="M14.322 18.8436L11.1088 20.6987L17.6337 32L19.5064 27.8233L14.322 18.8436Z" />
+
+        <!-- Right ribbon, lit half -->
+        <path
+            android:fillColor="#CE4444"
+            android:pathData="M14.322 18.8436L17.5351 16.9885L24.0599 28.2898L19.5064 27.8233L14.322 18.8436Z" />
+
+        <!-- Outer disc — the gold rim, vertical #FFC600 → #FFDE69 -->
+        <path android:pathData="M22.9936 11.0622C22.9936 17.1716 18.0409 22.1243 11.9314 22.1243C5.82194 22.1243 0.869249 17.1716 0.869249 11.0622C0.869249 4.9527 5.82194 0 11.9314 0C18.0409 0 22.9936 4.9527 22.9936 11.0622Z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:startX="11.1804"
+                    android:startY="4.03192"
+                    android:endX="12.6813"
+                    android:endY="31.965"
+                    android:type="linear">
+                    <item
+                        android:color="#FFFFC600"
+                        android:offset="0" />
+                    <item
+                        android:color="#FFFFDE69"
+                        android:offset="1" />
+                </gradient>
+            </aapt:attr>
+        </path>
+
+        <!-- Inner ring, darkest gold -->
+        <path
+            android:fillColor="#A88300"
+            android:pathData="M20.5665 11.0621C20.5665 15.8311 16.7004 19.6972 11.9315 19.6972C7.16247 19.6972 3.29645 15.8311 3.29645 11.0621C3.29645 6.29315 7.16247 2.42713 11.9315 2.42713C16.7004 2.42713 20.5665 6.29315 20.5665 11.0621Z" />
+
+        <!-- Lower crescent, mid gold -->
+        <path
+            android:fillColor="#C28B37"
+            android:pathData="M21.0477 11.984C21.0477 16.7641 17.1727 20.6391 12.3926 20.6391C7.61251 20.6391 3.73748 16.7641 3.73748 11.984C3.73748 7.20389 7.61251 3.32887 12.3926 3.32887C17.1727 3.32887 21.0477 7.20389 21.0477 11.984Z" />
+
+        <!-- Main disc, bright gold -->
+        <path
+            android:fillColor="#C09525"
+            android:pathData="M20.5868 11.0621C20.5868 15.8422 16.7118 19.7172 11.9317 19.7172C7.15159 19.7172 3.27656 15.8422 3.27656 11.0621C3.27656 6.28205 7.15159 2.40702 11.9317 2.40702C16.7118 2.40702 20.5868 6.28205 20.5868 11.0621Z" />
+
+        <!-- The star -->
+        <path android:pathData="M11.9781 5.04096L13.8451 8.77502L17.5792 9.24178L15.0151 12.117L15.7122 16.2431L11.9781 14.3761L8.24404 16.2431L8.94729 12.117L6.37701 9.24178L10.1111 8.77502L11.9781 5.04096Z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:startX="11.9783"
+                    android:startY="5.04096"
+                    android:endX="11.9783"
+                    android:endY="16.2431"
+                    android:type="linear">
+                    <item
+                        android:color="#FFFFFCDD"
+                        android:offset="0" />
+                    <item
+                        android:color="#FFFFE896"
+                        android:offset="1" />
+                </gradient>
+            </aapt:attr>
+        </path>
+
+    </group>
+
+</vector>

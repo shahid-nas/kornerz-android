@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Klouders leaderboard's silver medal.
+
+  Ported from the iOS asset
+  `kornerz/Kornerz/Resources/Assets.xcassets/Images/Medal/medal-silver.imageset/
+  silver-medal-svgrepo-com.svg` (P10 task 5.5).
+
+  The SVG's `<mask>` is an alpha mask: the glossy overlay circle is
+  painted only where it overlaps the mask's circle. The overlap of two
+  circles is a lens bounded by one arc of each circle, so the lens is
+  expressed here as a two-arc clip path and the SVG's `<g mask>` group
+  becomes a `<group android:clip-path>`.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="32dp"
+    android:height="32dp"
+    android:viewportWidth="32"
+    android:viewportHeight="32">
+
+    <group android:translateX="3.5">
+
+        <!-- Left ribbon, lit half -->
+        <path
+            android:fillColor="#418ED6"
+            android:pathData="M9.73779 18.8436L12.9509 20.6987L6.42609 32.0001L4.55333 27.8234L9.73779 18.8436Z" />
+
+        <!-- Left ribbon, shadow half -->
+        <path
+            android:fillColor="#2B63A6"
+            android:pathData="M9.73779 18.8436L6.52467 16.9885L-0.000155079 28.2899L4.55333 27.8234L9.73779 18.8436Z" />
+
+        <!-- Right ribbon, shadow half -->
+        <path
+            android:fillColor="#2B63A6"
+            android:pathData="M14.3218 18.8436L11.1087 20.6987L17.6335 32.0001L19.5062 27.8234L14.3218 18.8436Z" />
+
+        <!-- Right ribbon, lit half -->
+        <path
+            android:fillColor="#418ED6"
+            android:pathData="M14.3218 18.8436L17.5349 16.9885L24.0597 28.2899L19.5062 27.8234L14.3218 18.8436Z" />
+
+        <!-- Outer disc — the silver rim -->
+        <path
+            android:fillColor="#E3E3E3"
+            android:pathData="M23.0868 11.0622C23.0868 17.1716 18.1341 22.1243 12.0246 22.1243C5.91516 22.1243 0.962449 17.1716 0.962449 11.0622C0.962449 4.9527 5.91516 0 12.0246 0C18.1341 0 23.0868 4.9527 23.0868 11.0622Z" />
+
+        <!-- Inner disc, dark silver -->
+        <path
+            android:fillColor="#595959"
+            android:pathData="M20.6597 11.0621C20.6597 15.8311 16.7937 19.6972 12.0247 19.6972C7.25572 19.6972 3.3897 15.8311 3.3897 11.0621C3.3897 6.29315 7.25572 2.42713 12.0247 2.42713C16.7937 2.42713 20.6597 6.29315 20.6597 11.0621Z" />
+
+        <!--
+          The glossy overlay: the gradient circle clipped to the lens
+          formed by it and the SVG's mask circle. The lens is the arc of
+          the gradient circle inside the mask circle, followed by the arc
+          of the mask circle inside the gradient circle.
+        -->
+        <group>
+            <clip-path android:pathData="M4.52672,15.38724A8.65511,8.65511 0 0 0 19.98368,7.65896A8.65511,8.65511 0 0 0 4.52672,15.38724Z" />
+            <path android:pathData="M20.6798 11.0622C20.6798 15.8311 16.8138 19.6972 12.0247 19.6972C7.23569 19.6972 3.36965 15.8311 3.36965 11.0622C3.36965 6.29315 7.23569 2.42713 12.0247 2.42713C16.8138 2.42713 20.6798 6.29315 20.6798 11.0622Z">
+                <aapt:attr name="android:fillColor">
+                    <gradient
+                        android:startX="12.0247"
+                        android:startY="2.4071"
+                        android:endX="12.0247"
+                        android:endY="19.7173"
+                        android:type="linear">
+                        <item
+                            android:color="#FF9CA1A3"
+                            android:offset="0" />
+                        <item
+                            android:color="#009CA1A3"
+                            android:offset="1" />
+                    </gradient>
+                </aapt:attr>
+            </path>
+        </group>
+
+        <!-- The star -->
+        <path android:pathData="M12.0713 5.04102L13.9383 8.77508L17.6724 9.24183L15.1083 12.1171L15.8054 16.2432L12.0713 14.3762L8.33724 16.2432L9.04049 12.1171L6.47021 9.24183L10.2043 8.77508L12.0713 5.04102Z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:startX="12.0713"
+                    android:startY="5.04102"
+                    android:endX="12.0713"
+                    android:endY="16.2432"
+                    android:type="linear">
+                    <item
+                        android:color="#FFF1F5F5"
+                        android:offset="0" />
+                    <item
+                        android:color="#FFFFFFFF"
+                        android:offset="0.0001" />
+                    <item
+                        android:color="#FFF1F5F5"
+                        android:offset="1" />
+                </gradient>
+            </aapt:attr>
+        </path>
+
+    </group>
+
+</vector>

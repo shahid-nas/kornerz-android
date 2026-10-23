@@ -1,4 +1,4 @@
-package com.kornerz.feature.nooks.components
+package com.kornerz.core.ui.components.nooks
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme

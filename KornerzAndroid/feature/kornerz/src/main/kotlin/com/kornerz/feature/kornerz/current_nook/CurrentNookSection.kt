@@ -9,8 +9,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.kornerz.core.model.Nook
 import com.kornerz.core.ui.theme.KornerzTheme
 import com.kornerz.core.ui.theme.Spacing
-import com.kornerz.feature.nooks.components.LiveKornerCard
-import com.kornerz.feature.nooks.components.nooksAccentColor
+import com.kornerz.core.ui.components.nooks.LiveKornerCard
+import com.kornerz.core.ui.components.nooks.nooksAccentColor
 import kotlinx.datetime.Instant
 
 /**

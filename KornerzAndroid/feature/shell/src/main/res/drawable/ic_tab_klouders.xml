@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Klouders tab's bottom-bar icon.
+
+  Ported from the iOS asset
+  `kornerz/Kornerz/Resources/Assets.xcassets/Images/Home/tab_klouders.imageset/
+  tab_klouders.svg` (P10 task 6.5) — a stroked "person" glyph that
+  replaces the `Icons.Filled.Subscriptions` placeholder the bottom bar
+  shipped with since P0.
+
+  The stroke colour is the iOS asset's own `#2E2F3E` (the Kornerz
+  `CharcoalLight` token). `Icon` tints a painter with the ambient
+  content colour, so the selected / unselected states follow the
+  bottom bar's own palette, exactly as the Material placeholders did.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="22dp"
+    android:height="24dp"
+    android:viewportWidth="22"
+    android:viewportHeight="24">
+
+    <!-- Head -->
+    <path
+        android:pathData="M13.9576 7.66621C15.6016 6.02226 15.6016 3.35689 13.9576 1.71294C12.3137 0.068987 9.6483 0.0689876 8.00435 1.71294C6.3604 3.35689 6.3604 6.02226 8.00435 7.66621C9.6483 9.31016 12.3137 9.31016 13.9576 7.66621Z"
+        android:strokeColor="#2E2F3E"
+        android:strokeWidth="1" />
+
+    <!-- Body -->
+    <path
+        android:pathData="M1.57441 17.184L6.34561 12.4128C8.90881 9.84956 13.0704 9.84956 15.6336 12.4128L20.4048 17.184C22.7424 19.5216 21.0864 23.52 17.7792 23.52H4.20001C0.892811 23.52 -0.763189 19.5216 1.57441 17.184Z"
+        android:strokeColor="#2E2F3E"
+        android:strokeWidth="1" />
+
+</vector>

@@ -24,11 +24,27 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode"
             android:theme="@style/Theme.Kornerz">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!--
+              P10 — the `kornerz://` deep-link scheme. The hosts are the
+              three the URI grammar uses: `loop`, `forum` and
+              `community`. `singleTop` on the activity above means a
+              warm link is delivered to the running instance through
+              `onNewIntent` instead of creating a second one.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="kornerz" android:host="loop" />
+                <data android:scheme="kornerz" android:host="forum" />
+                <data android:scheme="kornerz" android:host="community" />
             </intent-filter>
         </activity>
 

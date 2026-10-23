@@ -5,7 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.kornerz.core.model.AsyncValue
 import com.kornerz.core.model.SubscriptionProductType
 import com.kornerz.core.model.User
-import com.kornerz.feature.community.data.AdminCommunitiesRepository
+import com.kornerz.core.network.community.CommunitiesRepository
 import com.kornerz.feature.profile.data.UserProfileRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.datetime.TimeZone
@@ -28,19 +28,23 @@ import javax.inject.Inject
  *
  * P7 (task 8.1) replaces the hardcoded `adminCommunitiesCount = 0`
  * placeholder with the live
- * [AdminCommunitiesRepository.fetchUserCommunitiesCount] flow.
+ * [CommunitiesRepository.fetchUserCommunitiesCount] flow.
  *
- * P8 fix: switches to `AdminCommunitiesRepository.refreshAdminCount`
+ * P8 fix: switches to `CommunitiesRepository.refreshAdminCount`
  * which counts `CommunityAdm` rows via Firestore's server-side
  * aggregation (`count().get(AggregateSource.SERVER)`), mirroring iOS
  * `AdminCommunitiesRepository.fetchUserCommunitiesCount` (lines
  * 140–159). This is what powers the "My Communities" row visibility
  * on the profile screen.
+ *
+ * The count is read from the **data layer** rather than from the
+ * Community feature: a feature module may not depend on another
+ * feature module (`docs/architecture.md` §2.5).
  */
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
     private val userRepository: UserProfileRepository,
-    private val adminCommunitiesRepository: AdminCommunitiesRepository,
+    private val communitiesRepository: CommunitiesRepository,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ProfileState())
@@ -67,8 +71,8 @@ class ProfileViewModel @Inject constructor(
     }
 
     private suspend fun observeAdminCommunitiesCount(userCode: String) {
-        adminCommunitiesRepository.refreshAdminCount(userCode)
-        adminCommunitiesRepository.fetchUserCommunitiesCount(userCode).collect { count ->
+        communitiesRepository.refreshAdminCount(userCode)
+        communitiesRepository.fetchUserCommunitiesCount(userCode).collect { count ->
             _state.update { it.copy(adminCommunitiesCount = count) }
         }
     }

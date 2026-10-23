@@ -59,32 +59,104 @@ enum class UserNotificationDeeplinkType {
     UNKNOWN;
 
     companion object {
-        fun fromRaw(raw: String?): UserNotificationDeeplinkType = when (raw) {
-            "newEvent" -> NEW_EVENT
-            "newArticle" -> NEW_ARTICLE
-            "newForum" -> NEW_FORUM
-            "videoCall" -> VIDEO_CALL
-            "newComment" -> NEW_COMMENT
-            "newLoop" -> NEW_LOOP
-            "loopComment" -> LOOP_COMMENT
+        /**
+         * Parses the raw `notificationType` the server writes.
+         *
+         * The raw values are iOS's `DeeplinkType` raw values
+         * (`kornerz/Kornerz/DeepLinks/DeeplinkManager.swift:56–64`) —
+         * `NewEvent`, `NewArticle`, `NewForum`, `VideoCall`,
+         * `NewComment`, `NewLoop`, `LoopComment`. The comparison is
+         * **case-insensitive**, so the legacy lower-camel spellings
+         * (`newEvent`, …) keep parsing too.
+         *
+         * Before P10 the comparison was case-**sensitive** against the
+         * lower-camel spellings only, so every real notification —
+         * which carries a capitalised value — parsed as
+         * [UNKNOWN] and no notification in the app was routable.
+         */
+        fun fromRaw(raw: String?): UserNotificationDeeplinkType = when (raw?.lowercase()) {
+            "newevent" -> NEW_EVENT
+            "newarticle" -> NEW_ARTICLE
+            "newforum" -> NEW_FORUM
+            "videocall" -> VIDEO_CALL
+            "newcomment" -> NEW_COMMENT
+            "newloop" -> NEW_LOOP
+            "loopcomment" -> LOOP_COMMENT
             else -> UNKNOWN
         }
     }
 }
 
 /**
- * A [UserNotification] extension that returns the deeplink URI for
- * the notification given the resolved [Community]. Mirrors iOS
- * `UserNotification.deeplink(with: Community?)` (lines 44–76).
+ * A [UserNotification] extension that resolves the notification's
+ * deep link, given the resolved [Community]. Mirrors iOS
+ * `UserNotification.deeplink(with: Community?)` (lines 50–75).
+ *
+ * The iOS per-case field requirements are honoured exactly:
+ *
+ * | type | requires | resolves to |
+ * |---|---|---|
+ * | `newEvent` | reference + community id | [DeepLink.NewEvent] |
+ * | `newArticle` | reference + community id | [DeepLink.NewArticle] |
+ * | `newForum` | reference + community id | [DeepLink.NewForum] |
+ * | `videoCall` | community id | [DeepLink.VideoCall] |
+ * | `newComment` | reference | [DeepLink.NewComment] |
+ * | `newLoop` | reference + community id | [DeepLink.NewLoop] |
+ * | `loopComment` | reference | [DeepLink.NewLoopComment] |
+ *
+ * **This deliberately does not port iOS's `newComment` bug.** iOS
+ * `Models/UserNotification.swift:65–67` returns `.videoCall(...)` for
+ * the `.newComment` case; that branch is unreachable in iOS because
+ * `NotificationsViewModel.notificationOpened` short-circuits
+ * `.newComment` before calling `deeplink(with:)`. Android resolves
+ * `.newComment` to [DeepLink.NewComment].
+ *
+ * The community id is read from [Community.communityId], falling back
+ * to [Community.id] when the former is null — the repositories
+ * populate both, but a community assembled elsewhere may only carry
+ * the legacy id.
  */
-fun UserNotification.deeplink(with: Community?): String? = when (deeplinkType) {
-    UserNotificationDeeplinkType.NEW_LOOP, UserNotificationDeeplinkType.LOOP_COMMENT ->
-        reference?.let { "kornerz://loop/$it" }
-    UserNotificationDeeplinkType.NEW_COMMENT ->
-        reference?.let { "kornerz://forum/$it" }
-    UserNotificationDeeplinkType.NEW_EVENT -> with?.let { "kornerz://community/${it.id}/event" }
-    UserNotificationDeeplinkType.NEW_ARTICLE -> with?.let { "kornerz://community/${it.id}/article" }
-    UserNotificationDeeplinkType.NEW_FORUM -> with?.let { "kornerz://community/${it.id}/forum" }
-    UserNotificationDeeplinkType.VIDEO_CALL -> with?.let { "kornerz://community/${it.id}/call" }
-    UserNotificationDeeplinkType.UNKNOWN -> null
+fun UserNotification.deeplink(with: Community?): DeepLink? {
+    val communityId = with?.communityId?.takeIf { it.isNotBlank() }
+        ?: with?.id?.takeIf { it.isNotBlank() }
+    return when (deeplinkType) {
+        UserNotificationDeeplinkType.NEW_EVENT ->
+            if (reference != null && communityId != null) {
+                DeepLink.NewEvent(eventId = reference, communityId = communityId)
+            } else {
+                null
+            }
+
+        UserNotificationDeeplinkType.NEW_ARTICLE ->
+            if (reference != null && communityId != null) {
+                DeepLink.NewArticle(articleId = reference, communityId = communityId)
+            } else {
+                null
+            }
+
+        UserNotificationDeeplinkType.NEW_FORUM ->
+            if (reference != null && communityId != null) {
+                DeepLink.NewForum(forumId = reference, communityId = communityId)
+            } else {
+                null
+            }
+
+        UserNotificationDeeplinkType.VIDEO_CALL ->
+            communityId?.let { DeepLink.VideoCall(communityId = it) }
+
+        UserNotificationDeeplinkType.NEW_COMMENT ->
+            reference?.let { DeepLink.NewComment(forumId = it) }
+
+        UserNotificationDeeplinkType.NEW_LOOP ->
+            if (reference != null && communityId != null) {
+                DeepLink.NewLoop(communityId = communityId, loopId = reference)
+            } else {
+                null
+            }
+
+        UserNotificationDeeplinkType.LOOP_COMMENT ->
+            reference?.let { DeepLink.NewLoopComment(loopId = it) }
+
+        UserNotificationDeeplinkType.UNKNOWN -> null
+    }
 }

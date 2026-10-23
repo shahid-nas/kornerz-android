@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.kornerz.core.network.AuthRepository
 import com.kornerz.core.network.fcm.FcmTokenRegistrar
 import com.kornerz.feature.profile.accountdeletion.UserDeletedHisAccountEventBus
+import com.kornerz.feature.shell.deeplink.DeepLinkManager
+import com.kornerz.feature.shell.deeplink.DeepLinkResolver
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -20,6 +22,11 @@ import javax.inject.Inject
  *
  * The [PremiumGate] is collected here — and only here — so the gate has a
  * single owner and cannot be evaluated from a second place by accident.
+ *
+ * The P10 deep-link collaborators are exposed here for the same reason:
+ * the shell is the only place that owns the navigation graph, so it is
+ * the only place that may hold the [DeepLinkManager] and the
+ * [DeepLinkResolver].
  */
 @HiltViewModel
 class ShellViewModel @Inject constructor(
@@ -28,6 +35,8 @@ class ShellViewModel @Inject constructor(
     private val userDeletedEventBus: UserDeletedHisAccountEventBus,
     private val premiumGate: PremiumGate,
     private val entitlementReconciler: SubscriptionEntitlementReconciler,
+    val deepLinkManager: DeepLinkManager,
+    val deepLinkResolver: DeepLinkResolver,
 ) : ViewModel() {
 
     private val _navEvents = Channel<ShellNavEvent>(Channel.BUFFERED)

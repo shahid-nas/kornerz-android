@@ -11,8 +11,8 @@ import com.kornerz.core.model.Nook
 import com.kornerz.core.model.User
 import com.kornerz.core.ui.theme.KornerzTheme
 import com.kornerz.core.ui.theme.Spacing
-import com.kornerz.feature.nooks.components.ScheduledNookCard
-import com.kornerz.feature.nooks.components.nooksAccentColor
+import com.kornerz.core.ui.components.nooks.ScheduledNookCard
+import com.kornerz.core.ui.components.nooks.nooksAccentColor
 import kotlinx.datetime.Instant
 
 /**

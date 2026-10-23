@@ -1,4 +1,4 @@
-package com.kornerz.feature.nooks.components
+package com.kornerz.core.ui.components.nooks
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable

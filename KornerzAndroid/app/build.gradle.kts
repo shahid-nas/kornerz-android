@@ -42,8 +42,18 @@ android {
             isShrinkResources = false
         }
         getByName("release") {
-            isMinifyEnabled = false
-            isShrinkResources = false
+            // P10 (task 11.9) — R8 minification and resource shrinking
+            // are ON for the release build type, so `proguard-rules.pro`
+            // is actually exercised. The debug build type stays
+            // unshrunk: it is the phase's install-and-launch artefact
+            // and readable stack traces matter while iterating.
+            //
+            // The signing configuration is unchanged — P10 does not
+            // introduce an upload key (`docs/phases.md:407` open
+            // question 3), so the minified APK is install-and-launch
+            // verified only, not uploadable to Play.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
@@ -151,9 +161,15 @@ dependencies {
     implementation(project(":feature:notifications"))
     implementation(project(":feature:community"))
     implementation(project(":feature:subscription"))
+    // P10 — the Klouders leaderboard module.
+    implementation(project(":feature:ranking"))
 
     // Tests
     testImplementation(libs.junit)
+    // P10 — module-boundary enforcement. `app` is the only module whose
+    // unit-test runtime classpath holds every module's classes, so the
+    // test lives here (see the `app-polish` spec).
+    testImplementation(libs.archunit.junit4)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

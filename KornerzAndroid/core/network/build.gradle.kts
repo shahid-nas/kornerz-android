@@ -54,6 +54,13 @@ dependencies {
     // Hilt
     implementation(libs.hilt.android)
     kapt(libs.hilt.compiler)
+
+    // Tests — the Firestore read path is exercised against a mocked
+    // `FirebaseFirestore`; `TaskCompletionSource` stands in for the
+    // async task the Firestore SDK returns.
+    testImplementation(libs.junit)
+    testImplementation(libs.mockk)
+    testImplementation(libs.kotlinx.coroutines.test)
 }
 
 kapt {

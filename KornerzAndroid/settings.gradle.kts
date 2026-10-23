@@ -43,3 +43,7 @@ include(":feature:community")
 // P8 — premium / IAP. Imported only by `app` per `docs/architecture.md`
 // §2.5; the shell reaches it through `SubscriptionRoute`.
 include(":feature:subscription")
+// P10 — the Klouders leaderboard. Imported by `app` and by
+// `feature/shell` (which owns the tab graph) per the `android-build`
+// spec; by no other module.
+include(":feature:ranking")

@@ -25,6 +25,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.dialog
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.kornerz.core.model.DeepLink
 import com.kornerz.feature.home.HomeScreen
 import com.kornerz.feature.kornerz.KornerzRoute
 import com.kornerz.feature.kornerz.KornerzScreen
@@ -56,7 +57,11 @@ import com.kornerz.feature.profile.editbasicinfo.EditBasicInfoScreen
 import com.kornerz.feature.profile.privacy.PrivacyPolicyScreen
 import com.kornerz.feature.profile.successbasicinfo.ChangeBasicInfoSuccessScreen
 import com.kornerz.feature.profile.view.ProfileScreen
+import com.kornerz.feature.ranking.list.RankingScreen
 import com.kornerz.feature.community.CommunityRoute
+import com.kornerz.feature.shell.deeplink.DeepLinkResolution
+import com.kornerz.feature.shell.deeplink.DeepLinkResolvingScreen
+import com.kornerz.feature.shell.deeplink.DeepLinkTarget
 import com.kornerz.feature.community.admin.AdminCommunitiesListScreen
 import com.kornerz.feature.community.admin.detail.CommunityDetailScreen
 import com.kornerz.feature.community.admin.detail.CommunityDetailViewModel
@@ -132,6 +137,32 @@ fun AppShell(
 
     val applicationContext = LocalContext.current.applicationContext
 
+    // P10 — the shell owns the deep-link lifecycle. The manager is a
+    // process-scoped singleton (it has to be: a cold-start deep link
+    // arrives before the shell exists), so it is reached through the
+    // shell's ViewModel rather than constructed here.
+    val deepLinkManager = viewModel.deepLinkManager
+    val deepLinkResolver = viewModel.deepLinkResolver
+
+    // P10 (task 8.7) — release any deep link that arrived before the
+    // graph could route it. Declared **before** the premium-gate effect
+    // so the deep-link destination is on the stack first and the paywall
+    // is pushed on top of it — iOS parity: `AppTabController.viewDidLoad`
+    // calls `DeepLinksManager.shared.notifyAppLaunch()` (`:24`) after
+    // registering the entitlement sink.
+    LaunchedEffect(deepLinkManager) {
+        deepLinkManager.notifyAppLaunch()
+    }
+
+    // P10 (task 8.8) — one `deeplink/resolving` push per released link.
+    LaunchedEffect(deepLinkManager) {
+        deepLinkManager.releasedLinks.collect {
+            navController.navigate(DeepLinkRoutePatterns.RESOLVING) {
+                launchSingleTop = true
+            }
+        }
+    }
+
     // The paywall gate fires from exactly two places, both owned by
     // `ShellViewModel`. The shell's only job is to act on a rising edge of
     // the request counter: no destination-change or tab-switch evaluation
@@ -170,6 +201,70 @@ fun AppShell(
     var pendingKornerId by remember { mutableStateOf<String?>(null) }
     var pendingLoopId by remember { mutableStateOf<String?>(null) }
 
+    /**
+     * Executes a resolved deep-link target.
+     *
+     * Both destinations live inside a tab's **nested** `NavHost` — the
+     * loop detail in the Loops tab, the Korner detail in the Kornerz
+     * tab — so they cannot be pushed on the root controller. The shell
+     * reuses its existing cross-tab mechanism instead: write the id to
+     * the pending holder, switch the tab, and let the tab's nested
+     * controller consume it. The tab switch's `popUpTo` also removes the
+     * interstitial from the back stack, which is what iOS's
+     * `removeSelfFromNavigation()` (`DeeplinkViewController.swift:41-49`)
+     * does.
+     */
+    val executeDeepLinkTarget: (DeepLinkTarget) -> Unit = { target ->
+        when (target) {
+            is DeepLinkTarget.LoopDetail -> navigateToLoopDetail(
+                navController = navController,
+                loopId = target.loopId,
+                onPending = { pendingLoopId = it },
+            )
+
+            is DeepLinkTarget.KornerDetail -> navigateToKornerDetail(
+                navController = navController,
+                kornerId = target.kornerId,
+                onPending = { pendingKornerId = it },
+            )
+        }
+    }
+
+    /**
+     * Routes a deep link through the one resolver. A link that cannot be
+     * routed surfaces the shared failure alert and returns the user to
+     * the Home tab — the iOS `DeeplinkViewController.showAlert` path
+     * (`:51-56`).
+     */
+    val routeDeepLink: (DeepLink) -> Unit = { deeplink ->
+        scope.launch {
+            when (val resolution = deepLinkResolver.resolve(deeplink)) {
+                is DeepLinkResolution.Routable -> executeDeepLinkTarget(resolution.target)
+
+                DeepLinkResolution.NotRoutable -> {
+                    comingSoonSnackbar.showSnackbar(DEEPLINK_FAILURE_MESSAGE)
+                    navigateToTab(navController, ShellTab.Home)
+                }
+            }
+        }
+    }
+
+    /**
+     * Pushes the interstitial again when another link is still queued.
+     *
+     * The shell pushes `deeplink/resolving` once per released link, but
+     * the interstitial takes **one** link at a time and removes itself
+     * when it has an answer — so the second link of a burst is picked up
+     * here, after the first one has been routed.
+     */
+    val routeNextPendingDeepLink: () -> Unit = {
+        if (deepLinkManager.hasPending()) {
+            navController.navigate(DeepLinkRoutePatterns.RESOLVING) {
+                launchSingleTop = true
+            }
+        }
+    }
+
     LaunchedEffect(viewModel) {
         viewModel.navEvents.collect { event ->
             when (event) {
@@ -184,10 +279,12 @@ fun AppShell(
             // full-screen and hide the bar, mirroring iOS presenting them
             // modally with `.fullScreen`
             // (`AppTabController.swift:217-220`).
+            // `deeplink/.*` added in P10: the deep-link interstitial is
+            // full-screen too (inventory 13.1).
             val showBottomBar = currentRoute?.matches(
                 Regex(
                     "videocall/.*|notifications/list|profile/.*|community/admin/.*" +
-                        "|subscription/.*",
+                        "|subscription/.*|deeplink/.*",
                 ),
             ) == false
             if (showBottomBar) {
@@ -308,28 +405,51 @@ fun AppShell(
                 NotificationsScreen(
                     onBack = { navController.popBackStack() },
                     onOpenLoopComment = { loopId ->
-                        navController.navigate(LoopsRoute.Detail.build(loopId)) {
-                            popUpTo(ShellTab.Home.route) { saveState = true }
-                            launchSingleTop = true
-                        }
+                        // The loop detail is a destination of the Loops
+                        // tab's **nested** `NavHost`, so it cannot be
+                        // pushed on the root controller — the shell's
+                        // cross-tab mechanism (pending id + tab switch)
+                        // is the only way in.
+                        navigateToLoopDetail(
+                            navController = navController,
+                            loopId = loopId,
+                            onPending = { pendingLoopId = it },
+                        )
                     },
                     onOpenForumComment = { forumId ->
-                        // The forum screen is not in the live flow
-                        // for P6 — surface a "coming soon" snackbar
-                        // until P7 ships a forum route.
-                        scope.launch {
-                            comingSoonSnackbar.showSnackbar("Forum coming soon")
-                        }
+                        // Forum Detail is excluded from the Android
+                        // port, so this link is not routable — it goes
+                        // through the one resolver, which reports it as
+                        // not routable and surfaces the shared failure
+                        // alert.
+                        routeDeepLink(DeepLink.NewComment(forumId = forumId))
                     },
-                    onOpenDeeplink = { deeplink ->
-                        scope.launch {
-                            comingSoonSnackbar.showSnackbar("Deeplink coming in Phase 10")
-                        }
-                    },
+                    onOpenDeeplink = { deeplink -> routeDeepLink(deeplink) },
                     onShowAlert = { msg -> scope.launch { comingSoonSnackbar.showSnackbar(msg) } },
                 )
             }
-            kloudersTabGraph(onLogout = viewModel::onLogout)
+            // P10 (task 8.5) — the deep-link interstitial is a
+            // **top-level** route on the shell's root `NavHost`, outside
+            // every tab's nested graph, so no bottom tab becomes active
+            // and the bottom-bar-hidden regex above applies to it. It
+            // carries no navigation argument: the link reaches it
+            // through the `DeepLinkManager`.
+            composable(DeepLinkRoutePatterns.RESOLVING) {
+                DeepLinkResolvingScreen(
+                    onResolved = { target ->
+                        executeDeepLinkTarget(target)
+                        routeNextPendingDeepLink()
+                    },
+                    onFailed = {
+                        scope.launch {
+                            comingSoonSnackbar.showSnackbar(DEEPLINK_FAILURE_MESSAGE)
+                        }
+                        navigateToTab(navController, ShellTab.Home)
+                        routeNextPendingDeepLink()
+                    },
+                )
+            }
+            kloudersTabGraph()
             videocallGraph(
                 onNavEvent = { event ->
                     when (event) {
@@ -360,6 +480,23 @@ internal object SubscriptionRoutePatterns {
     const val PLANS = "subscription/plans"
     const val SUCCESS = "subscription/success"
 }
+
+/**
+ * The P10 deep-link route strings. The interstitial is registered on
+ * the shell's root `NavHost`, outside every tab's nested graph, so no
+ * bottom tab becomes active and the bottom bar is hidden for it.
+ */
+internal object DeepLinkRoutePatterns {
+    const val RESOLVING = "deeplink/resolving"
+}
+
+/**
+ * The alert iOS shows when a deep link cannot be routed —
+ * `DeeplinkViewController.showAlert` (`:51-56`). The user is returned
+ * to the Home tab.
+ */
+internal const val DEEPLINK_FAILURE_MESSAGE =
+    "Failed to load deeplink. Will navigate back to home screen"
 
 /** iOS `SubscriptionViewModel.swift:152-157` opens the EULA externally. */
 private fun android.content.Context.openExternally(url: String) {
@@ -415,23 +552,6 @@ private fun navigateToLoopDetail(
         popUpTo(navController.graph.findStartDestination().id) { saveState = true }
         launchSingleTop = true
         restoreState = true
-    }
-}
-
-private fun androidx.navigation.NavGraphBuilder.tabComposable(
-    tab: ShellTab,
-) {
-    composable(tab.route) {
-        EmptyTabScreen(tabName = tab.label, phaseNumber = tab.phase)
-    }
-}
-
-private fun androidx.navigation.NavGraphBuilder.tabComposableWithLogout(
-    tab: ShellTab,
-    onLogout: () -> Unit,
-) {
-    composable(tab.route) {
-        EmptyTabScreen(tabName = tab.label, phaseNumber = tab.phase, onLogout = onLogout)
     }
 }
 
@@ -655,8 +775,24 @@ internal fun androidx.navigation.NavGraphBuilder.loopsTabGraph(
     }
 }
 
-internal fun androidx.navigation.NavGraphBuilder.kloudersTabGraph(onLogout: () -> Unit) =
-    tabComposableWithLogout(ShellTab.Klouders, onLogout)
+/**
+ * The Klouders tab — the P10 Klouders leaderboard (inventory 2.6 +
+ * 2.7), hosted by `feature/ranking`.
+ *
+ * Before P10 this was the P0 `EmptyTabScreen` placeholder with a
+ * "Log out" affordance, which existed only so the P1 logout path was
+ * testable. P1 shipped a real logout in P6, so the affordance is gone
+ * and the tab renders the live leaderboard.
+ *
+ * The tab has no nested `NavHost` — the leaderboard is a single screen
+ * with no detail destination — so the destination is registered
+ * directly on the shell's root `NavHost`.
+ */
+internal fun androidx.navigation.NavGraphBuilder.kloudersTabGraph() {
+    composable(ShellTab.Klouders.route) {
+        RankingScreen()
+    }
+}
 
 /**
  * P6 (task 9.1) — Profile is **pushed** onto the root NavHost (not

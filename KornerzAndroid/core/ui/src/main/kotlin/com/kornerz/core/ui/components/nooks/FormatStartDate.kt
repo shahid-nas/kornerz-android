@@ -1,4 +1,4 @@
-package com.kornerz.feature.nooks.components
+package com.kornerz.core.ui.components.nooks
 
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
@@ -9,7 +9,7 @@ import kotlinx.datetime.toLocalDateTime
  * Mirrors the iOS `Event.formatedStartDate` (Lato 11 regular →
  * Satoshi 11sp Regular, `EEE hh:mm a`).
  */
-internal fun formatNookStartDate(instant: Instant): String {
+fun formatNookStartDate(instant: Instant): String {
     val ldt = instant.toLocalDateTime(TimeZone.currentSystemDefault())
     val day = ldt.dayOfWeek.name.take(3).lowercase().replaceFirstChar { it.uppercase() }
     val hour = ldt.hour

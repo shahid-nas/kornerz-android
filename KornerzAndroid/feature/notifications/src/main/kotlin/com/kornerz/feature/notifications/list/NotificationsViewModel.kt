@@ -5,8 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.kornerz.core.model.UserNotification
 import com.kornerz.core.model.deeplink
 import com.kornerz.core.network.community.CommunitiesRepository
+import com.kornerz.core.storage.session.SessionRepository
+import com.kornerz.core.storage.session.SessionState
 import com.kornerz.feature.notifications.data.NotificationRepository
-import com.kornerz.feature.profile.data.UserProfileRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -22,7 +23,7 @@ import javax.inject.Inject
 @HiltViewModel
 class NotificationsViewModel @Inject constructor(
     private val notificationRepository: NotificationRepository,
-    private val userRepository: UserProfileRepository,
+    private val sessionRepository: SessionRepository,
     private val communitiesRepository: CommunitiesRepository,
 ) : ViewModel() {
 
@@ -39,8 +40,7 @@ class NotificationsViewModel @Inject constructor(
     fun loadFirstPage() {
         viewModelScope.launch {
             _state.update { it.copy(items = com.kornerz.core.model.AsyncValue.Loading) }
-            val user = userRepository.observeSessionUser().first { it != null && it.id.isNotEmpty() }
-            val userCode = user?.id ?: return@launch
+            val userCode = sessionUserCode() ?: return@launch
             notificationRepository.reset()
             val result = notificationRepository.fetchNextPage(userCode)
             result.fold(
@@ -67,8 +67,7 @@ class NotificationsViewModel @Inject constructor(
         if (current.isLoadingMore || !current.hasMoreData) return
         viewModelScope.launch {
             _state.update { it.copy(isLoadingMore = true) }
-            val user = userRepository.observeSessionUser().first { it != null && it.id.isNotEmpty() }
-            val userCode = user?.id ?: return@launch
+            val userCode = sessionUserCode() ?: return@launch
             val result = notificationRepository.fetchNextPage(userCode)
             result.fold(
                 onSuccess = { (page, hasMore) ->
@@ -121,10 +120,8 @@ class NotificationsViewModel @Inject constructor(
                     val deeplink = notification.deeplink(community)
                     if (deeplink != null) {
                         _navEvents.trySend(NotificationsNavEvent.Open(deeplink))
-                    } else if (community == null) {
-                        _navEvents.trySend(NotificationsNavEvent.ShowAlert("Community not found"))
                     } else {
-                        _navEvents.trySend(NotificationsNavEvent.ShowAlert("Coming soon"))
+                        _navEvents.trySend(NotificationsNavEvent.ShowAlert("Community not found"))
                     }
                 }
             }
@@ -133,4 +130,18 @@ class NotificationsViewModel @Inject constructor(
 
     private fun UserNotification.toRow(): UserNotificationRow =
         UserNotificationRow(notification = this)
+
+    /**
+     * The signed-in user's code, or `null` when there is no session.
+     *
+     * Read straight from [SessionRepository] rather than through the
+     * Profile feature's repository: the notifications module must not
+     * depend on another feature module (`docs/architecture.md` §2.5),
+     * and the session state is `core`'s to own.
+     */
+    private suspend fun sessionUserCode(): String? {
+        val state = sessionRepository.data.first()
+        val user = (state as? SessionState.Authenticated)?.user ?: return null
+        return user.id.takeIf { it.isNotEmpty() }
+    }
 }

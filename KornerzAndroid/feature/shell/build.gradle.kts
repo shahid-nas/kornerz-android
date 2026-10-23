@@ -13,6 +13,14 @@ android {
 
     defaultConfig {
         minSdk = 26
+        // `feature:ranking` declares the `env` flavor dimension, mirroring
+        // `app` and `feature:subscription`, so that
+        // `:feature:ranking:assembleDevDebug` exists as the phase's
+        // exit-checklist command. The shell has no flavour-specific
+        // behaviour of its own, so it declares no dimension and pins the
+        // selection instead — without this, AGP cannot choose between
+        // `feature:ranking`'s `devDebug` and `prodDebug` variants.
+        missingDimensionStrategy("env", "dev")
     }
 
     compileOptions {
@@ -42,6 +50,10 @@ dependencies {
     implementation(project(":feature:profile"))
     implementation(project(":feature:notifications"))
     implementation(project(":feature:community"))
+    // P10 — the shell owns the tab graph, so it is the module that
+    // reaches the Klouders leaderboard. This is the documented
+    // `feature.shell` tab-graph seam (`android-build` spec).
+    implementation(project(":feature:ranking"))
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)

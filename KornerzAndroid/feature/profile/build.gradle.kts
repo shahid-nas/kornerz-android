@@ -34,7 +34,6 @@ dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:network"))
     implementation(project(":core:storage"))
-    implementation(project(":feature:community"))
 
     implementation(libs.androidx.core.ktx)
 

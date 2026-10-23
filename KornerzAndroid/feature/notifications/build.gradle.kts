@@ -36,7 +36,6 @@ dependencies {
     implementation(project(":core:storage"))
     // P6 — the notifications screen reads the cached `User` from
     // `UserProfileRepository` (which lives in `:feature:profile`).
-    implementation(project(":feature:profile"))
 
     implementation(libs.androidx.core.ktx)
 

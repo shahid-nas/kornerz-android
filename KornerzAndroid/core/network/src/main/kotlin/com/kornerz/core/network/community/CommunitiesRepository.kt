@@ -1,8 +1,12 @@
 package com.kornerz.core.network.community
 
+import com.google.firebase.firestore.AggregateSource
 import com.google.firebase.firestore.FirebaseFirestore
 import com.kornerz.core.model.Community
 import com.kornerz.core.model.FollowMember
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -18,6 +22,46 @@ class CommunitiesRepository @Inject constructor(
 ) {
 
     private val collection = firestore.collection(FIELD_COMMUNITY_COLLECTION)
+
+    /**
+     * The live count of communities the signed-in user administers.
+     *
+     * Lives here — in the data layer — rather than in the Community
+     * feature, because the Profile tab renders the count and a feature
+     * module may not depend on another feature module
+     * (`docs/architecture.md` §2.5).
+     */
+    private val adminCount = MutableStateFlow(0)
+
+    /**
+     * A live count of the communities the user is an admin of.
+     *
+     * The flow re-emits every time [refreshAdminCount] is called (e.g.
+     * after a community is created).
+     */
+    fun fetchUserCommunitiesCount(userCode: String): Flow<Int> = adminCount.asStateFlow()
+
+    /**
+     * Re-reads the admin count and emits the new value. Mirrors iOS
+     * `AdminCommunitiesRepository.fetchUserCommunitiesCount` (line
+     * 140) — queries `CommunityAdm.whereEqualTo("userId", userId)` via
+     * Firestore's server-side aggregation
+     * (`count().get(AggregateSource.SERVER)`), so only the integer is
+     * transferred.
+     */
+    suspend fun refreshAdminCount(userCode: String) {
+        if (userCode.isBlank()) {
+            adminCount.value = 0
+            return
+        }
+        adminCount.value = firestore.collection(FIELD_COMMUNITY_ADM_COLLECTION)
+            .whereEqualTo(FIELD_ADMIN_USER_ID, userCode)
+            .count()
+            .get(AggregateSource.SERVER)
+            .await()
+            .count
+            .toInt()
+    }
 
     suspend fun fetchCommunityNamesByIds(communityIds: List<String>): Map<String, String> {
         if (communityIds.isEmpty()) return emptyMap()
@@ -46,11 +90,13 @@ class CommunitiesRepository @Inject constructor(
             .await()
         return snapshot.documents.mapNotNull { doc ->
             val data = doc.data ?: return@mapNotNull null
-            val id = (data[FIELD_COMMUNITY_ID] as? String) ?: doc.id
+            val communityId = data[FIELD_COMMUNITY_ID] as? String
+            val id = communityId ?: doc.id
             val name = (data[FIELD_COMMUNITY_NAME] as? String) ?: return@mapNotNull null
             Community(
                 id = id,
                 code = id,
+                communityId = communityId,
                 name = name,
                 firebaseImageURL = data[FIELD_FIREBASE_IMAGE_URL] as? String,
             )
@@ -71,44 +117,85 @@ class CommunitiesRepository @Inject constructor(
             .await()
         val doc = snapshot.documents.firstOrNull() ?: return null
         val data = doc.data ?: return null
-        val id = (data[FIELD_COMMUNITY_ID] as? String) ?: doc.id
+        val communityId = data[FIELD_COMMUNITY_ID] as? String
+        val id = communityId ?: doc.id
         val resolvedName = (data[FIELD_COMMUNITY_NAME] as? String) ?: name
         return Community(
             id = id,
             code = id,
+            communityId = communityId,
             name = resolvedName,
             firebaseImageURL = data[FIELD_FIREBASE_IMAGE_URL] as? String,
         )
     }
 
     /**
-     * Fetches a single community by [id]. Returns `null` when the
-     * document is missing. Mirrors iOS
-     * `CommunitiesRepository.fetchCommunity(with:)` which
-     * `NotificationsViewModel.fetchCommunityInfo` calls on the id
-     * branch (iOS `NotificationsViewModel.swift` lines 153–159).
+     * Fetches a single community by its **`communityId` field**.
+     * Returns `null` when the community is not found.
+     *
+     * The lookup is by field, not by Firestore document id: iOS
+     * resolves a community by the field
+     * (`CommunitiesRepository.swift:241`, `APICommunity.swift:475`)
+     * because the field and the document id are **different** values on
+     * the same document. The Android port used to look the document up
+     * by its id, which misses for every community whose `communityId`
+     * field differs from its document id — the "Community not found"
+     * alert the P6 notification flow showed.
+     *
+     * What [Community.id] and [Community.code] mean is **unchanged**:
+     * both still carry the `communityId` field, falling back to the
+     * document id when the field is absent.
      */
     suspend fun fetchById(id: String): Community? {
         if (id.isBlank()) return null
-        val doc = collection.document(id).get().await()
-        if (!doc.exists()) return null
+        val snapshot = collection
+            .whereEqualTo(FIELD_COMMUNITY_ID, id)
+            .get()
+            .await()
+        val doc = snapshot.documents.firstOrNull() ?: return null
         val data = doc.data ?: return null
-        val resolvedId = (data[FIELD_COMMUNITY_ID] as? String) ?: doc.id
+        val communityId = data[FIELD_COMMUNITY_ID] as? String
+        val resolvedId = communityId ?: doc.id
         val name = (data[FIELD_COMMUNITY_NAME] as? String) ?: return null
         return Community(
             id = resolvedId,
             code = resolvedId,
+            communityId = communityId,
             name = name,
             firebaseImageURL = data[FIELD_FIREBASE_IMAGE_URL] as? String,
         )
     }
 
+    /**
+     * Translates a community's public `communityId` field into the
+     * Firestore **document id** of the same community.
+     *
+     * The Korner detail route is addressed by document id
+     * (`KornerFirestoreApi.fetchDetail` does
+     * `collection("Communities").document(kornerId)`), while a deep
+     * link carries the `communityId` field — so the deep-link resolver
+     * needs this one lookup to bridge the two.
+     *
+     * Returns `null` when no community carries that `communityId`.
+     */
+    suspend fun fetchDocumentIdByCommunityId(communityId: String): String? {
+        if (communityId.isBlank()) return null
+        val snapshot = collection
+            .whereEqualTo(FIELD_COMMUNITY_ID, communityId)
+            .get()
+            .await()
+        val doc = snapshot.documents.firstOrNull() ?: return null
+        return doc.id.takeIf { it.isNotBlank() }
+    }
+
     private companion object {
         const val FIELD_COMMUNITY_COLLECTION = "Communities"
+        const val FIELD_COMMUNITY_ADM_COLLECTION = "CommunityAdm"
         const val FIELD_COMMUNITY_ID = "communityId"
         const val FIELD_COMMUNITY_NAME = "communityName"
         const val FIELD_COMMUNITY_NAME_EN = "communityNameEn"
         const val FIELD_COMMUNITY_APPROVED = "communityApproved"
         const val FIELD_FIREBASE_IMAGE_URL = "firebaseImageUrl"
+        const val FIELD_ADMIN_USER_ID = "userId"
     }
 }

@@ -5,13 +5,11 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Inbox
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,6 +31,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kornerz.core.model.AsyncValue
 import com.kornerz.core.ui.components.KornerzEmptyState
 import com.kornerz.core.ui.components.KornerzErrorState
+import com.kornerz.core.ui.components.KornerzLoadingMoreView
 import com.kornerz.core.ui.components.KornerzLoadingView
 
 /**
@@ -54,7 +53,7 @@ fun NotificationsScreen(
     onBack: () -> Unit,
     onOpenLoopComment: (String) -> Unit,
     onOpenForumComment: (String) -> Unit,
-    onOpenDeeplink: (String) -> Unit,
+    onOpenDeeplink: (com.kornerz.core.model.DeepLink) -> Unit,
     onShowAlert: (String) -> Unit,
     viewModel: NotificationsViewModel = hiltViewModel(),
 ) {
@@ -151,14 +150,7 @@ fun NotificationsContent(
                         }
                         if (state.isLoadingMore) {
                             item("footer-spinner") {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                                }
+                                KornerzLoadingMoreView(modifier = Modifier.fillMaxWidth())
                             }
                         }
                     }

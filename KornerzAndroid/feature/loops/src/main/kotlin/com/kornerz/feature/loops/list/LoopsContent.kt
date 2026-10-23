@@ -37,6 +37,7 @@ import com.kornerz.core.network.loops.LoopsRequireSignInException
 import com.kornerz.core.ui.components.HomeShimmerPlaceholder
 import com.kornerz.core.ui.components.KornerzEmptyState
 import com.kornerz.core.ui.components.KornerzErrorState
+import com.kornerz.core.ui.components.KornerzLoadingMoreView
 import com.kornerz.core.ui.components.KornerzSearchField
 import com.kornerz.core.ui.components.header.TabHeaderContent
 import com.kornerz.core.ui.theme.KornerzTheme
@@ -238,17 +239,7 @@ private fun SuccessList(
             }
             if (paging.isLoadingMore) {
                 item {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            text = "Loading…",
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    KornerzLoadingMoreView(modifier = Modifier.fillMaxWidth())
                 }
             }
         }

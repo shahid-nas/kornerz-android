@@ -28,10 +28,10 @@ import com.kornerz.core.ui.components.KornerzErrorState
 import com.kornerz.core.ui.components.header.TabHeaderContent
 import com.kornerz.core.ui.theme.KornerzTheme
 import com.kornerz.core.ui.theme.Spacing
-import com.kornerz.feature.nooks.components.LiveKornerCard
+import com.kornerz.core.ui.components.nooks.LiveKornerCard
 import com.kornerz.feature.nooks.components.NooksHeader
-import com.kornerz.feature.nooks.components.ScheduledNookCard
-import com.kornerz.feature.nooks.components.nooksAccentColor
+import com.kornerz.core.ui.components.nooks.ScheduledNookCard
+import com.kornerz.core.ui.components.nooks.nooksAccentColor
 
 /**
  * Stateless renderer for the Nooks tab list. 1:1 port of iOS

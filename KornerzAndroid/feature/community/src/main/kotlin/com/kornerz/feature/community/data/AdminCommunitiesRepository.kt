@@ -1,10 +1,9 @@
 package com.kornerz.feature.community.data
 
 import com.kornerz.core.model.Community
+import com.kornerz.core.network.community.CommunitiesRepository as CoreCommunitiesRepository
 import com.kornerz.feature.community.data.network.CommunitiesFirestoreApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -20,40 +19,33 @@ import javax.inject.Singleton
  * current user is the admin, using Firestore's server-side
  * aggregation (`count().get(AggregateSource.SERVER)`) so only the
  * integer is transferred.
+ *
+ * The count itself is owned by the **data layer**
+ * ([CoreCommunitiesRepository]) because the Profile tab renders it and
+ * a feature module may not depend on another feature module
+ * (`docs/architecture.md` §2.5). This repository delegates to it, so
+ * the Profile tab and the Community feature read the same
+ * `@Singleton` instance and can never disagree about the count.
  */
 @Singleton
 class AdminCommunitiesRepository @Inject constructor(
     private val communitiesApi: CommunitiesFirestoreApi,
+    private val coreCommunitiesRepository: CoreCommunitiesRepository,
 ) {
-
-    private val adminCount = MutableStateFlow(0)
 
     /**
      * A live count of the communities the user is an admin of. The
      * flow re-emits every time [refreshAdminCount] is called (e.g.
      * after a successful wizard submit).
      */
-    fun fetchUserCommunitiesCount(userCode: String): Flow<Int> {
-        // Consumers should call [refreshAdminCount] explicitly to
-        // seed the value before subscribing. The flow re-emits on
-        // every successful [refreshAdminCount] call.
-        return adminCount.asStateFlow()
-    }
+    fun fetchUserCommunitiesCount(userCode: String): Flow<Int> =
+        coreCommunitiesRepository.fetchUserCommunitiesCount(userCode)
 
     /**
-     * Re-reads the admin count and emits the new value. Mirrors iOS
-     * `AdminCommunitiesRepository.fetchUserCommunitiesCount` (line
-     * 140) — queries `CommunityAdm.whereEqualTo("userId", userId)`
-     * via `count().get(AggregateSource.SERVER)`.
+     * Re-reads the admin count and emits the new value.
      */
     suspend fun refreshAdminCount(userCode: String) {
-        if (userCode.isBlank()) {
-            adminCount.value = 0
-            return
-        }
-        adminCount.value = communitiesApi
-            .fetchCommunityAdmCountByUser(userCode)
-            .getOrDefault(0)
+        coreCommunitiesRepository.refreshAdminCount(userCode)
     }
 
     /**

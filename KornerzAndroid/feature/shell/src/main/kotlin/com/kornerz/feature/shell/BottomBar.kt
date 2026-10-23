@@ -1,5 +1,6 @@
 package com.kornerz.feature.shell
 
+import androidx.annotation.DrawableRes
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.GroupWork
@@ -14,6 +15,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
+import com.kornerz.feature.ranking.navigation.RankingRoute
 
 /**
  * One row in the bottom navigation bar. P0 uses Material Icons as
@@ -29,13 +32,23 @@ internal enum class ShellTab(
     val label: String,
     val icon: ImageVector,
     val route: String,
-    val phase: Int,
+    /**
+     * An optional drawable-backed icon, used by the Klouders tab to
+     * carry the iOS `tab_klouders` asset (P10 task 6.5). When it is
+     * `null` the tab renders [icon].
+     */
+    @DrawableRes val iconRes: Int? = null,
 ) {
-    Home(label = "Home", icon = Icons.Filled.Home, route = "tab/home", phase = 2),
-    Kornerz(label = "Kornerz", icon = Icons.Filled.GroupWork, route = "tab/kornerz", phase = 3),
-    Nooks(label = "Nooks", icon = Icons.Filled.Forum, route = "tab/nooks", phase = 4),
-    Loops(label = "Loops", icon = Icons.Filled.PlayCircle, route = "tab/loops", phase = 5),
-    Klouders(label = "Klouders", icon = Icons.Filled.Subscriptions, route = "tab/klouders", phase = 7);
+    Home(label = "Home", icon = Icons.Filled.Home, route = "tab/home"),
+    Kornerz(label = "Kornerz", icon = Icons.Filled.GroupWork, route = "tab/kornerz"),
+    Nooks(label = "Nooks", icon = Icons.Filled.Forum, route = "tab/nooks"),
+    Loops(label = "Loops", icon = Icons.Filled.PlayCircle, route = "tab/loops"),
+    Klouders(
+        label = "Klouders",
+        icon = Icons.Filled.Subscriptions,
+        route = RankingRoute.LIST,
+        iconRes = R.drawable.ic_tab_klouders,
+    );
 
     companion object {
         val ordered: List<ShellTab> = listOf(Home, Kornerz, Nooks, Loops, Klouders)
@@ -56,7 +69,17 @@ internal fun KornerzBottomBar(
             NavigationBarItem(
                 selected = selected,
                 onClick = { onSelect(tab) },
-                icon = { Icon(imageVector = tab.icon, contentDescription = tab.label) },
+                icon = {
+                    val drawable = tab.iconRes
+                    if (drawable != null) {
+                        Icon(
+                            painter = painterResource(drawable),
+                            contentDescription = tab.label,
+                        )
+                    } else {
+                        Icon(imageVector = tab.icon, contentDescription = tab.label)
+                    }
+                },
                 label = { Text(text = tab.label) },
             )
         }

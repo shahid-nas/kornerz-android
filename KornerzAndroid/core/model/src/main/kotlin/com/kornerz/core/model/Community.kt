@@ -19,6 +19,19 @@ import kotlinx.serialization.Serializable
 data class Community(
     @SerialName("id") val id: String = "",
     @SerialName("idCommunity") val code: String = "",
+    /**
+     * The community's public `communityId` field — a **different**
+     * value from the Firestore document id and from [id].
+     *
+     * iOS resolves a community by this field (`APICommunity.swift:475`)
+     * and then overwrites the model's id with the document id
+     * (`APICommunity.swift:483`). Android keeps [id]'s meaning as it
+     * is, so the two identifiers are separately nameable here.
+     *
+     * Nullable with a `null` default so no existing construction site
+     * has to change.
+     */
+    @SerialName("communityId") val communityId: String? = null,
     @SerialName("name") val name: String = "",
     @SerialName("description") val description: String? = null,
     @SerialName("themeId") val themeIdRaw: Int = 0,
