@@ -64,9 +64,11 @@ destination, and `profile/edit-basic-info`,
 `profile/edit-basic-info/{field}/success`, `profile/privacy-policy`
 as secondary destinations reachable from the corresponding menu rows
 (introduced in P6, `user-profile` + `profile-edit-basic-info` +
-`privacy-policy-pdf` capabilities). The shell SHALL register one
-additional top-level, full-screen (bottom-bar-hidden) route alongside
-the shell graph: `community/admin/list`.
+`privacy-policy-pdf` capabilities). The shell SHALL register three
+additional top-level, full-screen (bottom-bar-hidden) routes alongside
+the shell graph: `community/admin/list` (introduced in P7),
+`subscription/plans`, and `subscription/success` (both introduced in
+P8, `subscription-plans` capability).
 
 The previous P7 draft also registered a `community/create` route
 pushed from the Profile tab. **That route is removed** after the iOS
@@ -74,6 +76,16 @@ audit — iOS `UserProfileVC` does not surface a "Create Community"
 menu row, and the iOS `CreateCommunityHomeVC` is unreachable dead
 code. Android now mirrors iOS exactly and does not register a
 `community/create` route.
+
+**P8 addition (bottom-bar-hidden set):** the routes that hide the
+bottom bar SHALL include `subscription/plans` and
+`subscription/success`. In the shipped `AppShell` the set is a single
+`Regex` (`:111-113`), so P8 extends that pattern from
+`videocall/.*|notifications/list|profile/.*|community/admin/.*` to
+also match `subscription/.*`. Both subscription routes SHALL also
+render behind the system status bar (`#68B6CC` extends to the top
+edge, matching iOS `SubscriptionScreen.swift:22`
+`.ignoresSafeArea(edges: .top)`).
 
 #### Scenario: Five-tab shell renders
 - **WHEN** the shell composable is first composed for an authenticated session
@@ -106,6 +118,18 @@ code. Android now mirrors iOS exactly and does not register a
 #### Scenario: Account deletion routes back to auth graph
 - **WHEN** the shared `userDeletedHisAccount` event bus emits (introduced in P6, `account-deletion` capability)
 - **THEN** the root NavHost clears the shell graph and switches to the auth graph, matching the existing logout behavior
+
+#### Scenario: Subscription routes hide the bottom bar
+- **WHEN** the premium gate opens and the shell navigates to `subscription/plans`
+- **THEN** the bottom bar is hidden and the plans screen renders full-screen behind the status bar
+
+#### Scenario: Subscription success route hides the bottom bar
+- **WHEN** a purchase completes and the shell navigates to `subscription/success`
+- **THEN** the bottom bar is hidden and the success screen renders full-screen
+
+#### Scenario: Subscription routes are top-level, not tab-nested
+- **WHEN** `AppShell` registers `subscription/plans` and `subscription/success`
+- **THEN** they are registered on the root `NavHost` outside every tab's nested `NavHost`, so no bottom tab becomes the active tab
 
 ### Requirement: Loops tab hosts nested NavHost for loops, comment sheet, and reply screen
 The Loops tab in `feature/shell` SHALL host a nested `NavHost` with destinations in this order: `loops/list` (the populated Loops tab introduced in P5, `loops-tab` capability) as the start destination; `loops/{loopId}` (the loop detail destination introduced in P5, `loop-detail` capability) reachable from any `LoopItemView` tap inside the Loops feed or the Home recent loops carousel (P2 `home-recent-loops` capability amendment in P5); `loops/{loopId}/comment` (the create-comment sheet introduced in P5, `loop-comments` capability) registered as a `dialog` route reachable from the loop detail's add-comment row; `loops/{loopId}/reply/{commentId}` (the reply thread introduced in P5, `loop-comments` capability) reachable from any `LoopCommentView` `onReply` affordance. The bottom navigation bar SHALL remain visible across `loops/list` and `loops/{loopId}`. The bottom navigation bar SHALL remain visible across `loops/{loopId}/comment` (iOS parity — the create-comment modal is centered, not full-screen). The bottom navigation bar SHALL remain visible across `loops/{loopId}/reply/{commentId}` (iOS parity — the reply screen is a regular destination, not full-screen). The Klouders tab SHALL continue to render its P0 empty-state placeholder with the text "Coming in Phase 10" until P10 ships.
@@ -245,3 +269,66 @@ audit.**
 - **WHEN** the shell composable is composed
 - **THEN** the route `community/admin/list` is registered as a `composable("community/admin/list")` top-level destination and hides the bottom bar
 
+### Requirement: SubscriptionRoute sealed class models the P8 subscription screens
+The shell's navigation contract SHALL expose a `SubscriptionRoute`
+sealed class with two cases:
+
+| Case | Route string | Screen |
+|---|---|---|
+| `Plans` | `subscription/plans` | Subscription plans host + view (inventory 11.1 + 11.2) |
+| `Success` | `subscription/success` | Subscription success (inventory 11.3) |
+
+The `AppShell` composable SHALL register both as top-level routes
+outside any tab's nested `NavHost`, and SHALL include both in the set
+of routes that hide the bottom navigation bar.
+
+`ShellViewModel` SHALL own the `PremiumGate` collection and the
+subscription navigation wiring:
+
+- When `PremiumGate.shouldPresent` transitions to `true` at either of
+  its two call sites (post-login, shell resume), the shell SHALL
+  navigate to `SubscriptionRoute.Plans`.
+- On `SubscriptionNavEvent.PurchaseSucceeded`, the shell SHALL navigate
+  forward to `SubscriptionRoute.Success`.
+- On `SubscriptionSuccessNavEvent.Dismissed`, the shell SHALL pop back
+  to the pre-gate destination, call `PremiumGate.markSatisfied()`, and
+  return the user to where they were.
+- On `SubscriptionNavEvent.Dismissed`, the shell SHALL pop back to the
+  pre-gate destination and call `PremiumGate.markDismissed()`.
+- `SubscriptionNavEvent.OpenPrivacyPolicy` SHALL route to the existing
+  P6 `profile/privacy-policy` destination.
+- `SubscriptionNavEvent.OpenTermsOfUse` SHALL open
+  `https://www.apple.com/legal/internet-services/itunes/dev/stdeula/`
+  externally via `Intent.ACTION_VIEW` (iOS
+  `SubscriptionViewModel.swift:152-157`).
+
+The pre-gate destination SHALL be captured when the gate opens so the
+unwind is deterministic rather than relying on the back stack depth.
+
+#### Scenario: SubscriptionRoute cases are registered
+- **WHEN** the shell composable is composed
+- **THEN** `subscription/plans` and `subscription/success` are registered as top-level `composable` destinations and both hide the bottom bar
+
+#### Scenario: Gate navigation targets the plans route
+- **WHEN** `PremiumGate.requestPresent()` returns `true`
+- **THEN** the shell navigates to `SubscriptionRoute.Plans`
+
+#### Scenario: Purchase advances to the success route
+- **WHEN** `SubscriptionNavEvent.PurchaseSucceeded` is received while on `subscription/plans`
+- **THEN** the shell navigates forward to `SubscriptionRoute.Success`
+
+#### Scenario: Done unwinds to the pre-gate destination
+- **WHEN** the user taps "Done" on `subscription/success`
+- **THEN** the shell pops to the destination that was current before the gate opened and calls `PremiumGate.markSatisfied()`
+
+#### Scenario: Privacy policy reuses the P6 destination
+- **WHEN** `SubscriptionNavEvent.OpenPrivacyPolicy` is received
+- **THEN** the shell navigates to the existing `profile/privacy-policy` destination rather than a subscription-local copy
+
+#### Scenario: Terms of use opens externally
+- **WHEN** `SubscriptionNavEvent.OpenTermsOfUse` is received
+- **THEN** an `Intent.ACTION_VIEW` for the Apple EULA URL is dispatched and the shell's back stack is unchanged
+
+#### Scenario: The gate never fires while signed out
+- **WHEN** the session emits `SessionState.Anonymous`
+- **THEN** no subscription navigation occurs
