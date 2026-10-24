@@ -15,7 +15,18 @@ import androidx.navigation.navArgument
  */
 sealed class NooksRoute {
     data object List : NooksRoute() {
-        const val route: String = "nooks/list"
+        /**
+         * The Nooks tab's feed route.
+         *
+         * It deliberately lives **outside** the `nooks/` namespace: the
+         * detail's pattern `nooks/{nookId}` matches every route of the
+         * form `nooks/<segment>`, and navigation resolves a route
+         * against a graph's destinations in **id-hash order** — not
+         * registration order — taking the first match. A first segment
+         * of its own (`nooks-feed/…`) can never be captured by a
+         * `nooks/{nookId}`-style pattern.
+         */
+        const val route: String = "nooks-feed/list"
     }
 
     data object Detail : NooksRoute() {

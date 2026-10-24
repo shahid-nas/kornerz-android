@@ -16,7 +16,20 @@ import com.kornerz.core.model.LoopAccentPalette
  */
 sealed class LoopsRoute {
     data object List : LoopsRoute() {
-        const val route: String = "loops/list"
+        /**
+         * The Loops tab's feed route.
+         *
+         * It deliberately lives **outside** the `loops/` namespace. The
+         * detail's pattern `loops/{loopId}` matches every route of the
+         * form `loops/<segment>`, and navigation resolves a route
+         * against a graph's destinations in **id-hash order** — not
+         * registration order — taking the first match. With the feed on
+         * `loops/list` the detail pattern won that race and the tab
+         * opened the loop detail for a loop called `list` instead of the
+         * feed. A first segment of its own (`loops-feed/…`) can never be
+         * captured by a `loops/{loopId}`-style pattern.
+         */
+        const val route: String = "loops-feed/list"
     }
 
     data object Detail : LoopsRoute() {

@@ -16,7 +16,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.flow.StateFlow
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -311,7 +310,9 @@ fun AppShell(
             if (showBottomBar) {
                 KornerzBottomBar(
                     currentRoute = currentRoute,
-                    onSelect = { tab -> navigateToTab(navController, tab) },
+                    onSelect = { tab ->
+                        navigateToTab(navController, tab)
+                    },
                 )
             }
         },
@@ -368,7 +369,7 @@ fun AppShell(
                 onKornerDetail = { kornerId ->
                     pendingKornerId = kornerId
                     navController.navigate(ShellTab.Kornerz.route) {
-                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                        popUpTo(navController.graph.id) { saveState = true }
                         launchSingleTop = true
                         restoreState = true
                     }
@@ -380,16 +381,6 @@ fun AppShell(
             loopsTabGraph(
                 onProfileTap = {
                     navController.navigate(ProfileRoute.View.route)
-                },
-                onLoopDetail = { id ->
-                    // The Loops tab's own list keeps the bottom bar —
-                    // the detail is pushed **within** the tab.
-                    navigateToLoopDetail(
-                        navController = navController,
-                        loopId = id,
-                        hideBottomBar = false,
-                        onPending = { pendingLoopTarget = it },
-                    )
                 },
                 onNavigateToKornerDetail = { kornerId ->
                     navigateToKornerDetail(
@@ -529,6 +520,7 @@ internal object SubscriptionRoutePatterns {
     const val SUCCESS = "subscription/success"
 }
 
+
 /**
  * Whether the loop detail on screen hides the bottom bar.
  *
@@ -580,9 +572,9 @@ internal fun shouldShowBottomBar(
 }
 
 /**
- * The P10 deep-link route strings. The interstitial is registered on
- * the shell's root `NavHost`, outside every tab's nested graph, so no
- * bottom tab becomes active and the bottom bar is hidden for it.
+ * The P10 deep-link route strings. The interstitial is registered on the
+ * shell's root `NavHost`, outside every tab's nested graph, so no bottom
+ * tab becomes active and the bottom bar is hidden for it.
  */
 internal object DeepLinkRoutePatterns {
     const val RESOLVING = "deeplink/resolving"
@@ -607,11 +599,16 @@ private fun android.content.Context.openExternally(url: String) {
 
 private fun navigateToTab(navController: NavHostController, tab: ShellTab) {
     navController.navigate(tab.route) {
-        popUpTo(navController.graph.findStartDestination().id) {
+        popUpTo(navController.graph.id) {
             saveState = true
         }
         launchSingleTop = true
-        restoreState = true
+        // The Loops tab's **root** is the feed. Restoring the tab's saved
+        // state would bring back the loop detail that was open earlier — a
+        // deep link, a notification, a row tap — so the tab is re-created
+        // from scratch whenever the user selects it. The other tabs keep
+        // their state, so their nested destinations survive a tab switch.
+        restoreState = tab != ShellTab.Loops
     }
 }
 
@@ -622,7 +619,7 @@ private fun navigateToKornerDetail(
 ) {
     onPending(kornerId)
     navController.navigate(ShellTab.Kornerz.route) {
-        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+        popUpTo(navController.graph.id) { saveState = true }
         launchSingleTop = true
         restoreState = true
     }
@@ -655,9 +652,14 @@ private fun navigateToLoopDetail(
         ),
     )
     navController.navigate(ShellTab.Loops.route) {
-        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+        popUpTo(navController.graph.id) { saveState = true }
         launchSingleTop = true
-        restoreState = true
+        // The tab is entered **fresh**: the loop the caller asked for is
+        // the only detail on the tab's nested stack. Restoring the saved
+        // state would push the requested detail on top of a detail that
+        // was open earlier, so the back button would reveal that stale
+        // screen instead of the feed.
+        restoreState = false
     }
 }
 
@@ -960,9 +962,21 @@ internal fun androidx.navigation.NavGraphBuilder.nooksTabGraph(
     }
 }
 
+/**
+ * Nested graph for the Loops tab — hosts the feed (`loops/list`) and
+ * the loop-detail destinations (`loops/{loopId}`, the comment sheet and
+ * the reply thread).
+ *
+ * The tab's **root** is the feed. The nested back stack is saved and
+ * restored together with the tab (the shell switches tabs with
+ * `saveState` / `restoreState`), so a detail that was open earlier — a
+ * deep link, a notification, a row tap — would still be on top when the
+ * user came back to the tab. The shell therefore asks the tab to return
+ * to its root ([rootRequested]) whenever the user selects the Loops tab
+ * from the bottom bar.
+ */
 internal fun androidx.navigation.NavGraphBuilder.loopsTabGraph(
     onProfileTap: () -> Unit = {},
-    onLoopDetail: (String) -> Unit = {},
     onNavigateToKornerDetail: (String) -> Unit = {},
     pendingLoopTarget: LoopDetailTarget? = null,
     onPendingConsumed: () -> Unit = {},
@@ -1006,10 +1020,16 @@ internal fun androidx.navigation.NavGraphBuilder.loopsTabGraph(
                         when (event) {
                             LoopsNavEvent.NavigateToProfile -> onProfileTap()
                             is LoopsNavEvent.NavigateToLoopDetail ->
+                                // iOS parity: the detail is pushed on the
+                                // Loops tab's own stack, so the tab bar
+                                // stays visible (`android-app-shell` —
+                                // "The bottom navigation bar SHALL remain
+                                // visible across `loops/{loopId}` when the
+                                // detail was entered from the Loops tab").
                                 nested.navigate(
                                     LoopsRoute.Detail.build(
                                         event.loopId,
-                                        hideBottomBar = true,
+                                        hideBottomBar = false,
                                         accentColorHex = event.accentColorHex,
                                     ),
                                 )
