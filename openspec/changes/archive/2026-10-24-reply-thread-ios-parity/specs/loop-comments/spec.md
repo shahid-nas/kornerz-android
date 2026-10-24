@@ -8,6 +8,11 @@
 - [`openspec/changes/reply-thread-ios-parity/proposal.md`](../proposal.md) — capability rationale for the reply-thread parity work.
 - [`openspec/changes/reply-thread-ios-parity/design.md`](../design.md) — the shared bar, the nav-argument reply mode, and the pinned parent comment.
 
+## RENAMED Requirements
+
+- FROM: `### Requirement: Create-comment sheet is a dialog route with avatar + text field + send button`
+- TO: `### Requirement: Create-comment sheet posts a top-level comment or a reply`
+
 ## MODIFIED Requirements
 
 ### Requirement: Reply screen renders the parent comment pinned at the top with a replies list below

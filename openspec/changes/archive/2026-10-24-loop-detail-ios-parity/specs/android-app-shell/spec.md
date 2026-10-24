@@ -82,6 +82,40 @@ Because the loop detail lives in a tab's **nested** `NavHost`, the root `NavHost
 - **THEN** the bottom navigation bar remains visible on `loops/list` and is hidden across `loops/{loopId}`, `loops/{loopId}/comment` and `loops/{loopId}/reply/{commentId}`
 - **AND** the Loops tab remains selected
 
+### Requirement: Home tab hosts a nested NavHost for the feed and the loop detail
+The Home tab in `feature/shell` SHALL host a nested `NavHost` whose start destination renders `HomeScreen`, and which additionally hosts the loop-detail destinations — `loops/{loopId}`, `loops/{loopId}/comment` and `loops/{loopId}/reply/{commentId}` — exactly as the Loops tab hosts them.
+
+Tapping the loop-of-the-day card (`home-loop-of-day` capability) or a recent-loops tile (`home-recent-loops` capability) SHALL push `loops/{loopId}` with `hideBottomBar = true` on the **Home tab's** nested `NavHost`. The user SHALL stay on the Home tab, the bottom navigation bar SHALL be hidden, and the system back button SHALL pop back to the Home feed. This mirrors iOS `HomeTabCoordinator.navigateToLoopDetail`, which pushes the loop detail on the Home tab's own navigation stack with `hidesBottomBarWhenPushed = true`; the Home tab SHALL NOT switch to the Loops tab.
+
+Because the loop detail lives in a tab's **nested** `NavHost`, the root `NavHost`'s current route cannot express the per-entry-point decision. Each tab that hosts the loop detail SHALL lift its nested back-stack entry's `hideBottomBar` argument up to the root `Scaffold`, and the root bottom bar's visibility predicate SHALL read the flag of the **active tab only** — a flag left behind by a tab the user has left SHALL NOT hide the bar on another tab.
+
+#### Scenario: Tap the loop-of-the-day card opens the loop detail inside the Home tab
+- **WHEN** the user taps the loop-of-the-day card in the Home tab
+- **THEN** the Home tab's nested NavHost pushes `loops/{loopId}` with `hideBottomBar = true`
+- **AND** the bottom navigation bar is hidden
+- **AND** the Home tab remains the active tab (the Loops tab is not selected)
+
+#### Scenario: Tap a recent-loops tile opens the loop detail inside the Home tab
+- **WHEN** the user taps any `LoopItemView` row inside the Home tab's `RecentLoopsView` carousel
+- **THEN** the Home tab's nested NavHost pushes `loops/{loopId}` with `hideBottomBar = true`
+- **AND** the bottom navigation bar is hidden
+- **AND** the Home tab remains the active tab
+
+#### Scenario: System back from the Home tab's loop detail returns to the Home feed
+- **WHEN** the user is on `loops/{loopId}` pushed from the Home tab and presses the system back button
+- **THEN** the Home tab's nested NavHost pops back to the Home feed
+- **AND** the bottom navigation bar becomes visible again
+
+#### Scenario: The comment and reply destinations work inside the Home tab
+- **WHEN** the user taps the add-comment bar of a loop detail opened from the Home tab
+- **THEN** the Home tab's nested NavHost pushes `loops/{loopId}/comment`
+- **WHEN** the user taps the reply affordance on a comment row
+- **THEN** the Home tab's nested NavHost pushes `loops/{loopId}/reply/{commentId}`
+
+#### Scenario: A stale tab flag does not hide the bar on another tab
+- **WHEN** the user leaves the Loops tab while its loop detail had hidden the bottom bar, and opens the Home tab
+- **THEN** the bottom navigation bar is visible on the Home tab
+
 ## ADDED Requirements
 
 ### Requirement: The loop detail's Korner navigation event reaches the Korner detail destination
@@ -100,28 +134,3 @@ Tapping the community name in the loop detail title row SHALL NOT be a no-op. Mi
 - **WHEN** the loop detail emits `LoopDetailNavEvent.NavigateToKornerDetail`
 - **THEN** no branch of the shell's event handler leaves the navigation event unhandled
 
-### Requirement: Home tab hosts a nested NavHost for the feed and the loop detail
-The Home tab in `feature/shell` SHALL host a nested `NavHost` whose start destination renders `HomeScreen`, and which additionally hosts the loop-detail destinations — `loops/{loopId}`, `loops/{loopId}/comment` and `loops/{loopId}/reply/{commentId}` — exactly as the Loops tab hosts them.
-
-Tapping the loop-of-the-day card (`home-loop-of-day` capability) or a recent-loops tile (`home-recent-loops` capability) SHALL push `loops/{loopId}` with `hideBottomBar = true` on the **Home tab's** nested `NavHost`. The user SHALL stay on the Home tab, the bottom navigation bar SHALL be hidden, and the system back button SHALL pop back to the Home feed. This mirrors iOS `HomeTabCoordinator.navigateToLoopDetail`, which pushes the loop detail on the Home tab's own navigation stack with `hidesBottomBarWhenPushed = true`; the Home tab SHALL NOT switch to the Loops tab.
-
-#### Scenario: Tap the loop-of-the-day card opens the loop detail inside the Home tab
-- **WHEN** the user taps the loop-of-the-day card in the Home tab
-- **THEN** the Home tab's nested NavHost pushes `loops/{loopId}` with `hideBottomBar = true`
-- **AND** the bottom navigation bar is hidden
-- **AND** the Home tab remains the active tab (the Loops tab is not selected)
-
-#### Scenario: System back from the Home tab's loop detail returns to the Home feed
-- **WHEN** the user is on `loops/{loopId}` pushed from the Home tab and presses the system back button
-- **THEN** the Home tab's nested NavHost pops back to the Home feed
-- **AND** the bottom navigation bar becomes visible again
-
-#### Scenario: The comment and reply destinations work inside the Home tab
-- **WHEN** the user taps the add-comment bar of a loop detail opened from the Home tab
-- **THEN** the Home tab's nested NavHost pushes `loops/{loopId}/comment`
-- **WHEN** the user taps the reply affordance on a comment row
-- **THEN** the Home tab's nested NavHost pushes `loops/{loopId}/reply/{commentId}`
-
-#### Scenario: A stale tab flag does not hide the bar on another tab
-- **WHEN** the user leaves the Loops tab while its loop detail had hidden the bottom bar, and opens the Home tab
-- **THEN** the bottom navigation bar is visible on the Home tab

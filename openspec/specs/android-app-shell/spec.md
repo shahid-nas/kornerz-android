@@ -57,35 +57,19 @@ any `LoopItemView` tap, `loops/{loopId}/comment` (introduced in P5,
 loop detail's add-comment row, and `loops/{loopId}/reply/{commentId}`
 (introduced in P5, `loop-comments` capability) as a tertiary
 destination reachable from any `LoopCommentView` `onReply` affordance.
-The Profile destination SHALL be registered **directly on the shell's
-root `NavHost`** — not inside a nested `NavHost`. `profile/view`
-(introduced in P6, `user-profile` capability) is pushed onto the root
-graph (not a tab), and `profile/edit-basic-info`,
+The Profile tab SHALL host a nested `NavHost` with `profile/view`
+(introduced in P6, `user-profile` capability) as its start
+destination, and `profile/edit-basic-info`,
 `profile/edit-basic-info/{field}` (dialog),
 `profile/edit-basic-info/{field}/success`, `profile/privacy-policy`
-are registered as sibling destinations on the same root graph,
-reachable from the corresponding menu rows (introduced in P6,
-`user-profile` + `profile-edit-basic-info` + `privacy-policy-pdf`
-capabilities).
-
-**Amendment (crash fix):** the Profile destinations were previously
-hosted in a nested `NavHost` inside the `profile/view` destination,
-driven by a `NavHostController` hoisted to `AppShell` scope. That
-arrangement threw `IllegalStateException: ViewModelStore should be set
-before setGraph call` on the **second** visit to Profile: `NavHost`
-calls `NavController.setViewModelStore()` with the store of the
-*current* back-stack entry, so re-entering Profile handed the shared
-controller a different `ViewModelStore` while its `backQueue` was
-already populated — and `setViewModelStore` requires an empty back
-queue. Registering the destinations on the root graph gives them the
-root controller's single store, whose lifetime matches the graph.
-Because the destinations are pushed on the root graph, the bottom bar
-is hidden across all of them (the `profile/.*` pattern in the
-bottom-bar-hidden regex). The shell SHALL register three
+as secondary destinations reachable from the corresponding menu rows
+(introduced in P6, `user-profile` + `profile-edit-basic-info` +
+`privacy-policy-pdf` capabilities). The shell SHALL register four
 additional top-level, full-screen (bottom-bar-hidden) routes alongside
 the shell graph: `community/admin/list` (introduced in P7),
 `subscription/plans`, and `subscription/success` (both introduced in
-P8, `subscription-plans` capability).
+P8, `subscription-plans` capability), and `deeplink/resolving`
+(introduced in P10, `deep-link-routing` capability).
 
 The previous P7 draft also registered a `community/create` route
 pushed from the Profile tab. **That route is removed** after the iOS
@@ -102,7 +86,13 @@ bottom bar SHALL include `subscription/plans` and
 also match `subscription/.*`. Both subscription routes SHALL also
 render behind the system status bar (`#68B6CC` extends to the top
 edge, matching iOS `SubscriptionScreen.swift:22`
-`.ignoresSafeArea(edges: .top)`).
+`.ignoresSafeArea(edges = .top)`).
+
+**P10 addition (bottom-bar-hidden set):** the same `Regex` SHALL also
+match `deeplink/.*`, so the deep-link interstitial (13.1) renders
+full-screen. The Klouders tab SHALL additionally host the populated
+ranking destination (introduced in P10, `ranking-leaderboard`
+capability) in place of the P0 placeholder.
 
 #### Scenario: Five-tab shell renders
 - **WHEN** the shell composable is first composed for an authenticated session
@@ -120,13 +110,9 @@ edge, matching iOS `SubscriptionScreen.swift:22`
 - **WHEN** user opens `loops/{loopId}/comment` and `loops/{loopId}/reply/{commentId}` dialog routes
 - **THEN** the bottom bar stays visible behind the dialog scrim
 
-#### Scenario: Profile destinations render on the root graph
-- **WHEN** user opens Profile and then taps Edit Basic Info / Privacy Policy / Change Basic Info (Field)
-- **THEN** the bottom bar stays hidden and the matching profile destination renders on the shell's root `NavHost`
-
-#### Scenario: Profile can be reopened without crashing
-- **WHEN** user opens Profile, navigates back, and opens Profile again
-- **THEN** the Profile screen renders without an `IllegalStateException` (the profile destinations share the root controller's `ViewModelStore`)
+#### Scenario: Profile tab nested navigation
+- **WHEN** user taps the Profile tab and then taps Edit Basic Info / Privacy Policy / Change Basic Info (Field)
+- **THEN** the bottom bar stays visible and the matching nested profile destination renders inside the Profile tab's nested NavHost
 
 #### Scenario: Admin list route hides bottom bar (full-screen)
 - **WHEN** user navigates to `community/admin/list` from Profile
@@ -152,8 +138,24 @@ edge, matching iOS `SubscriptionScreen.swift:22`
 - **WHEN** `AppShell` registers `subscription/plans` and `subscription/success`
 - **THEN** they are registered on the root `NavHost` outside every tab's nested `NavHost`, so no bottom tab becomes the active tab
 
+#### Scenario: The deep-link interstitial hides the bottom bar
+- **WHEN** a deep link is routed and the shell navigates to `deeplink/resolving`
+- **THEN** the bottom bar is hidden and the interstitial renders full-screen
+
+#### Scenario: The deep-link interstitial is top-level, not tab-nested
+- **WHEN** `AppShell` registers `deeplink/resolving`
+- **THEN** it is registered on the root `NavHost` outside every tab's nested `NavHost`
+
 ### Requirement: Loops tab hosts nested NavHost for loops, comment sheet, and reply screen
-The Loops tab in `feature/shell` SHALL host a nested `NavHost` with destinations in this order: `loops/list` (the populated Loops tab introduced in P5, `loops-tab` capability) as the start destination; `loops/{loopId}` (the loop detail destination introduced in P5, `loop-detail` capability) reachable from any `LoopItemView` tap inside the Loops feed; `loops/{loopId}/comment` (the create-comment sheet introduced in P5, `loop-comments` capability) registered as a `dialog` route reachable from the loop detail's add-comment row; `loops/{loopId}/reply/{commentId}` (the reply thread introduced in P5, `loop-comments` capability) reachable from any `LoopCommentView` `onReply` affordance. The bottom navigation bar SHALL remain visible across `loops/list`. The bottom navigation bar SHALL be **hidden** across `loops/{loopId}` — the loop detail is a full-screen destination, whatever entry point opened it (the Loops feed, the Home carousel, the Korner detail, a deep link, a notification) — and across the `loops/{loopId}/comment` and `loops/{loopId}/reply/{commentId}` destinations reached from it. The Klouders tab SHALL continue to render its P0 empty-state placeholder with the text "Coming in Phase 10" until P10 ships.
+The Loops tab in `feature/shell` SHALL host a nested `NavHost` with destinations in this order: `loops/list` (the populated Loops tab introduced in P5, `loops-tab` capability) as the start destination; `loops/{loopId}` (the loop detail destination introduced in P5, `loop-detail` capability) reachable from any `LoopItemView` tap inside the Loops feed; `loops/{loopId}/comment` (the create-comment sheet introduced in P5, `loop-comments` capability) registered as a `dialog` route reachable from the loop detail's add-comment bar; `loops/{loopId}/reply/{commentId}` (the reply thread introduced in P5, `loop-comments` capability) reachable from any `LoopCommentView` `onReply` affordance.
+
+The `loops/{loopId}` route SHALL accept a `hideBottomBar` Boolean navigation argument that defaults to `true`. The loop detail is a **full-screen** destination: the bottom navigation bar SHALL be **hidden** across `loops/{loopId}` whichever entry point opened it — the **Loops tab** feed, the **Home** recent-loops carousel and the loop-of-the-day card (which push the detail into the **Home tab's** nested `NavHost`, see the Home-tab requirement below), the **Korner detail**, a **deep link** and a **notification**. The bottom navigation bar SHALL remain visible across `loops/list`.
+
+This is a deliberate divergence from iOS `LoopsTabCoordinator.navigateToLoopDetail`, which does not set `hidesBottomBarWhenPushed` and therefore keeps the tab bar across the detail opened from the Loops feed. The Android build hides it on every path so the loop detail is one full-screen experience regardless of where it was opened.
+
+The bottom navigation bar SHALL be **hidden** across `loops/{loopId}/comment` (the create-comment sheet) and across `loops/{loopId}/reply/{commentId}` (the reply thread) as well: both are reached from the full-screen loop detail and are presented over it, so the tab bar stays hidden for the whole loop-detail flow. The Klouders tab SHALL continue to render its P10 ranking destination.
+
+Because the loop detail lives in a tab's **nested** `NavHost`, the root `NavHost`'s current route cannot express the decision. The shell SHALL therefore lift the nested back-stack entry's `hideBottomBar` argument to the root `Scaffold` — through the same seam the shell already uses for the cross-tab pending id — so the root bottom bar's visibility predicate accounts for it. Only the flag of the **active tab** SHALL count: a flag left behind by a tab the user has left SHALL NOT hide the bar on another tab.
 
 #### Scenario: Loops tab shows populated content in P5+
 - **WHEN** a signed-in user opens the Loops tab in P5+
@@ -164,12 +166,29 @@ The Loops tab in `feature/shell` SHALL host a nested `NavHost` with destinations
 
 #### Scenario: Tap a loop row navigates to loop detail
 - **WHEN** the user taps any `LoopItemView` row inside the Loops tab feed
-- **THEN** the nested NavHost pushes `loops/{loopId}`
+- **THEN** the nested NavHost pushes `loops/{loopId}` with `hideBottomBar = true`
 - **AND** the bottom navigation bar is hidden
 - **AND** the Loops tab remains selected
 
-#### Scenario: Tap add-comment row opens the create-comment sheet
-- **WHEN** the user taps the safe-area-inset add-comment row inside the loop detail
+#### Scenario: Tap a recent-loops row in the Home tab navigates to loop detail inside the Home tab and hides the bottom bar
+- **WHEN** the user taps any `LoopItemView` row inside the Home tab's `RecentLoopsView` carousel (P2 `home-recent-loops` capability, refactored in P5)
+- **THEN** the Home tab's nested NavHost pushes `loops/{loopId}` with `hideBottomBar = true`
+- **AND** the bottom navigation bar is hidden
+- **AND** the Home tab remains the active tab
+- **AND** pressing system back from `loops/{loopId}` returns to the Home feed
+
+#### Scenario: The Korner detail pushes the loop detail with the bottom bar hidden
+- **WHEN** the user taps a loop row inside the Korner detail
+- **THEN** the Loops tab's nested NavHost pushes `loops/{loopId}` with `hideBottomBar = true`
+- **AND** the bottom navigation bar is hidden
+
+#### Scenario: A loop deep link pushes the loop detail with the bottom bar hidden
+- **WHEN** a `newLoop` or `loopComment` deep link resolves to `DeepLinkTarget.LoopDetail`
+- **THEN** the Loops tab's nested NavHost pushes `loops/{loopId}` with `hideBottomBar = true`
+- **AND** the bottom navigation bar is hidden
+
+#### Scenario: Tap add-comment bar opens the create-comment sheet
+- **WHEN** the user taps the bottom add-comment bar inside the loop detail
 - **THEN** the nested NavHost presents `loops/{loopId}/comment` as a `dialog`
 - **AND** the bottom navigation bar is hidden
 - **AND** the Loops tab remains selected
@@ -179,7 +198,7 @@ The Loops tab in `feature/shell` SHALL host a nested `NavHost` with destinations
 - **AND** any newly created comment is appended to the local list
 
 #### Scenario: Tap reply on a comment opens the reply screen
-- **WHEN** the user taps the "Reply" affordance on any `LoopCommentView` row inside the loop detail
+- **WHEN** the user taps the reply affordance on any `LoopCommentView` row inside the loop detail
 - **THEN** the nested NavHost pushes `loops/{loopId}/reply/{commentId}`
 - **AND** the bottom navigation bar is hidden
 - **AND** the Loops tab remains selected
@@ -191,7 +210,6 @@ The Loops tab in `feature/shell` SHALL host a nested `NavHost` with destinations
 - **WHEN** the user is on `loops/{loopId}`, `loops/{loopId}/comment`, or `loops/{loopId}/reply/{commentId}` and presses the system back button
 - **THEN** the Loops tab's nested NavHost pops back to its parent within the Loops tab (`loops/list` if entered from the Loops tab; `loops/{loopId}` if entered from the reply screen; pop the dialog if entered from the create-comment sheet)
 - **AND** the Loops tab remains selected
-- **AND** the bottom navigation bar becomes visible again once the popped-to destination is `loops/list`
 - **WHEN** the user is on `loops/list` and presses the system back button
 - **THEN** the app exits to the device home screen (the bottom bar does not trap the back gesture)
 
@@ -205,7 +223,7 @@ The Home tab in `feature/shell` SHALL host a nested `NavHost` whose start destin
 
 Tapping the loop-of-the-day card (`home-loop-of-day` capability) or a recent-loops tile (`home-recent-loops` capability) SHALL push `loops/{loopId}` with `hideBottomBar = true` on the **Home tab's** nested `NavHost`. The user SHALL stay on the Home tab, the bottom navigation bar SHALL be hidden, and the system back button SHALL pop back to the Home feed. This mirrors iOS `HomeTabCoordinator.navigateToLoopDetail`, which pushes the loop detail on the Home tab's own navigation stack with `hidesBottomBarWhenPushed = true`; the Home tab SHALL NOT switch to the Loops tab.
 
-Because the loop detail lives in a tab's **nested** `NavHost`, the root `NavHost`'s current route cannot express the decision. Each tab that hosts the loop detail SHALL lift its nested back-stack entry's `hideBottomBar` argument up to the root `Scaffold`, and the root bottom bar's visibility predicate SHALL read the flag of the **active tab only** — a flag left behind by a tab the user has left SHALL NOT hide the bar on another tab.
+Because the loop detail lives in a tab's **nested** `NavHost`, the root `NavHost`'s current route cannot express the per-entry-point decision. Each tab that hosts the loop detail SHALL lift its nested back-stack entry's `hideBottomBar` argument up to the root `Scaffold`, and the root bottom bar's visibility predicate SHALL read the flag of the **active tab only** — a flag left behind by a tab the user has left SHALL NOT hide the bar on another tab.
 
 #### Scenario: Tap the loop-of-the-day card opens the loop detail inside the Home tab
 - **WHEN** the user taps the loop-of-the-day card in the Home tab
@@ -235,18 +253,23 @@ Because the loop detail lives in a tab's **nested** `NavHost`, the root `NavHost
 - **THEN** the bottom navigation bar is visible on the Home tab
 
 ### Requirement: Each tab renders a populated screen or empty-state placeholder
-The Home tab in `feature/shell` SHALL render `HomeScreen` (the populated Home tab introduced in P2) instead of the P0 placeholder, hosted on the Home tab's nested `NavHost` together with the loop-detail destinations. The Kornerz tab in `feature/shell` SHALL render `KornerzScreen` (the populated Kornerz tab introduced in P3) and SHALL continue to host its nested `NavHost` with the list and detail destinations. The Nooks tab in `feature/shell` SHALL render `NooksScreen` (the populated Nooks tab introduced in P4) instead of the P0 "Coming in Phase 4" placeholder; the Nooks tab hosts a nested `NavHost` with the list and detail destinations. The Loops tab in `feature/shell` SHALL render `LoopsScreen` (the populated Loops tab introduced in P5) instead of the P0 "Coming in Phase 5" placeholder; the Loops tab hosts a nested `NavHost` with the list, detail, comment sheet, and reply destinations. The **Profile** destination in `feature/shell` SHALL render `ProfileScreen` (the populated Profile screen introduced in P6); its destinations (`profile/view`, edit-basic-info, change-field modal, success modal, privacy-policy) are registered on the shell's root `NavHost` rather than a nested `NavHost` (see the crash-fix amendment above). Until P10 ships its full destination, the Klouders tab SHALL continue to render its P0 empty-state placeholder with the text "Coming in Phase 10".
+The Home tab in `feature/shell` SHALL render `HomeScreen` (the populated Home tab introduced in P2) instead of the P0 placeholder. The Kornerz tab in `feature/shell` SHALL render `KornerzScreen` (the populated Kornerz tab introduced in P3) and SHALL continue to host its nested `NavHost` with the list and detail destinations. The Nooks tab in `feature/shell` SHALL render `NooksScreen` (the populated Nooks tab introduced in P4) instead of the P0 "Coming in Phase 4" placeholder; the Nooks tab hosts a nested `NavHost` with the list and detail destinations. The Loops tab in `feature/shell` SHALL render `LoopsScreen` (the populated Loops tab introduced in P5) instead of the P0 "Coming in Phase 5" placeholder; the Loops tab hosts a nested `NavHost` with the list, detail, comment sheet, and reply destinations. The **Profile** tab in `feature/shell` SHALL render `ProfileScreen` (the populated Profile tab introduced in P6) instead of the P0 "Coming in Phase 6" placeholder; the Profile tab hosts a nested `NavHost` with the view, edit-basic-info, change-field modal, success modal, and privacy-policy destinations. The **Klouders** tab in `feature/shell` SHALL render `RankingScreen` (the populated Klouders tab introduced in P10, `ranking-leaderboard` capability) instead of the P0 "Coming in Phase 10" placeholder.
 
-(modified to add the Profile tab and clarify Klouders)
+(modified to add the Profile tab and clarify Klouders; P10 replaces the Klouders placeholder with the populated ranking screen)
 
 #### Scenario: Profile tab shows populated content in P6+
 - **WHEN** a signed-in user opens the Profile tab in P6+
 - **THEN** the Profile tab content area displays `ProfileScreen` with the user header (avatar + name + nickName + Calls/Communities counts) and the menu rows (Notifications, My Data, Privacy Policy, conditionally My Communities)
-- **AND** the bottom navigation bar stays hidden across `profile/edit-basic-info` and `profile/privacy-policy` (the Profile destinations are pushed on the root graph)
+- **AND** the bottom navigation bar remains visible across `profile/edit-basic-info` and `profile/privacy-policy`
 
-#### Scenario: Empty state in non-populated tabs until their phase ships
-- **WHEN** user opens any tab other than Home, Kornerz, Nooks, Loops, and Profile before that tab's phase ships
+#### Scenario: Empty state in non-populated tabs before their phase ships
+- **WHEN** user opens any tab other than Home, Kornerz, Nooks, Loops, Profile, and Klouders before that tab's phase ships
 - **THEN** the tab content shows the placeholder empty state with the correct phase label
+
+#### Scenario: The Klouders tab shows populated content in P10+
+- **WHEN** a signed-in user opens the Klouders tab in P10+
+- **THEN** the tab content area displays the leaderboard with its header row and ranked entries
+- **AND** the text "Coming in Phase 10" is no longer rendered
 
 ### Requirement: Shell theming follows system dark/light mode
 The app SHALL observe the system dark/light mode setting and apply the matching Material 3 ColorScheme. The user SHALL NOT have a manual theme toggle in P0.
@@ -380,3 +403,43 @@ unwind is deterministic rather than relying on the back stack depth.
 #### Scenario: The gate never fires while signed out
 - **WHEN** the session emits `SessionState.Anonymous`
 - **THEN** no subscription navigation occurs
+
+### Requirement: The shell owns the deep-link routing lifecycle
+The shell SHALL own the `DeepLinkManager`'s lifecycle: it SHALL call `notifyAppLaunch()` once its `NavHost` is composed, so a link that arrived during a cold start is released only when the graph can route it.
+
+The shell SHALL collect the manager's released links and SHALL push the `deeplink/resolving` route once per released link, in release order.
+
+The shell SHALL execute the resolved target using its existing cross-tab navigation mechanism — the `pendingLoopId` / `pendingKornerId` handoff plus the tab switch — because the loop detail and Korner detail destinations live in the Loops and Kornerz tabs' nested `NavHost`s and cannot be pushed on the root controller directly.
+
+#### Scenario: The app-launch notification happens after the graph is composed
+- **WHEN** the shell's `NavHost` is composed
+- **THEN** `DeepLinkManager.notifyAppLaunch()` is called exactly once
+
+#### Scenario: A released link pushes the interstitial
+- **WHEN** the manager releases a link
+- **THEN** the shell navigates to `deeplink/resolving`
+
+#### Scenario: A loop target reaches the Loops tab
+- **WHEN** the resolver returns `LoopDetail("loop-1")`
+- **THEN** the shell switches to the Loops tab and the tab's nested graph opens `loops/loop-1`
+
+#### Scenario: A Korner target reaches the Kornerz tab
+- **WHEN** the resolver returns `KornerDetail("doc-1")`
+- **THEN** the shell switches to the Kornerz tab and the tab's nested graph opens `kornerz/doc-1`
+
+### Requirement: The loop detail's Korner navigation event reaches the Korner detail destination
+`feature/shell` SHALL route `LoopDetailNavEvent.NavigateToKornerDetail(communityId)` to the existing Korner detail destination instead of dropping it. The Loops tab's nested `NavHost` SHALL push the Korner detail using the shell's existing cross-tab seam — the same mechanism the shell already uses for the pending Korner id — so the destination renders inside the Kornerz tab's nested graph and the Kornerz tab becomes the selected tab.
+
+Tapping the community name in the loop detail title row SHALL NOT be a no-op. Mirrors iOS `LoopDetailCoordinator.navigateToKornerDetail(_:color:)`, which pushes `KornerDetailController` with `hidesBottomBarWhenPushed = true`.
+
+#### Scenario: Tapping the community name opens the Korner detail
+- **WHEN** the loop detail emits `LoopDetailNavEvent.NavigateToKornerDetail("c1")`
+- **THEN** the shell routes the request to the Kornerz tab
+- **AND** the Korner detail for community `"c1"` renders
+- **AND** the Kornerz tab becomes the selected tab
+- **AND** the bottom navigation bar is hidden across the Korner detail, matching iOS `hidesBottomBarWhenPushed = true`
+
+#### Scenario: The event is no longer dropped
+- **WHEN** the loop detail emits `LoopDetailNavEvent.NavigateToKornerDetail`
+- **THEN** no branch of the shell's event handler leaves the navigation event unhandled
+
