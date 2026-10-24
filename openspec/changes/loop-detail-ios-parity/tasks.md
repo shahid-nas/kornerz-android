@@ -80,11 +80,11 @@
 
 ## 8. Shell wiring — `feature/shell`
 
-- [x] 8.1 Add the `hideBottomBar` Boolean nav argument to `LoopsRoute.Detail` in `feature/loops/LoopsRoute.kt`, defaulting to `false`, and register it in `loopsDetailNavArguments` — see the `android-app-shell` spec
+- [x] 8.1 Add the `hideBottomBar` Boolean nav argument to `LoopsRoute.Detail` in `feature/loops/LoopsRoute.kt`, defaulting to `true` (the loop detail is a full-screen destination on every entry point), and register it in `loopsDetailNavArguments` — see the `android-app-shell` spec
 - [x] 8.2 In `AppShell.kt`, lift the nested graph's current `hideBottomBar` argument to the root `Scaffold` through the existing pending-id seam, and fold it into the bottom-bar visibility predicate — see the `android-app-shell` spec
-- [x] 8.3 Change the shell's cross-tab seam from `pendingLoopId: String?` to a target carrying the loop id **and** the `hideBottomBar` flag; the Loops tab's own entry point passes `false`, and the Home recent-loops carousel, the Korner detail, and the deep-link handler pass `true` — see the `android-app-shell` spec
+- [x] 8.3 Change the shell's cross-tab seam from `pendingLoopId: String?` to a target carrying the loop id **and** the `hideBottomBar` flag; every entry point passes `true` — the Loops tab's own feed, the Home recent-loops carousel, the Korner detail, and the deep-link handler — so the loop detail is full-screen wherever it is opened — see the `android-app-shell` spec
 - [x] 8.4 Wire `LoopDetailNavEvent.NavigateToKornerDetail` in the shell's event handler to the existing Korner detail destination via the shell's pending-Korner seam, instead of the current no-op branch (`AppShell.kt:757`) — see the `android-app-shell` spec
-- [x] 8.5 Confirm the bottom bar is visible on `loops/{loopId}` entered from the Loops tab, and hidden on `loops/{loopId}` entered from the Home carousel, the Korner detail, or a deep link
+- [x] 8.5 Confirm the bottom bar is hidden on `loops/{loopId}` entered from the Loops tab, from the Home carousel, from the Korner detail, or from a deep link — the loop detail is full-screen on every path
 - [x] 8.6 ~~Add `feature/shell/src/test/kotlin/com/kornerz/feature/shell/` coverage for the `hideBottomBar` propagation~~ — **removed:** the project carries no automated test suite. The propagation is verified by walking the detail screen from each entry point and observing the bottom bar
 - [x] 8.7 Run `./gradlew :feature:shell:assembleDevDebug` — the module compiles
 

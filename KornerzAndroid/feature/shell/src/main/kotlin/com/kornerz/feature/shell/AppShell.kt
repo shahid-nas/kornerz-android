@@ -15,6 +15,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -196,21 +197,32 @@ fun AppShell(
     // `kornerz/{kornerId}` destination inside its own nested
     // `NavController`, so the shell's root controller can't push to
     // it directly. Instead, the shell writes the requested id here
-    // and the Kornerz tab consumes it via a `LaunchedEffect` on its
-    // own nested controller.
-    var pendingKornerId by remember { mutableStateOf<String?>(null) }
-    var pendingLoopTarget by remember { mutableStateOf<LoopDetailTarget?>(null) }
+    // and the Kornerz tab consumes it from its own nested controller.
+    //
+    // The holders are **live** (`StateFlow`), not snapshots: the
+    // `NavHost` builder is `remember`ed by Navigation-Compose ("the
+    // contents of the builder cannot be changed"), so the graph — and
+    // every value it captures — is frozen at the shell's first
+    // composition. A plain `mutableStateOf` read inside the graph
+    // builder would keep returning its initial value (`null`) forever,
+    // so the destination would never be pushed. Passing the flow
+    // **by reference** keeps the tab's view of the request live: the
+    // id written before the tab switch is replayed to the collector
+    // when it starts, and every id written while the tab is already
+    // open is delivered as it happens.
+    val pendingKornerId = remember { MutableStateFlow<String?>(null) }
+    val pendingLoopTarget = remember { MutableStateFlow<LoopDetailTarget?>(null) }
 
     /**
      * Whether the loop detail currently on screen hides the bottom
      * bar. The detail lives inside a tab's **nested** `NavHost` — the
      * Loops tab's own feed and the Home tab's loop-of-the-day card
-     * both push it — so the root route cannot express the per-entry-
-     * point decision. Each tab lifts its nested entry's `hideBottomBar`
-     * nav argument (and its comment/reply destinations) up here, and
-     * the root `Scaffold` reads the flag of the **active** tab only —
-     * a flag left behind by a tab the user has left cannot hide the
-     * bar on another tab.
+     * both push it — so the root route cannot express the decision.
+     * Each tab lifts its nested entry's `hideBottomBar` nav argument
+     * (and its comment/reply destinations) up here, and the root
+     * `Scaffold` reads the flag of the **active** tab only — a flag
+     * left behind by a tab the user has left cannot hide the bar on
+     * another tab.
      */
     var homeLoopDetailHidesBottomBar by remember { mutableStateOf(false) }
     var loopsLoopDetailHidesBottomBar by remember { mutableStateOf(false) }
@@ -234,13 +246,13 @@ fun AppShell(
                 navController = navController,
                 loopId = target.loopId,
                 hideBottomBar = true,
-                onPending = { pendingLoopTarget = it },
+                onPending = { pendingLoopTarget.value = it },
             )
 
             is DeepLinkTarget.KornerDetail -> navigateToKornerDetail(
                 navController = navController,
                 kornerId = target.kornerId,
-                onPending = { pendingKornerId = it },
+                onPending = { pendingKornerId.value = it },
             )
         }
     }
@@ -325,7 +337,7 @@ fun AppShell(
         ) {
             homeTabGraph(
                 onNavigateToKornerDetail = { id ->
-                    navigateToKornerDetail(navController, id, onPending = { pendingKornerId = id })
+                    navigateToKornerDetail(navController, id, onPending = { pendingKornerId.value = id })
                 },
                 onNavigateToProfile = {
                     navController.navigate(ProfileRoute.View.route)
@@ -338,7 +350,7 @@ fun AppShell(
                         KornerzNavEvent.NavigateToProfile ->
                             navController.navigate(ProfileRoute.View.route)
                         is KornerzNavEvent.NavigateToKornerDetail -> {
-                            pendingKornerId = event.kornerId
+                            pendingKornerId.value = event.kornerId
                         }
                     }
                 },
@@ -349,25 +361,19 @@ fun AppShell(
                         navController = navController,
                         loopId = id,
                         hideBottomBar = true,
-                        onPending = { pendingLoopTarget = it },
+                        onPending = { pendingLoopTarget.value = it },
                     )
                 },
                 pendingKornerId = pendingKornerId,
-                onPendingConsumed = { pendingKornerId = null },
+                onPendingConsumed = { pendingKornerId.value = null },
                 snackbarHostState = comingSoonSnackbar,
-                onNookDetail = { nookId ->
-                    navigateToNookDetailInKornerzTab(navController, nookId)
-                },
             )
             nooksTabGraph(
                 onProfileTap = {
                     navController.navigate(ProfileRoute.View.route)
                 },
-                onNookDetail = { nookId ->
-                    navigateToNookDetailInNooksTab(navController, nookId)
-                },
                 onKornerDetail = { kornerId ->
-                    pendingKornerId = kornerId
+                    pendingKornerId.value = kornerId
                     navController.navigate(ShellTab.Kornerz.route) {
                         popUpTo(navController.graph.id) { saveState = true }
                         launchSingleTop = true
@@ -386,11 +392,11 @@ fun AppShell(
                     navigateToKornerDetail(
                         navController = navController,
                         kornerId = kornerId,
-                        onPending = { pendingKornerId = it },
+                        onPending = { pendingKornerId.value = it },
                     )
                 },
                 pendingLoopTarget = pendingLoopTarget,
-                onPendingConsumed = { pendingLoopTarget = null },
+                onPendingConsumed = { pendingLoopTarget.value = null },
                 onHideBottomBarChanged = { loopsLoopDetailHidesBottomBar = it },
             )
             // P6 (task 9.1) — Profile is pushed onto the root NavHost
@@ -452,7 +458,7 @@ fun AppShell(
                             navController = navController,
                             loopId = loopId,
                             hideBottomBar = true,
-                            onPending = { pendingLoopTarget = it },
+                            onPending = { pendingLoopTarget.value = it },
                         )
                     },
                     onOpenForumComment = { forumId ->
@@ -551,9 +557,10 @@ internal fun hidesBottomBarForLoopDetail(
  *  1. the **route** — the full-screen routes (`videocall/…`,
  *     `notifications/list`, `profile/…`, `community/admin/…`,
  *     `subscription/…`, `deeplink/…`) hide it;
- *  2. the **loop detail's `hideBottomBar` argument** — a loop detail
- *     pushed from the Home carousel, the Korner detail, a deep link or
- *     a notification hides it, while the Loops tab's own list keeps it.
+ *  2. the **loop detail's `hideBottomBar` argument** — the loop detail
+ *     is a full-screen destination, so the bar is hidden across it
+ *     whichever entry point opened it (the Home carousel, the Loops
+ *     feed, the Korner detail, a deep link, a notification).
  *
  * Extracted as a pure function so the rule is unit-testable without an
  * emulator.
@@ -625,22 +632,10 @@ private fun navigateToKornerDetail(
     }
 }
 
-private fun navigateToNookDetailInKornerzTab(navController: NavHostController, nookId: String) {
-    navController.navigate(NooksRoute.Detail.build(nookId))
-}
-
-private fun navigateToNookDetailInNooksTab(navController: NavHostController, nookId: String) {
-    // Nooks tab's nested NavHost owns the detail route — just push
-    // into it via the shell NavController. The nested graph is
-    // entered as a child of the Nooks tab, so popBackStack returns
-    // to the Nooks tab list.
-    navController.navigate(NooksRoute.Detail.build(nookId))
-}
-
 private fun navigateToLoopDetail(
     navController: NavHostController,
     loopId: String,
-    hideBottomBar: Boolean = false,
+    hideBottomBar: Boolean = true,
     accentColorHex: String = "",
     onPending: (LoopDetailTarget) -> Unit = {},
 ) {
@@ -831,19 +826,28 @@ internal fun androidx.navigation.NavGraphBuilder.loopDetailGraph(
 internal fun androidx.navigation.NavGraphBuilder.kornerzTabGraph(
     onNavEvent: (KornerzNavEvent) -> Unit = {},
     snackbarHostState: SnackbarHostState,
-    onNookDetail: (String) -> Unit = {},
     onLoopDetail: (String) -> Unit = {},
-    pendingKornerId: String? = null,
+    pendingKornerId: MutableStateFlow<String?>,
     onPendingConsumed: () -> Unit = {},
 ) {
     composable(ShellTab.Kornerz.route) {
         val nested = rememberNavController()
         val scope = rememberCoroutineScope()
-        LaunchedEffect(pendingKornerId) {
-            val id = pendingKornerId
-            if (id != null) {
-                nested.navigate(KornerzRoute.Detail.build(id))
-                onPendingConsumed()
+        // The pending id is consumed as a **flow**, not as a captured
+        // value: the `NavHost` builder is remembered, so the parameter
+        // would otherwise stay frozen at the graph's creation value and
+        // the `kornerz/{kornerId}` destination would never be pushed.
+        // The collector receives the id written before the tab switch
+        // (a `StateFlow` replays its current value to a new
+        // subscriber) and every id written while the tab is open.
+        LaunchedEffect(nested) {
+            pendingKornerId.collect { id ->
+                if (id != null) {
+                    // Cleared before the push so a cancelled tab switch
+                    // cannot replay the same id on the next visit.
+                    onPendingConsumed()
+                    nested.navigate(KornerzRoute.Detail.build(id))
+                }
             }
         }
         NavHost(
@@ -867,7 +871,12 @@ internal fun androidx.navigation.NavGraphBuilder.kornerzTabGraph(
                     onNavEvent = { event ->
                         when (event) {
                             is KornerDetailNavEvent.NavigateToNookDetail -> {
-                                onNookDetail(event.nookId)
+                                // The nook detail is a destination of
+                                // this tab's **nested** `NavHost` — the
+                                // shell's root controller cannot resolve
+                                // `nooks/{nookId}`, so the push has to
+                                // happen on the tab's own controller.
+                                nested.navigate(NooksRoute.Detail.build(event.nookId))
                             }
                             is KornerDetailNavEvent.NavigateToMemberProfile -> {
                                 scope.launch {
@@ -910,7 +919,6 @@ internal fun androidx.navigation.NavGraphBuilder.kornerzTabGraph(
  */
 internal fun androidx.navigation.NavGraphBuilder.nooksTabGraph(
     onProfileTap: () -> Unit = {},
-    onNookDetail: (String) -> Unit = {},
     onKornerDetail: (String) -> Unit = {},
     onJoinVideoCall: (String) -> Unit = {},
 ) {
@@ -927,7 +935,14 @@ internal fun androidx.navigation.NavGraphBuilder.nooksTabGraph(
                         when (event) {
                             NooksNavEvent.NavigateToProfile -> onProfileTap()
                             is NooksNavEvent.NavigateToNookDetail -> {
-                                onNookDetail(event.nookId)
+                                // The nook detail is a destination of
+                                // the Nooks tab's **nested** `NavHost` —
+                                // the shell's root controller cannot
+                                // resolve `nooks/{nookId}`, so the push
+                                // has to happen on the tab's own
+                                // controller. `popBackStack` then
+                                // returns to the Nooks tab list.
+                                nested.navigate(NooksRoute.Detail.build(event.nookId))
                             }
                             is NooksNavEvent.NavigateToKornerDetail -> {
                                 onKornerDetail(event.kornerId)
@@ -978,7 +993,7 @@ internal fun androidx.navigation.NavGraphBuilder.nooksTabGraph(
 internal fun androidx.navigation.NavGraphBuilder.loopsTabGraph(
     onProfileTap: () -> Unit = {},
     onNavigateToKornerDetail: (String) -> Unit = {},
-    pendingLoopTarget: LoopDetailTarget? = null,
+    pendingLoopTarget: MutableStateFlow<LoopDetailTarget?>,
     onPendingConsumed: () -> Unit = {},
     onHideBottomBarChanged: (Boolean) -> Unit = {},
 ) {
@@ -996,17 +1011,20 @@ internal fun androidx.navigation.NavGraphBuilder.loopsTabGraph(
                 nestedRoute?.contains("/comment") == true ||
                 nestedRoute?.contains("/reply") == true
         LaunchedEffect(hidesBottomBar) { onHideBottomBarChanged(hidesBottomBar) }
-        LaunchedEffect(pendingLoopTarget) {
-            val target = pendingLoopTarget
-            if (target != null) {
-                nested.navigate(
-                    LoopsRoute.Detail.build(
-                        target.loopId,
-                        target.hideBottomBar,
-                        target.accentColorHex,
-                    ),
-                )
-                onPendingConsumed()
+        LaunchedEffect(nested) {
+            pendingLoopTarget.collect { target ->
+                if (target != null) {
+                    // Cleared before the push so a cancelled tab switch
+                    // cannot replay the same target on the next visit.
+                    onPendingConsumed()
+                    nested.navigate(
+                        LoopsRoute.Detail.build(
+                            target.loopId,
+                            target.hideBottomBar,
+                            target.accentColorHex,
+                        ),
+                    )
+                }
             }
         }
         NavHost(
@@ -1020,16 +1038,14 @@ internal fun androidx.navigation.NavGraphBuilder.loopsTabGraph(
                         when (event) {
                             LoopsNavEvent.NavigateToProfile -> onProfileTap()
                             is LoopsNavEvent.NavigateToLoopDetail ->
-                                // iOS parity: the detail is pushed on the
-                                // Loops tab's own stack, so the tab bar
-                                // stays visible (`android-app-shell` —
-                                // "The bottom navigation bar SHALL remain
-                                // visible across `loops/{loopId}` when the
-                                // detail was entered from the Loops tab").
+                                // The loop detail is a full-screen
+                                // destination: the tab bar is hidden
+                                // across it, whatever opened it — the
+                                // Loops feed included.
                                 nested.navigate(
                                     LoopsRoute.Detail.build(
                                         event.loopId,
-                                        hideBottomBar = false,
+                                        hideBottomBar = true,
                                         accentColorHex = event.accentColorHex,
                                     ),
                                 )

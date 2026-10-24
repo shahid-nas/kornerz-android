@@ -9,10 +9,10 @@ package com.kornerz.feature.shell
  *
  * @param loopId the loop to open.
  * @param hideBottomBar whether the shell's bottom bar is hidden while
- * the destination is on screen. iOS presents the loop detail as a
- * full-screen destination from the Home carousel, the Korner detail and
- * a deep link — the tab bar is hidden there — while the Loops tab's own
- * list keeps it.
+ * the destination is on screen. The loop detail is a full-screen
+ * destination — the tab bar is hidden across it, whatever opened it
+ * (the Home carousel, the Loops feed, the Korner detail, a deep link,
+ * a notification) — so the flag defaults to `true`.
  * @param accentColorHex the per-loop accent colour the opening screen
  * painted the loop with, as a `#RRGGBB` hex string. The detail screen
  * inherits it, so the loop keeps one colour across the feed and the
@@ -23,6 +23,6 @@ package com.kornerz.feature.shell
  */
 data class LoopDetailTarget(
     val loopId: String,
-    val hideBottomBar: Boolean = false,
+    val hideBottomBar: Boolean = true,
     val accentColorHex: String = "",
 )

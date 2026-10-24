@@ -115,15 +115,15 @@ capability) in place of the P0 placeholder.
 - **THEN** it is registered on the root `NavHost` outside every tab's nested `NavHost`
 
 ### Requirement: Loops tab hosts nested NavHost for loops, comment sheet, and reply screen
-The Loops tab in `feature/shell` SHALL host a nested `NavHost` with destinations in this order: `loops/list` (the populated Loops tab introduced in P5, `loops-tab` capability) as the start destination; `loops/{loopId}` (the loop detail destination introduced in P5, `loop-detail` capability) reachable from any `LoopItemView` tap inside the Loops feed or the Home recent loops carousel (P2 `home-recent-loops` capability amendment in P5); `loops/{loopId}/comment` (the create-comment sheet introduced in P5, `loop-comments` capability) registered as a `dialog` route reachable from the loop detail's add-comment row; `loops/{loopId}/reply/{commentId}` (the reply thread introduced in P5, `loop-comments` capability) reachable from any `LoopCommentView` `onReply` affordance. The bottom navigation bar SHALL remain visible across `loops/list` and `loops/{loopId}`. The bottom navigation bar SHALL remain visible across `loops/{loopId}/comment` (iOS parity — the create-comment modal is centered, not full-screen). The bottom navigation bar SHALL remain visible across `loops/{loopId}/reply/{commentId}` (iOS parity — the reply screen is a regular destination, not full-screen). The Klouders tab SHALL render the populated ranking screen (introduced in P10, `ranking-leaderboard` capability) in place of the P0 empty-state placeholder.
+The Loops tab in `feature/shell` SHALL host a nested `NavHost` with destinations in this order: `loops/list` (the populated Loops tab introduced in P5, `loops-tab` capability) as the start destination; `loops/{loopId}` (the loop detail destination introduced in P5, `loop-detail` capability) reachable from any `LoopItemView` tap inside the Loops feed or the Home recent loops carousel (P2 `home-recent-loops` capability amendment in P5); `loops/{loopId}/comment` (the create-comment sheet introduced in P5, `loop-comments` capability) registered as a `dialog` route reachable from the loop detail's add-comment row; `loops/{loopId}/reply/{commentId}` (the reply thread introduced in P5, `loop-comments` capability) reachable from any `LoopCommentView` `onReply` affordance. The bottom navigation bar SHALL remain visible across `loops/list`. The bottom navigation bar SHALL be **hidden** across `loops/{loopId}` — the loop detail is a full-screen destination, whatever entry point opened it — and across the `loops/{loopId}/comment` and `loops/{loopId}/reply/{commentId}` destinations reached from it. The Klouders tab SHALL render the populated ranking screen (introduced in P10, `ranking-leaderboard` capability) in place of the P0 empty-state placeholder.
 
 #### Scenario: Loops tab renders its populated feed
 - **WHEN** user taps the Loops tab
 - **THEN** the `loops/list` destination renders inside the Loops tab's nested `NavHost`
 
-#### Scenario: Bottom bar stays visible across Loops destinations
+#### Scenario: The bottom bar is hidden across the whole loop-detail flow
 - **WHEN** the user navigates between any pair of destinations within the Loops tab's nested graph (`loops/list`, `loops/{loopId}`, `loops/{loopId}/comment`, `loops/{loopId}/reply/{commentId}`)
-- **THEN** the bottom navigation bar remains visible
+- **THEN** the bottom navigation bar remains visible on `loops/list` and is hidden across `loops/{loopId}`, `loops/{loopId}/comment` and `loops/{loopId}/reply/{commentId}`
 - **AND** the Loops tab remains selected
 
 #### Scenario: The Klouders tab is populated in P10

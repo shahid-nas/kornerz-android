@@ -38,11 +38,13 @@ sealed class LoopsRoute {
         /**
          * Whether the loop detail hides the shell's bottom bar.
          *
-         * iOS pushes the loop detail as a **full-screen** destination
-         * from the Home carousel, the Korner detail and a deep link —
-         * the tab bar is hidden there — while the Loops tab's own list
-         * keeps it. The flag travels as a nav argument so the shell can
-         * read it off the destination instead of guessing.
+         * The loop detail is a **full-screen** destination: the tab bar
+         * is hidden across it, whatever opened it — the Home carousel,
+         * the Loops feed, the Korner detail, a deep link, a
+         * notification. The flag travels as a nav argument so the shell
+         * can read it off the destination instead of guessing, and it
+         * defaults to `true` — an entry point that forgets to pass it
+         * still gets the full-screen treatment.
          */
         const val ARG_HIDE_BOTTOM_BAR: String = "hideBottomBar"
 
@@ -71,7 +73,7 @@ sealed class LoopsRoute {
 
         fun build(
             loopId: String,
-            hideBottomBar: Boolean = false,
+            hideBottomBar: Boolean = true,
             accentColorHex: String = "",
         ): String {
             val route = "loops/$loopId?$ARG_HIDE_BOTTOM_BAR=$hideBottomBar"
@@ -146,7 +148,10 @@ val loopsDetailNavArguments = listOf(
     navArgument(LoopsRoute.Detail.ARG_LOOP_ID) { type = NavType.StringType },
     navArgument(LoopsRoute.Detail.ARG_HIDE_BOTTOM_BAR) {
         type = NavType.BoolType
-        defaultValue = false
+        // The loop detail is full-screen: the tab bar is hidden across
+        // it by default, so an entry point that routes to `loops/{loopId}`
+        // without the argument still hides the bar.
+        defaultValue = true
     },
     navArgument(LoopsRoute.Detail.ARG_ACCENT_COLOR_HEX) {
         type = NavType.StringType

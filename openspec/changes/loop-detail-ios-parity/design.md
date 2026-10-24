@@ -136,11 +136,11 @@ Constraints carried from earlier phases:
 
 ### Decision 10 — The bottom-bar decision is lifted from the nested NavHost to the root `Scaffold`
 
-**Choice.** The `loops/{loopId}` route gains a `hideBottomBar: Boolean` nav argument defaulting to `false`. The nested graph reads the current back-stack entry's argument and lifts it to `AppShell` through the same seam the shell already uses for the pending Korner id. The root `Scaffold`'s visibility predicate becomes `routeAllowsBar && !hideBottomBar`.
+**Choice.** The `loops/{loopId}` route gains a `hideBottomBar: Boolean` nav argument defaulting to `true`. The nested graph reads the current back-stack entry's argument and lifts it to `AppShell` through the same seam the shell already uses for the pending Korner id. The root `Scaffold`'s visibility predicate becomes `routeAllowsBar && !hideBottomBar`.
 
-**Rationale.** iOS sets `hidesBottomBarWhenPushed = true` for the loop detail **only** when it is pushed from the Home tab, the Korner detail, or a deep link — not from the Loops tab (`LoopsTabCoordinator` does not set it). Android's root `Scaffold` can only see the **root** back-stack route, which is `loops` for the whole Loops tab, so the root route cannot express the per-entry-point decision. The nested graph can, because it sees its own entry's arguments.
+**Rationale.** The loop detail is a **full-screen** destination: the tab bar is hidden across it on every path — the Loops tab's own feed, the Home carousel, the Korner detail, a deep link, a notification. This is a deliberate divergence from iOS, which sets `hidesBottomBarWhenPushed = true` only when the detail is pushed from the Home tab, the Korner detail, or a deep link and not from the Loops tab (`LoopsTabCoordinator` does not set it); Android hides it everywhere so the detail reads as one full-screen experience regardless of where it was opened. Android's root `Scaffold` can only see the **root** back-stack route, which is `tab/loops` for the whole Loops tab, so the root route cannot express the decision on its own. The nested graph can, because it sees its own entry's arguments.
 
-**Consequence.** The shell's cross-tab seam (`pendingLoopId`) becomes `pendingLoopTarget`, carrying the id and the flag. The Loops tab's own entry point passes `hideBottomBar = false`; the Home carousel, the Korner detail, and the deep-link handler pass `true`.
+**Consequence.** The shell's cross-tab seam (`pendingLoopId`) becomes `pendingLoopTarget`, carrying the id and the flag. Every entry point passes `hideBottomBar = true`; the flag survives only as an explicit escape hatch for a future entry point that wants the tab bar to remain.
 
 ### Decision 11 — Comment deletion becomes a Material 3 swipe action
 

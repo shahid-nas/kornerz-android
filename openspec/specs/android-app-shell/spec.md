@@ -153,7 +153,7 @@ edge, matching iOS `SubscriptionScreen.swift:22`
 - **THEN** they are registered on the root `NavHost` outside every tab's nested `NavHost`, so no bottom tab becomes the active tab
 
 ### Requirement: Loops tab hosts nested NavHost for loops, comment sheet, and reply screen
-The Loops tab in `feature/shell` SHALL host a nested `NavHost` with destinations in this order: `loops/list` (the populated Loops tab introduced in P5, `loops-tab` capability) as the start destination; `loops/{loopId}` (the loop detail destination introduced in P5, `loop-detail` capability) reachable from any `LoopItemView` tap inside the Loops feed; `loops/{loopId}/comment` (the create-comment sheet introduced in P5, `loop-comments` capability) registered as a `dialog` route reachable from the loop detail's add-comment row; `loops/{loopId}/reply/{commentId}` (the reply thread introduced in P5, `loop-comments` capability) reachable from any `LoopCommentView` `onReply` affordance. The bottom navigation bar SHALL remain visible across `loops/list` and `loops/{loopId}`. The bottom navigation bar SHALL remain visible across `loops/{loopId}/comment` (iOS parity — the create-comment modal is centered, not full-screen). The bottom navigation bar SHALL remain visible across `loops/{loopId}/reply/{commentId}` (iOS parity — the reply screen is a regular destination, not full-screen). The Klouders tab SHALL continue to render its P0 empty-state placeholder with the text "Coming in Phase 10" until P10 ships.
+The Loops tab in `feature/shell` SHALL host a nested `NavHost` with destinations in this order: `loops/list` (the populated Loops tab introduced in P5, `loops-tab` capability) as the start destination; `loops/{loopId}` (the loop detail destination introduced in P5, `loop-detail` capability) reachable from any `LoopItemView` tap inside the Loops feed; `loops/{loopId}/comment` (the create-comment sheet introduced in P5, `loop-comments` capability) registered as a `dialog` route reachable from the loop detail's add-comment row; `loops/{loopId}/reply/{commentId}` (the reply thread introduced in P5, `loop-comments` capability) reachable from any `LoopCommentView` `onReply` affordance. The bottom navigation bar SHALL remain visible across `loops/list`. The bottom navigation bar SHALL be **hidden** across `loops/{loopId}` — the loop detail is a full-screen destination, whatever entry point opened it (the Loops feed, the Home carousel, the Korner detail, a deep link, a notification) — and across the `loops/{loopId}/comment` and `loops/{loopId}/reply/{commentId}` destinations reached from it. The Klouders tab SHALL continue to render its P0 empty-state placeholder with the text "Coming in Phase 10" until P10 ships.
 
 #### Scenario: Loops tab shows populated content in P5+
 - **WHEN** a signed-in user opens the Loops tab in P5+
@@ -165,13 +165,13 @@ The Loops tab in `feature/shell` SHALL host a nested `NavHost` with destinations
 #### Scenario: Tap a loop row navigates to loop detail
 - **WHEN** the user taps any `LoopItemView` row inside the Loops tab feed
 - **THEN** the nested NavHost pushes `loops/{loopId}`
-- **AND** the bottom navigation bar remains visible
+- **AND** the bottom navigation bar is hidden
 - **AND** the Loops tab remains selected
 
 #### Scenario: Tap add-comment row opens the create-comment sheet
 - **WHEN** the user taps the safe-area-inset add-comment row inside the loop detail
 - **THEN** the nested NavHost presents `loops/{loopId}/comment` as a `dialog`
-- **AND** the bottom navigation bar remains visible
+- **AND** the bottom navigation bar is hidden
 - **AND** the Loops tab remains selected
 - **WHEN** the user dismisses the dialog (Cancel, system back, or successful submit)
 - **THEN** the dialog closes
@@ -181,7 +181,7 @@ The Loops tab in `feature/shell` SHALL host a nested `NavHost` with destinations
 #### Scenario: Tap reply on a comment opens the reply screen
 - **WHEN** the user taps the "Reply" affordance on any `LoopCommentView` row inside the loop detail
 - **THEN** the nested NavHost pushes `loops/{loopId}/reply/{commentId}`
-- **AND** the bottom navigation bar remains visible
+- **AND** the bottom navigation bar is hidden
 - **AND** the Loops tab remains selected
 - **WHEN** the user submits a reply successfully
 - **THEN** the reply screen pops back to the loop detail via system back
@@ -191,13 +191,13 @@ The Loops tab in `feature/shell` SHALL host a nested `NavHost` with destinations
 - **WHEN** the user is on `loops/{loopId}`, `loops/{loopId}/comment`, or `loops/{loopId}/reply/{commentId}` and presses the system back button
 - **THEN** the Loops tab's nested NavHost pops back to its parent within the Loops tab (`loops/list` if entered from the Loops tab; `loops/{loopId}` if entered from the reply screen; pop the dialog if entered from the create-comment sheet)
 - **AND** the Loops tab remains selected
-- **AND** the bottom navigation bar remains visible
+- **AND** the bottom navigation bar becomes visible again once the popped-to destination is `loops/list`
 - **WHEN** the user is on `loops/list` and presses the system back button
 - **THEN** the app exits to the device home screen (the bottom bar does not trap the back gesture)
 
-#### Scenario: Bottom bar persists for all Loops-tab destinations
+#### Scenario: The bottom bar is hidden across the whole loop-detail flow
 - **WHEN** the user navigates between any pair of destinations within the Loops tab's nested graph (`loops/list`, `loops/{loopId}`, `loops/{loopId}/comment`, `loops/{loopId}/reply/{commentId}`)
-- **THEN** the bottom navigation bar remains visible
+- **THEN** the bottom navigation bar remains visible on `loops/list` and is hidden across `loops/{loopId}`, `loops/{loopId}/comment` and `loops/{loopId}/reply/{commentId}`
 - **AND** the Loops tab remains selected
 
 ### Requirement: Home tab hosts a nested NavHost for the feed and the loop detail
@@ -205,7 +205,7 @@ The Home tab in `feature/shell` SHALL host a nested `NavHost` whose start destin
 
 Tapping the loop-of-the-day card (`home-loop-of-day` capability) or a recent-loops tile (`home-recent-loops` capability) SHALL push `loops/{loopId}` with `hideBottomBar = true` on the **Home tab's** nested `NavHost`. The user SHALL stay on the Home tab, the bottom navigation bar SHALL be hidden, and the system back button SHALL pop back to the Home feed. This mirrors iOS `HomeTabCoordinator.navigateToLoopDetail`, which pushes the loop detail on the Home tab's own navigation stack with `hidesBottomBarWhenPushed = true`; the Home tab SHALL NOT switch to the Loops tab.
 
-Because the loop detail lives in a tab's **nested** `NavHost`, the root `NavHost`'s current route cannot express the per-entry-point decision. Each tab that hosts the loop detail SHALL lift its nested back-stack entry's `hideBottomBar` argument up to the root `Scaffold`, and the root bottom bar's visibility predicate SHALL read the flag of the **active tab only** — a flag left behind by a tab the user has left SHALL NOT hide the bar on another tab.
+Because the loop detail lives in a tab's **nested** `NavHost`, the root `NavHost`'s current route cannot express the decision. Each tab that hosts the loop detail SHALL lift its nested back-stack entry's `hideBottomBar` argument up to the root `Scaffold`, and the root bottom bar's visibility predicate SHALL read the flag of the **active tab only** — a flag left behind by a tab the user has left SHALL NOT hide the bar on another tab.
 
 #### Scenario: Tap the loop-of-the-day card opens the loop detail inside the Home tab
 - **WHEN** the user taps the loop-of-the-day card in the Home tab
