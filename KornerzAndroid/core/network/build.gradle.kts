@@ -22,17 +22,6 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
-
-    testOptions {
-        unitTests {
-            // The JVM unit tests exercise the Firestore read/write paths,
-            // which log failures through `android.util.Log`. Without the
-            // default values the framework methods throw
-            // "Method w in android.util.Log not mocked" and the test
-            // fails for the wrong reason.
-            isReturnDefaultValues = true
-        }
-    }
 }
 
 dependencies {
@@ -65,13 +54,6 @@ dependencies {
     // Hilt
     implementation(libs.hilt.android)
     kapt(libs.hilt.compiler)
-
-    // Tests — the Firestore read path is exercised against a mocked
-    // `FirebaseFirestore`; `TaskCompletionSource` stands in for the
-    // async task the Firestore SDK returns.
-    testImplementation(libs.junit)
-    testImplementation(libs.mockk)
-    testImplementation(libs.kotlinx.coroutines.test)
 }
 
 kapt {

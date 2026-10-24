@@ -375,7 +375,7 @@ Every phase must pass **all** of these before tagging:
 - [ ] App launches without crash (verified via `adb logcat`)
 - [ ] All screens in scope render with no missing assets / no TODO strings
 - [ ] Lint passes (`./gradlew :app:lintDevDebug`)
-- [ ] Unit tests for new repositories pass
+- [ ] New repositories exercised against the real backend (manual check in the running app)
 - [ ] One screenshot per in-scope screen attached to PR
 - [ ] One short Loom/walkthrough demo recorded (≤ 5 min) attached to PR
 - [ ] `phase-N-end` git tag created

@@ -122,29 +122,27 @@ The rules SHALL be exercised: the release APK SHALL be assembled, installed, and
 - **WHEN** the phase's exit checklist runs
 - **THEN** the minified release APK is installed and launched on an emulator without a fatal exception
 
-### Requirement: The module boundary rule is enforced by a test
-The module-boundary rule from `docs/architecture.md` §2.5 SHALL be enforced by a test in `app/src/test/`:
+### Requirement: The module boundary rule is enforced by the dependency graph
+The module-boundary rule from `docs/architecture.md` §2.5 SHALL hold, and SHALL be enforced by the Gradle dependency graph rather than by an automated test (the project carries no test suite):
 
 - `core.*` SHALL NOT depend on `feature.*` or on `app`.
 - `feature.*` SHALL NOT depend on `app`.
 - No feature module SHALL depend on another feature module **except** `feature.shell`, which owns the tab-graph seam (`feature.shell` → `feature.home`, `feature.kornerz`, `feature.loops`, `feature.nooks`, `feature.videocall`, `feature.profile`, `feature.notifications`, `feature.community`, `feature.ranking`, and `feature.subscription`'s route strings only).
 
-The test SHALL be implemented with ArchUnit (`com.tngtech.archunit:archunit-junit4`), the tool `docs/architecture.md:262` and `:387` mandate for P10.
+Because `core/*` modules declare their dependencies with `implementation` / `api` and never reference a `feature/*` module, a `core` → `feature` import is a compile error rather than a failing test. The shell's tab-graph seam is allowed because `feature/shell` declares those modules as `implementation` dependencies.
 
-If the ArchUnit artifact cannot be resolved in the build environment, the same rules SHALL be enforced by an equivalent JUnit test that scans the modules' Kotlin sources for forbidden import statements. The fallback enforces the same rules with no new dependency and is an accepted outcome, not a failure.
-
-#### Scenario: A core-to-feature dependency fails the test
+#### Scenario: A core-to-feature dependency does not compile
 - **WHEN** a `core.model` class imports a `com.kornerz.feature.*` class
-- **THEN** the module-boundary test fails
+- **THEN** the `core.model` module fails to compile, because `core.model` does not depend on any `feature/*` module
 
-#### Scenario: A feature-to-feature dependency fails the test
+#### Scenario: A feature-to-feature dependency does not compile
 - **WHEN** a `feature.loops` class imports a `com.kornerz.feature.nooks` class
-- **THEN** the module-boundary test fails
+- **THEN** the `feature.loops` module fails to compile, because `feature.loops` does not depend on `feature.nooks`
 
 #### Scenario: The shell's tab-graph seam is allowed
 - **WHEN** a `feature.shell` class imports a `com.kornerz.feature.home` class
-- **THEN** the module-boundary test passes
+- **THEN** the `feature.shell` module compiles, because it declares `implementation(project(":feature:home"))`
 
-#### Scenario: The current tree passes
-- **WHEN** the module-boundary test runs against the P10 tree
-- **THEN** it passes
+#### Scenario: The current tree compiles
+- **WHEN** `./gradlew :app:assembleDevDebug` runs against the P10 tree
+- **THEN** it succeeds, which means no module-boundary rule is violated

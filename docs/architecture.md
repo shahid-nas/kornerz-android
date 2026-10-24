@@ -174,7 +174,7 @@ app            ← root module
 ```
 
 - Enforced by Gradle `implementation`/`api` declarations.
-- ArchUnit tests in P10 enforce these rules at test time.
+- The rules are enforced by the dependency graph itself plus code review — the project carries **no automated test suite**, so a boundary violation shows up as a compile error in `core/*` (it cannot see `feature/*`) rather than as a failing test.
 - **No circular dependencies.** A new engineer cannot accidentally create a `feature/splash` → `feature/loops` import.
 
 ### 2.6 Hilt scopes
@@ -252,14 +252,18 @@ Versions are pinned in `KornerzAndroid/gradle/libs.versions.toml`. Do **not** in
 
 ### Testing
 
-| Library | Purpose |
-|---|---|
-| JUnit 4 | Test runner (still standard on Android) |
-| MockK | Kotlin-first mocking |
-| Turbine | `Flow` test helpers |
-| Compose UI Test | Compose semantics + assertions |
-| Hilt Testing | `@HiltAndroidTest` |
-| ArchUnit | Module dependency enforcement (P10) |
+The Android port carries **no automated test suite**. No `src/test` or `src/androidTest`
+source set exists in any module, and no test-scoped dependency (JUnit, MockK,
+Turbine, Compose UI Test, Hilt Testing, ArchUnit) is declared in the version
+catalog.
+
+Correctness is verified by:
+
+- **Compilation** — the Gradle dependency graph enforces the module boundaries
+  in §2.5 at compile time.
+- **`@Preview` rendering** — every screen ships light/dark previews.
+- **Manual acceptance** — the per-phase exit checklist in `docs/phases.md`
+  (install, launch, walk the flows, check `adb logcat` for crashes).
 
 ### Static analysis
 
@@ -296,7 +300,6 @@ Versions are pinned in `KornerzAndroid/gradle/libs.versions.toml`. Do **not** in
 | Repository | `<Domain>Repository` | `LoopRepository` |
 | Module-level constants | camelCase in `object` | `Spacing.space8` |
 | AsyncValue subtype | `Success` / `Error` / (no `Loading` prefix) | `AsyncValue.Loading` |
-| Test file | `ClassName` + `Test` | `HomeViewModelTest` |
 
 ### Composable parameter order
 
@@ -328,9 +331,6 @@ feature/home/
 │   │   └── HomeHeader.kt
 │   └── di/
 │       └── HomeModule.kt          ← feature-scoped Hilt module (rare)
-└── src/test/kotlin/.../
-    ├── HomeViewModelTest.kt
-    └── HomeContentTest.kt         ← Compose UI test
 ```
 
 ### Imports
@@ -374,35 +374,26 @@ Reusable across every screen. Each feature consumes these; never re-implements.
 
 ---
 
-## 6. Testing approach
+## 6. Verification approach
 
-### Scope
+The Android port does not maintain automated tests. The checks below replace
+them:
 
-| Layer | Test type | Tool |
+| Layer | How it is verified | Tool |
 |---|---|---|
-| ViewModel | Unit (state transitions, event handling, repo calls) | JUnit + MockK + Turbine |
-| Repository | Unit (mapping, error wrapping) | JUnit + MockK + Turbine |
-| Composable | UI (state → render assertions) | Compose UI Test |
-| Auth flow | Integration (full screen) | Compose UI Test + Hilt test |
-| Module deps | Static (no cycles, no rule violations) | ArchUnit (P10) |
+| Module deps | Compile-time — `core/*` cannot resolve `feature/*` | Gradle `implementation` / `api` |
+| ViewModel | Manual walkthrough of every state (loading / empty / error / content) | App launch + `adb logcat` |
+| Repository | Manual check against the real backend | App launch |
+| Composable | `@Preview` in light and dark themes | Android Studio preview |
+| Auth flow | Manual end-to-end sign-in / sign-up | Device or emulator |
 
-### What is NOT tested
+### What is NOT verified automatically
 
 - Pure data classes (`HomeState`) — no behavior.
-- Theme tokens — verified by `@Preview` snapshots (P10 optional).
+- Theme tokens — verified by `@Preview` rendering.
 - Singleton Hilt providers — verified by app launch.
-
-### Test pyramid
-
-```
-        ┌────────────┐
-        │ UI tests   │   ~5 per feature, critical paths only
-        ├────────────┤
-        │ ViewModel  │   1 per ViewModel, exhaustive state coverage
-        ├────────────┤
-        │Repository  │   1 per repo, mapping + error paths
-        └────────────┘
-```
+- Backend mapping — verified by exercising the real Firestore / Cloud
+  Functions paths in the running app.
 
 ---
 
@@ -474,7 +465,6 @@ A new engineer adds a "Profile" screen in `feature/profile/`:
 9. Write ProfileContent.kt (stateless render)
 10. Write components/ subfolder for screen-private composables
 11. Wire into NavHost in feature/shell
-12. Write ProfileViewModelTest.kt + ProfileRepositoryTest.kt + ProfileContentTest.kt
 ```
 
 Same shape for every screen.

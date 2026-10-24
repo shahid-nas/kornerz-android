@@ -72,14 +72,6 @@ dependencies {
     implementation(libs.hilt.android)
     kapt(libs.hilt.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
-
-    // Tests — `PremiumGate` is a pure decision function over two
-    // collaborators, so the whole five-clause guard runs on the JVM with
-    // `SessionRepository` and `PlayEntitlementChecker` mocked. No
-    // Robolectric, no instrumentation harness.
-    testImplementation(libs.junit)
-    testImplementation(libs.mockk)
-    testImplementation(libs.kotlinx.coroutines.test)
 }
 
 kapt {

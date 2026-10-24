@@ -16,8 +16,8 @@ Constraints carried from earlier phases:
 
 - `docs/architecture.md` is canonical and frozen. The UDF contract (`AsyncValue<T>` state, `Channel<NavEvent>` for one-shot effects, stateless composables), the module-boundary rule, the Hilt scope table, and the §3 library catalog all apply verbatim. A new library requires an OpenSpec amendment to that document — **this design introduces none**.
 - `core/model` is Compose-free. `core/network` is the only place that talks to Firestore.
-- `feature/*` is imported by `app` only (in practice via `feature/shell`'s tab-graph seam), enforced by the P10 ArchUnit test (`app/src/test/kotlin/com/kornerz/kornerz/ModuleBoundaryArchTest.kt`).
-- Testing is JVM-unit (`mockk`, `turbine`) plus `androidTest` Compose UI tests. There is no Robolectric and no Hilt test harness.
+- `feature/*` is imported by `app` only (in practice via `feature/shell`'s tab-graph seam), enforced at compile time by the Gradle dependency graph.
+- The project carries no automated test suite, so every behaviour below is verified by the manual exit checklist: the app is installed, launched, and the flow walked against the real `kornerz-72fba` backend. There is no Robolectric and no Hilt test harness.
 - The real `kornerz-72fba` backend, no mock servers. English only.
 
 ## Goals / Non-Goals
@@ -153,13 +153,13 @@ Constraints carried from earlier phases:
 
 **Consequence.** The P5 `loop-comments` requirement that described a trailing trash `IconButton` plus a confirmation dialog is superseded; the delta spec replaces it.
 
-### Decision 12 — Tests follow the repo's two-tier pattern, with no new test harness
+### Decision 12 — No test source set; verification is manual
 
-**Choice.** `feature/loops` gains a `src/test` source set (it already has the `junit` / `mockk` / `turbine` / `coroutines-test` dependencies) and an `src/androidTest` source set (the `androidx.compose.ui.test.junit4` stack `feature/ranking` uses). JVM tests cover the ViewModel and the repositories with `mockk` at the wrapper boundary; `androidTest` covers the composable assertions.
+**Choice.** `feature/loops` gains no `src/test` or `src/androidTest` source set, and no module in the tree declares a test-scoped dependency. The project does not maintain an automated test suite, so a test that nobody runs is a liability, not a safety net.
 
-**Rationale.** The repo has no Robolectric and no Hilt test harness, so an `androidTest` cannot easily exercise a real `ViewModel` against a real Firestore. The established pattern — `RankingViewModelTest` (JVM, repository mocked) alongside `RankingScreenTest` (`androidTest`, state fed in directly) — is copied exactly.
+**Rationale.** The repo has no Robolectric and no Hilt test harness, so an `androidTest` could not easily exercise a real `ViewModel` against a real Firestore anyway; and CI builds `assembleDevDebug` only and provisions no emulator, so the `androidTest` cases were written and `@Ignore`d. The behaviour is verified by walking the flow in the running app against the real backend.
 
-**Consequence.** CI builds `assembleDevDebug` only and provisions no emulator, so the `androidTest` cases are written and `@Ignore`d, exactly as `feature/ranking` does. The JVM tests are the ones that actually gate.
+**Consequence.** The change's verification is the manual exit checklist — install, launch, exercise the load path, the like toggle, the comment creation, the point awards — with `adb logcat` checked for crashes. The module-boundary rule is still enforced, but by the Gradle dependency graph: a `core` → `feature` import does not compile.
 
 ## Risks / Trade-offs
 
@@ -175,7 +175,7 @@ Constraints carried from earlier phases:
 
 - **The `Loop` collection is read with a new query shape.** The `whereEqualTo("id", …)` read adds a field lookup the list path does not use. → Mitigation: `id` is a single-field index, already deployed, and the cost is one extra read in the fallback case only.
 
-- **The change touches six capabilities at once.** `loop-detail`, `loop-comments`, `loop-domain`, `android-app-shell`, `design-system`, and the new `gamification-events`. → Mitigation: the tasks are ordered so that the shared `core/*` work lands and is tested before the screen consumes it, and the shell wiring lands last so it can be reverted independently.
+- **The change touches six capabilities at once.** `loop-detail`, `loop-comments`, `loop-domain`, `android-app-shell`, `design-system`, and the new `gamification-events`. → Mitigation: the tasks are ordered so that the shared `core/*` work lands and is compiled before the screen consumes it, and the shell wiring lands last so it can be reverted independently.
 
 ## Migration Plan
 

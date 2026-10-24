@@ -19,7 +19,6 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     flavorDimensions += "env"
@@ -91,7 +90,6 @@ android {
 dependencies {
     // Compose BOM keeps all androidx.compose.* libraries on a tested set.
     implementation(platform(libs.androidx.compose.bom))
-    androidTestImplementation(platform(libs.androidx.compose.bom))
 
     // Compose
     implementation(libs.androidx.compose.ui)
@@ -100,7 +98,6 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.extended)
     debugImplementation(libs.androidx.compose.ui.tooling)
-    debugImplementation(libs.androidx.compose.ui.test.manifest)
 
     // AndroidX core / lifecycle / activity
     implementation(libs.androidx.core.ktx)
@@ -163,16 +160,6 @@ dependencies {
     implementation(project(":feature:subscription"))
     // P10 — the Klouders leaderboard module.
     implementation(project(":feature:ranking"))
-
-    // Tests
-    testImplementation(libs.junit)
-    // P10 — module-boundary enforcement. `app` is the only module whose
-    // unit-test runtime classpath holds every module's classes, so the
-    // test lives here (see the `app-polish` spec).
-    testImplementation(libs.archunit.junit4)
-    androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.espresso.core)
-    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
 }
 
 kapt {

@@ -67,7 +67,7 @@ All in `feature/loops/.../detail/`, following `docs/architecture.md` §10 exactl
 - `incrementViewCount` remains guarded to fire exactly once per session, and now runs against the loop's document id.
 - **Gamification** — the screen awards `ACCESS_LOOP` (+1) on open, and `ACCESS_REPLAYS` (+1) when the video is played. The create-comment flow awards `ACCESS_COMMENT` (+3).
 - **`feature/shell`** — wire `LoopDetailNavEvent.NavigateToKornerDetail`, which is currently a literal no-op (`AppShell.kt:757` — `/* P3 korner deep link */`), to the existing `kornerz/{communityId}` destination; add the loop-detail route to the **bottom-bar suppression** rule so the bar hides on the detail screen, matching iOS's `hidesBottomBarWhenPushed`; and route the `newLoop` / `loopComment` deep links (which P10 mints) to this screen.
-- **Tests** — `LoopDetailViewModelTest` (state transitions, like toggle, view-count guard, gamification write, real-user-id gating), `LoopDetailRepositoryTest` (the three-read join, the `id`-field lookup, the batched comment-engagement reads), and `LoopDetailContentTest` (Compose UI assertions for the title row, the stats row, the empty state, and the pinned add-comment bar).
+- **Verification** — the project carries no automated test suite, so the behaviour is verified by walking the flow in the running app against the real backend: the load path, the like toggle (optimistic flip and revert), the view-count guard, the gamification write, the real-user-id gating, the title row, the stats row, the empty state, and the pinned add-comment bar.
 
 ## Capabilities
 

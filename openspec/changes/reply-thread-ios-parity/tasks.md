@@ -2,7 +2,7 @@
 
 - [x] 1.1 Move `feature/loops/.../detail/LoopDetailAddCommentBar.kt` to `feature/loops/.../components/LoopAddCommentBar.kt`, renaming the composable to `LoopAddCommentBar` and keeping the pixels identical (divider, 50 dp `KornerzDiamondImage`, `#EBE1D3` capsule carrying "Leave a comment")
 - [x] 1.2 Update `detail/LoopDetailScreen.kt` to render `LoopAddCommentBar`
-- [x] 1.3 Update the `androidTest` skeleton `feature/loops/src/androidTest/.../detail/LoopDetailContentTest.kt` to the new name
+- [x] 1.3 ~~Update the `androidTest` skeleton `feature/loops/src/androidTest/.../detail/LoopDetailContentTest.kt` to the new name~~ — **removed:** the project carries no automated test suite, so the `androidTest` source set no longer exists
 - [x] 1.4 Delete `detail/LoopDetailAddCommentBar.kt`
 
 ## 2. Route — `feature/loops/LoopsRoute.kt`

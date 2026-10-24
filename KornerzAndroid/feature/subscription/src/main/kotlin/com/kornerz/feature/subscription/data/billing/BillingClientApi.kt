@@ -43,8 +43,8 @@ import javax.inject.Singleton
  * wrapper convention (the `FirestoreApi` classes under
  * `feature/community/data/network/` and
  * `feature/profile/data/network/`), where SDK types never escape the
- * wrapper, and is what lets `SubscriptionViewModel` be exercised on the
- * JVM with no device and no Robolectric.
+ * wrapper, and is what keeps the Play types from leaking into
+ * `SubscriptionViewModel` and the Compose layer.
  *
  * Constructor-injected (`@Singleton` + `@Inject`) per the dominant DI
  * pattern — 13 of 15 DI files here are marker objects, and the only

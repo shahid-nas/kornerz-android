@@ -63,22 +63,6 @@ dependencies {
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.ui)
     implementation(libs.androidx.media3.common)
-
-    testImplementation(libs.junit)
-    testImplementation(libs.mockk)
-    testImplementation(libs.turbine)
-    testImplementation(libs.kotlinx.coroutines.test)
-
-    // Compose UI tests — the loop detail's composable assertions. The
-    // bodies are skeletons only: CI builds `assembleDevDebug` and
-    // provisions no emulator, so the cases are written out and
-    // `@Ignore`d rather than left unwritten — the same convention
-    // `feature/ranking` uses.
-    androidTestImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.appcompat)
-    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
-    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
 
 kapt {

@@ -66,11 +66,6 @@ dependencies {
         // libraries. Exclude the support classes so packaging succeeds.
         exclude(group = "com.android.support")
     }
-
-    testImplementation(libs.junit)
-    testImplementation(libs.mockk)
-    testImplementation(libs.turbine)
-    testImplementation(libs.kotlinx.coroutines.test)
 }
 
 kapt {

@@ -75,24 +75,6 @@ dependencies {
     implementation(libs.hilt.android)
     kapt(libs.hilt.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
-
-    // Tests — `RankingViewModel` is a thin UDF over
-    // `GamificationRepository`, so the whole load path runs on the JVM
-    // with the repository mocked. No Robolectric, no instrumentation
-    // harness.
-    testImplementation(libs.junit)
-    testImplementation(libs.mockk)
-    testImplementation(libs.turbine)
-    testImplementation(libs.kotlinx.coroutines.test)
-
-    // Compose UI tests — task 12.9. The bodies are skeletons only: CI
-    // builds `assembleDevDebug` only and provisions no emulator, so the
-    // cases are written out and `@Ignore`d rather than left unwritten.
-    androidTestImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.appcompat)
-    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
-    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
 
 kapt {

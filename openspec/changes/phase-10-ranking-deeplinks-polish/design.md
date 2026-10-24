@@ -9,7 +9,7 @@ The proposal lists six defects and four open stubs found while auditing the Andr
 - **The community identifier is ambiguous.** iOS `Community` has **two** ids: `id` (the `@DocumentID` — the Firestore document id) and `communityId` (a separate public field). iOS resolves a community *by the field* (`CommunitiesRepository.swift:241`, `APICommunity.swift:475`) and then overwrites `id` with the document id (`APICommunity.swift:483`). Android's `CommunitiesRepository.fetchById` resolves by **document id** (`collection.document(id)`) — the wrong key for anything driven by a notification or a push payload. Both the deep-link work and the existing P6 notification flow depend on this being fixed.
 - **Three of iOS's seven deep-link targets are excluded from the Android port.** Event Detail, Post Detail, and Forum Detail were dropped as dead code by stakeholder review on 2026-10-07 (`docs/screen-inventory.md:229-237`). A deep-link router must therefore have an explicit answer for a link it cannot honour, rather than silently doing nothing.
 
-Constraints carried from earlier phases: the module boundary rule (`docs/architecture.md` §2.5 — `feature/*` imported by `app` only, in practice via `feature/shell`'s tab-graph seam), the UDF contract (`AsyncValue<T>` state, `Channel<NavEvent>` for one-shot effects), `mockk` at the wrapper boundary for unit tests (there is no Firestore fake, no Robolectric, no Hilt test harness), English-only localisation, and the real `kornerz-72fba` backend with no mock servers.
+Constraints carried from earlier phases: the module boundary rule (`docs/architecture.md` §2.5 — `feature/*` imported by `app` only, in practice via `feature/shell`'s tab-graph seam), the UDF contract (`AsyncValue<T>` state, `Channel<NavEvent>` for one-shot effects), the wrapper-only SDK boundary (there is no Firestore fake, no Robolectric, no Hilt test harness), English-only localisation, and the real `kornerz-72fba` backend with no mock servers.
 
 ## Goals / Non-Goals
 
@@ -19,7 +19,7 @@ Constraints carried from earlier phases: the module boundary rule (`docs/archite
 - Ship a deep-link subsystem that resolves a `kornerz://` URI to a live destination, handles cold start and warm start, routes a tapped FCM notification, and gives an explicit answer for a link it cannot honour.
 - Standardise the empty / error / no-data / loading-more surfaces onto shared components that mirror their iOS counterparts.
 - Make the release build minified and survivable, with verified R8 keep rules for Vonage and Firebase.
-- Enforce the module-boundary rule at test time with the tool `docs/architecture.md` already mandates.
+- Enforce the module-boundary rule at compile time with the Gradle dependency graph `docs/architecture.md` already mandates.
 - Leave the tree in a state where the P10 exit checklist (`docs/phases.md:371-383`) can be executed verbatim.
 
 **Non-Goals:**
@@ -43,7 +43,7 @@ Constraints carried from earlier phases: the module boundary rule (`docs/archite
 - *Put the screen in `feature/shell`.* `feature/shell` already owns the tab graph and already imports every other feature module. This avoids a new module. Rejected: `feature/shell` is the routing seam, not a screen container, and `project-brief.md:158` already reserves `feature/ranking/` for the Klouders tab. A separate module keeps the screen's tests and its Hilt graph out of the shell's compile unit.
 - *Put the screen in `feature/home`.* The leaderboard is not a Home section. Rejected.
 
-**Consequence.** `feature/shell` adds `implementation(project(":feature:ranking"))`, joining the existing tab-graph seam. `feature/ranking` must not import `feature/shell`. `app` adds the module to `settings.gradle.kts` and `app/build.gradle.kts`. This is the one place the "imported by `app` only" rule is relaxed in practice — the same relaxation every other tab already has — and the ArchUnit rule in Decision 12 encodes it explicitly rather than pretending it away.
+**Consequence.** `feature/shell` adds `implementation(project(":feature:ranking"))`, joining the existing tab-graph seam. `feature/ranking` must not import `feature/shell`. `app` adds the module to `settings.gradle.kts` and `app/build.gradle.kts`. This is the one place the "imported by `app` only" rule is relaxed in practice — the same relaxation every other tab already has — and Decision 12's rule set encodes it explicitly rather than pretending it away.
 
 ### Decision 2 — The leaderboard's read path becomes two queries, and names are resolved in the second
 
@@ -181,19 +181,19 @@ The `kornerz://` URI is the only thing that crosses the process boundary (`MainA
 
 **Consequence.** `KornerzErrorState` currently renders an `Outlined` `KornerzButton` labelled "Retry". iOS's `RetryView` renders a grey-tinted capsule labelled "Retry again". The new `KornerzRetryView` carries the iOS shape; `KornerzErrorState` is left in place for the screens that already use it, and the list screens move to `KornerzRetryView`.
 
-### Decision 12 — The module-boundary rule is enforced by ArchUnit, with a dependency-free fallback
+### Decision 12 — The module-boundary rule is enforced by the Gradle dependency graph
 
-**Choice.** `docs/architecture.md:177`, `:262`, and `:387` mandate ArchUnit for P10. The test lives in `app/src/test/` — `app` is the only module whose unit-test runtime classpath contains every module's classes (`testImplementation` extends `implementation`), so one `ClassFileImporter().importPackages("com.kornerz")` sees the whole tree. The rules encode the rule as it is actually practised:
+**Choice.** `docs/architecture.md` §2.5 requires the boundary rule to hold. The project carries no automated test suite, so the rule is enforced where it is actually observable: at compile time. `core/*` modules declare their dependencies with `implementation` / `api` and never reference a `feature/*` module, so a `core` → `feature` import does not compile. The same holds for `feature.*` → `app` and for feature → feature edges outside `feature.shell`'s tab-graph seam. The rules encode the rule as it is actually practised:
 
 - `core.*` never depends on `feature.*` or `app`;
 - `feature.*` never depends on `app`;
 - no feature module depends on another feature module **except** `feature.shell`, which owns the tab-graph seam.
 
 **Alternatives.**
-- *Put the test in a dedicated module.* Adds a module to `settings.gradle.kts` for one test file. Rejected.
-- *Assert on source files instead of bytecode.* Rejected as the primary: it needs no new artifact, which makes it the natural fallback, but it is a weaker check (it cannot see a dependency expressed through a transitive `api` edge).
+- *Enforce the rule with ArchUnit.* Rejected: the project does not maintain an automated test suite, so an ArchUnit test would be a test nobody runs and nobody maintains.
+- *Put the check in a dedicated module.* Adds a module to `settings.gradle.kts` for one check. Rejected.
 
-**Consequence.** One new third-party dependency: `com.tarchy.archunit:archunit-junit4` (the project is on JUnit 4). **Risk:** the sandbox may not be able to resolve a new artifact from Maven Central. The fallback — a JUnit test in `app/src/test/` that scans the modules' Kotlin sources for forbidden import statements — enforces the same rules with no new dependency. The task list treats the fallback as a first-class path, not a failure.
+**Consequence.** No new third-party dependency, and no test source set. The rule is verified by `./gradlew :app:assembleDevDebug` succeeding — a boundary violation is a compile error, not a failing assertion.
 
 ### Decision 13 — R8 is enabled on the release build type, and the keep rules are written for what is actually used
 
@@ -213,11 +213,11 @@ The `kornerz://` URI is the only thing that crosses the process boundary (`MainA
 - *Audit and fix all 77 screens.* Not a phase-sized piece of work and not what the phase's demo claim rests on. Rejected.
 - *Add a lint baseline.* Android Lint's accessibility checks are noisy enough that a baseline would hide regressions. Rejected.
 
-**Consequence.** The pass is verifiable by inspection and by the Compose semantics assertions in the new tests, not by a TalkBack session. That limitation is stated in the tasks.
+**Consequence.** The pass is verifiable by inspection of the composable semantics, not by a TalkBack session. That limitation is stated in the tasks.
 
 ## Risks / Trade-offs
 
-- **The points field rename could break a screen that has been silently showing `0`.** The tab header's points chip (`core/ui/.../header/TabHeader.kt:123`) reads `getUserPoints()`, which has always returned `0` on Android. After the fix it will show real numbers, which changes the Home / Kornerz / Nooks / Loops headers. → *Mitigation:* the field name is taken verbatim from iOS `Models/Gamification.swift:23` and a unit test pins the mapping against the iOS `CodingKeys`, so the rename cannot be "corrected" back into a guess. The visual change is a fix, and the P10 demo should show it.
+- **The points field rename could break a screen that has been silently showing `0`.** The tab header's points chip (`core/ui/.../header/TabHeader.kt:123`) reads `getUserPoints()`, which has always returned `0` on Android. After the fix it will show real numbers, which changes the Home / Kornerz / Nooks / Loops headers. → *Mitigation:* the field name is taken verbatim from iOS `Models/Gamification.swift:23` and the mapping is checked against the iOS `CodingKeys` by inspection, so the rename cannot be "corrected" back into a guess. The visual change is a fix, and the P10 demo should show it.
 
 - **A `Gamefication` document written by a different backend version might use `gameficationPoints`.** Nothing in the repository proves the server's field name beyond iOS's `CodingKeys`. → *Mitigation:* the read path accepts `gameficationQtdPts` as the authoritative field and falls back to `gameficationPoints` when the authoritative field is absent on a document, logging neither. Both spellings are read; only the iOS one is written. This costs one extra `getLong` per document and removes the single-point-of-failure that produced defect 2 in the first place.
 
@@ -227,7 +227,7 @@ The `kornerz://` URI is the only thing that crosses the process boundary (`MainA
 
 - **R8 may strip a class that is only reachable reflectively.** The Vonage SDK and the Firebase SDKs are the known cases; the `kotlinx-serialization` generated `Companion.serializer()` calls are another. → *Mitigation:* Decision 13's keep rules cover all three categories, and the verification step is a real install-and-launch of the minified APK, not just a successful assemble.
 
-- **The ArchUnit artifact may not resolve in a sandboxed environment.** → *Mitigation:* Decision 12's source-scanning fallback enforces the same rules with no new dependency. The task list makes the fallback an accepted outcome, not a failure.
+- **A boundary violation between `core/*` and `feature/*` could reach the merge.** → *Mitigation:* Decision 12's rule is enforced by the Gradle dependency graph — a `core` → `feature` import does not compile — and reviewed in the diff.
 
 - **Enabling `isShrinkResources` can strip resources that are only referenced from XML or from the manifest.** → *Mitigation:* the launch check on the minified APK is the gate; if a resource is missing at runtime the release APK fails to open and the task is reverted to `isShrinkResources = false` with a note, keeping minification on.
 
@@ -245,7 +245,7 @@ This change ships a client application; there is no server-side migration and no
 2. **Backend:** none. The shared `kornerz-72fba` project is untouched.
 3. **Client rollout:** the `kornerz://` scheme is added to `AndroidManifest.xml` in the same APK that ships the resolver, so there is no window in which an external URI arrives with no handler. `MainActivity`'s `launchMode` moves to `singleTop` in the same change, so the warm-intent path is live from the first release that supports the scheme.
 4. **Rollback:** the phase is a single APK. Reverting the branch removes the scheme registration, the resolver, and the leaderboard together; no persisted state is added, so nothing needs to be unwound on device. The one persisted-state-adjacent change is `Community.communityId` being added to the model — it is a new nullable field with a `null` default and is not written to any store, so an older APK reading a `SessionRecord` that contains it simply ignores the unknown key (`SessionSerializer` uses kotlinx-serialization with the project's configured `ignoreUnknownKeys`).
-5. **Verification:** the phase's exit checklist (`docs/phases.md:371-383`) is the acceptance gate — `./gradlew :app:assembleDevDebug`, install on API 26 and API 35 emulators, a clean launch with no `FATAL EXCEPTION` in `adb logcat`, `./gradlew :app:lintDevDebug`, the unit-test suite green, one screenshot per in-scope screen, and a ≤ 5-minute walkthrough.
+5. **Verification:** the phase's exit checklist (`docs/phases.md:371-383`) is the acceptance gate — `./gradlew :app:assembleDevDebug`, install on API 26 and API 35 emulators, a clean launch with no `FATAL EXCEPTION` in `adb logcat`, `./gradlew :app:lintDevDebug`, one screenshot per in-scope screen, and a ≤ 5-minute walkthrough.
 
 ## Open Questions
 

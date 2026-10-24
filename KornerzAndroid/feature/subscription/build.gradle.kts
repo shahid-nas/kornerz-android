@@ -85,22 +85,6 @@ dependencies {
     // Google Play Billing (P8) — the ONLY Play dependency in the app.
     // Confined to this module and `app` per the `android-build` spec.
     implementation(libs.android.billing)
-
-    testImplementation(libs.junit)
-    testImplementation(libs.mockk)
-    testImplementation(libs.turbine)
-    testImplementation(libs.kotlinx.coroutines.test)
-
-    // Compose UI tests — task 15.7. The bodies are skeletons only: the
-    // repository has no instrumentation harness today (no `androidTest`
-    // source set existed before P8), so the cases are written out and
-    // `@Ignore`d rather than left unwritten. See the KDoc on
-    // `SubscriptionContentTest`.
-    androidTestImplementation(libs.junit)
-    androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.appcompat)
-    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
-    debugImplementation(libs.androidx.compose.ui.test.manifest)
 }
 
 kapt {

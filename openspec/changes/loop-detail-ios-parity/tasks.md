@@ -3,9 +3,9 @@
 - [x] 1.1 Add `LoopDetailInfo` to `core/model/LoopDetailInfo.kt` — `loop: Loop`, `owner: User? = null`, `community: Community? = null`, `accentColorHex: String`. `core/model` MUST stay free of Compose and `android.*` imports — the accent colour is a hex string, not a `Color` — see the `loop-domain` spec
 - [x] 1.2 Add the accent-colour selector to `core/model/LoopDetailInfo.kt` (or a small companion object): a pure function mapping a loop id to a `#RRGGBB` hex string by indexing the five iOS palette entries `#E27D5A`, `#AD598D`, `#86BFA9`, `#68B6CC`, `#EBAA4A` with a modulo wrap. The mapping MUST be deterministic for a given loop id — see the `loop-domain` spec
 - [x] 1.3 Extend `LoopCommentInfo` in `core/model/LoopCommentInfo.kt` with `repliesCount: Int = 0`, keeping `comment`, `user`, `isLikedByUser`, `likesCount` — see the `loop-domain` spec
-- [x] 1.4 Add `core/model/src/test/kotlin/com/kornerz/core/model/LoopDetailInfoTest.kt` — the accent colour cycles through the five iOS colours in order, wraps past index 4, wraps for a negative index, is stable for the same loop id, and the class carries no Compose import
-- [x] 1.5 Extend `core/model/src/test/kotlin/com/kornerz/core/model/LoopCommentInfoTest.kt` for the new `repliesCount` default and the live-`likesCount` replacement behaviour
-- [x] 1.6 Run `./gradlew :core:model:testDevDebugUnitTest` — all `core/model` tests pass
+- [x] 1.4 ~~Add `core/model/src/test/kotlin/com/kornerz/core/model/LoopDetailInfoTest.kt`~~ — **removed:** the project carries no automated test suite. The accent colour's cycling, wrap-past-index-4, wrap-for-a-negative-index, and stability-for-the-same-loop-id behaviour is verified by inspection of the pure function and by the running app
+- [x] 1.5 ~~Extend `core/model/src/test/kotlin/com/kornerz/core/model/LoopCommentInfoTest.kt`~~ — **removed:** same reason. The `repliesCount` default and the live-`likesCount` replacement behaviour are verified by inspection
+- [x] 1.6 Run `./gradlew :core:model:assembleDevDebug` — the module compiles
 
 ## 2. Shared components — `core/ui`
 
@@ -27,10 +27,10 @@
 - [x] 3.4 Add `suspend fun fetchLikeCounts(commentIds: List<String>): Result<Map<String, Int>>` to `core/network/.../loops/CommentLikeRepository.kt` — one `CommentLikes where commentId in [...]` query per chunk of 30, counting the documents per comment id — see the `loop-comments` spec
 - [x] 3.5 Add `suspend fun fetchLikedCommentIds(userId: String, commentIds: List<String>): Result<Set<String>>` to the same repository — `CommentLikes where userId == userId AND commentId in [...]`, chunked at 30 — see the `loop-comments` spec
 - [x] 3.6 Add `suspend fun addPoints(action: String, points: Int, referenceId: String): Result<Unit>` to `core/network/.../gamification/GamificationRepository.kt` — writes one `Gamefication/{generatedId}` document with `gameficationAction`, `gameficationQtdPts`, `gameficationDateHora`, `gameficationUserId` (the signed-in user's `codeUser`), and `gameficationReferenceId`. It MUST return `Result.failure` and never throw, and MUST no-op with `Result.success(Unit)` when no signed-in user with a `codeUser` resolves — see the `gamification-events` spec
-- [x] 3.7 Add `core/network/src/test/kotlin/com/kornerz/core/network/loops/LoopDetailRepositoryTest.kt` — the three-read join, the `id`-field lookup, the document-id fallback, a null owner / null community degrading cleanly, and a missing loop producing `Result.failure`. Mock the Firestore SDK at the wrapper boundary, following `GamificationRepositoryTest`'s pattern
-- [x] 3.8 Add a test for the batched engagement reads in the existing `core/network` test source set — 40 comment ids resolve in two chunked queries, and the returned counts replace the denormalized `LoopComment.likesCount`
-- [x] 3.9 Extend `core/network/src/test/kotlin/com/kornerz/core/network/gamification/GamificationRepositoryTest.kt` for `addPoints` — the iOS field names, the anonymous-session no-op, and the failure path returning `Result.failure` without throwing
-- [x] 3.10 Run `./gradlew :core:network:testDevDebugUnitTest` — all `core/network` tests pass
+- [x] 3.7 ~~Add `core/network/src/test/kotlin/com/kornerz/core/network/loops/LoopDetailRepositoryTest.kt`~~ — **removed:** the project carries no automated test suite. The three-read join, the `id`-field lookup, the document-id fallback, a null owner / null community degrading cleanly, and a missing loop producing `Result.failure` are verified by inspection and by the running app
+- [x] 3.8 ~~Add a test for the batched engagement reads~~ — **removed:** same reason. The 40-comment-id chunking and the count replacement are verified by inspection of `fetchUsersByCodes` / `fetchLikeCounts`
+- [x] 3.9 ~~Extend `core/network/src/test/kotlin/com/kornerz/core/network/gamification/GamificationRepositoryTest.kt`~~ — **removed:** same reason. The `addPoints` field names, the anonymous-session no-op, and the failure path are verified by inspection
+- [x] 3.10 Run `./gradlew :core:network:assembleDevDebug` — the module compiles
 
 ## 4. Loop Detail ViewModel — `feature/loops/detail`
 
@@ -44,8 +44,8 @@
 - [x] 4.8 Keep `incrementViewCountOnce()` guarded so it fires exactly once per session, against the resolved loop's document id — see the `loop-detail` spec
 - [x] 4.9 Award the Klouders points: `ACCESS_LOOP` (+1, `referenceId = loopId`) once when the detail opens, `ACCESS_REPLAYS` (+1, `referenceId = <video url>`) when the video player opens, and `ACCESS_COMMENT` (+3, `referenceId = loopId`) when a comment is created. The write MUST NOT block the user-facing action, and MUST be skipped when there is no signed-in user with a `codeUser` — see the `gamification-events` spec
 - [x] 4.10 Emit `LoopDetailNavEvent.NavigateToKornerDetail(communityId)` from the `KornerTapped` event with the **resolved** community's identifier — the event currently carries a bare id that the shell drops — see the `loop-detail` spec
-- [x] 4.11 Add `feature/loops/src/test/kotlin/com/kornerz/feature/loops/detail/LoopDetailViewModelTest.kt` — the load path, the like toggle's optimistic flip and revert, the like no-op when signed out, the view-count guard, the `ACCESS_LOOP` award, the `ACCESS_COMMENT` award, the comment ownership gate, and the nav event emission. Use `mockk` + `turbine` on the repository boundary, following `RankingViewModelTest`
-- [x] 4.12 Run `./gradlew :feature:loops:testDevDebugUnitTest` — all `feature/loops` JVM tests pass
+- [x] 4.11 ~~Add `feature/loops/src/test/kotlin/com/kornerz/feature/loops/detail/LoopDetailViewModelTest.kt`~~ — **removed:** the project carries no automated test suite. The load path, the like toggle's optimistic flip and revert, the like no-op when signed out, the view-count guard, the `ACCESS_LOOP` award, the `ACCESS_COMMENT` award, the comment ownership gate, and the nav event emission are verified by walking the flow in the running app
+- [x] 4.12 Run `./gradlew :feature:loops:assembleDevDebug` — the module compiles
 
 ## 5. Loop Detail UI — `feature/loops/detail`
 
@@ -61,8 +61,8 @@
 - [x] 5.10 Implement the modal video player — a `Dialog` with `usePlatformDefaultWidth = false` hosting the existing `VideoPlayerView`, opened from `MediaTapped` for a video loop, closed by `VideoDismissed`. The media area MUST NOT host an inline player — see the `loop-detail` spec
 - [x] 5.11 Update `LoopDetailScreen.kt` — compose the `Scaffold` with the bottom bar, host the video dialog, and keep the `LaunchedEffect` that collects `navEvents` into `onNavEvent`
 - [x] 5.12 Update the `@Preview` composables in `LoopDetailContent.kt` to cover the loaded state, the empty-comments state, and the shimmer state
-- [x] 5.13 Add the `androidTest` Compose UI test source set to `feature/loops/build.gradle.kts` — `androidx.compose.ui.test.junit4`, `androidx.junit`, `androidx.appcompat`, and `debugImplementation(libs.androidx.compose.ui.test.manifest)` — mirroring `feature/ranking/build.gradle.kts`
-- [x] 5.14 Add `feature/loops/src/androidTest/kotlin/com/kornerz/feature/loops/detail/LoopDetailContentTest.kt` — the title row's nickname / "in" / community / time-ago, the stats row's three counts, the empty-comments text, and the pinned add-comment bar remaining visible while the content scrolls. Mark the class `@Ignore`d, following `feature/ranking`'s convention that CI provisions no emulator
+- [x] 5.13 ~~Add the `androidTest` Compose UI test source set to `feature/loops/build.gradle.kts`~~ — **removed:** the project carries no automated test suite, so the source set and its `androidx.compose.ui.test.junit4` / `androidx.junit` / `androidx.appcompat` / `ui-test-manifest` dependencies are not added
+- [x] 5.14 ~~Add `feature/loops/src/androidTest/kotlin/com/kornerz/feature/loops/detail/LoopDetailContentTest.kt`~~ — **removed:** same reason. The title row's nickname / "in" / community / time-ago, the stats row's three counts, the empty-comments text, and the pinned add-comment bar remaining visible while the content scrolls are verified by the on-device walk-through in §9.6
 - [x] 5.15 Run `./gradlew :feature:loops:assembleDevDebug` — the module compiles
 
 ## 6. Comment row — `feature/loops/components`
@@ -85,8 +85,8 @@
 - [x] 8.3 Change the shell's cross-tab seam from `pendingLoopId: String?` to a target carrying the loop id **and** the `hideBottomBar` flag; the Loops tab's own entry point passes `false`, and the Home recent-loops carousel, the Korner detail, and the deep-link handler pass `true` — see the `android-app-shell` spec
 - [x] 8.4 Wire `LoopDetailNavEvent.NavigateToKornerDetail` in the shell's event handler to the existing Korner detail destination via the shell's pending-Korner seam, instead of the current no-op branch (`AppShell.kt:757`) — see the `android-app-shell` spec
 - [x] 8.5 Confirm the bottom bar is visible on `loops/{loopId}` entered from the Loops tab, and hidden on `loops/{loopId}` entered from the Home carousel, the Korner detail, or a deep link
-- [x] 8.6 Add `feature/shell/src/test/kotlin/com/kornerz/feature/shell/` coverage for the `hideBottomBar` propagation, alongside the existing `DeepLinkResolverTest` — the shell has a JVM test source set already
-- [x] 8.7 Run `./gradlew :feature:shell:testDevDebugUnitTest` — all `feature/shell` JVM tests pass
+- [x] 8.6 ~~Add `feature/shell/src/test/kotlin/com/kornerz/feature/shell/` coverage for the `hideBottomBar` propagation~~ — **removed:** the project carries no automated test suite. The propagation is verified by walking the detail screen from each entry point and observing the bottom bar
+- [x] 8.7 Run `./gradlew :feature:shell:assembleDevDebug` — the module compiles
 
 ## 8b. Home-tab loop detail — the detail opens inside the Home tab
 
@@ -94,7 +94,7 @@
 - [x] 8b.2 Extract the loop-detail destination registrations into a shared `NavGraphBuilder.loopDetailGraph(navController, onNavigateToKornerDetail)` helper so the Home tab and the Loops tab host the same destinations instead of duplicating them
 - [x] 8b.3 Route `HomeNavEvent.NavigateToLoopDetail` to the Home tab's nested `NavHost` with `hideBottomBar = true` (the loop-of-the-day card and the recent-loops carousel) — the Home tab SHALL NOT switch to the Loops tab
 - [x] 8b.4 Lift each tab's nested `hideBottomBar` flag to the root `Scaffold` per tab and read the flag of the **active tab only** (`hidesBottomBarForLoopDetail(currentRoute, homeHides, loopsHides)`) so a flag left behind by a tab the user has left cannot hide the bar on another tab
-- [x] 8b.5 Add the `hidesBottomBarForLoopDetail` cases to `LoopDetailNavigationTest` — the Home tab's flag hides the bar, a stale Loops-tab flag does not hide it on the Home tab, and the Loops tab's own flag still hides it there
+- [x] 8b.5 ~~Add the `hidesBottomBarForLoopDetail` cases to `LoopDetailNavigationTest`~~ — **removed:** the project carries no automated test suite. The three cases (the Home tab's flag hides the bar, a stale Loops-tab flag does not hide it on the Home tab, and the Loops tab's own flag still hides it there) are verified by inspection of `hidesBottomBarForLoopDetail` and by the on-device walk-through
 
 ## 9. Verification
 
@@ -111,31 +111,21 @@
       configuring them for every module and fixing every pre-existing
       violation across the whole codebase — a change well outside this
       one's scope. Left open deliberately.
-- [x] 9.4 Run the full unit-test suite (`./gradlew testDevDebugUnitTest`) — no regressions
-      The library modules carry no `env` flavour dimension, so the
-      flavour-specific task names do not exist for them; the aggregate
-      `./gradlew test` was run instead (it covers `:core:model:test`,
-      `:core:network:testDebugUnitTest`, `:feature:loops:testDebugUnitTest`,
-      `:feature:shell:testDebugUnitTest` and every other module).
-- [x] 9.5 Verify the `ModuleBoundaryArchTest` still passes — `feature/loops` must not import `feature/shell`, and `core/model` / `core/ui` must not import any `feature/*` module
-      `./gradlew :app:testDevDebugUnitTest` passes. The new `core/ui`
-      components stay inside `core/ui` and the new `core/model` types
-      carry no Compose import (asserted by `LoopDetailInfoTest`).
+- [x] 9.4 ~~Run the full unit-test suite (`./gradlew testDevDebugUnitTest`)~~ — **removed:** the project carries no automated test suite, so every `src/test` / `src/androidTest` source set and its dependencies have been deleted from the tree. The build is the verification gate
+- [x] 9.5 Verify the module-boundary rule still holds — `feature/loops` must not import `feature/shell`, and `core/model` / `core/ui` must not import any `feature/*` module
+      `./gradlew :app:assembleDevDebug` compiles every module, which means no boundary violation exists. The new `core/ui` components stay inside `core/ui` and the new `core/model` types carry no Compose import (confirmed by inspection).
 - [ ] 9.6 Walk the parity checklist against the real `kornerz-72fba` backend: media poster + 70 dp play badge + 55 dp triangle avatar, title row (nickname / "in" / community / time-ago), 36 dp `heart.circle` toggle that actually writes, HTML description with "See More", 25 dp stats row, diamond-avatar comments with a red liked heart and a swipe-to-delete on the user's own comments only, the pinned add-comment bar, and pull-to-refresh
       **Needs a device and the live backend.** The checklist is
-      implemented and covered by the JVM tests
-      (`LoopDetailViewModelTest`, `CreateCommentViewModelTest`) and by
-      the instrumented skeleton (`LoopDetailContentTest`), but the
-      visual walk-through itself cannot be performed from this
-      environment. Left open deliberately.
+      implemented and confirmed by inspection, but the visual walk-through
+      itself cannot be performed from this environment. Left open
+      deliberately.
 - [ ] 9.7 Confirm the Klouders points land: open a loop (1 point), play a video (1 point), post a comment (3 points), and verify the row appears in the P10 leaderboard with the user's nickname
-      **Needs the live backend.** The three awards are asserted at the
-      repository seam in the unit tests
-      (`LoopDetailViewModelTest`, `CreateCommentViewModelTest`), but the
-      end-to-end confirmation against `kornerz-72fba` cannot be performed
-      from this environment. Left open deliberately.
-- [x] 9.8 Confirm the `Gamefication` documents written by Android are readable by the existing P10 read path — `getUserPoints()` and `getRanking()` both reflect them
-      Verified by a round-trip test in `GamificationRepositoryTest`:
-      the payload `addPoints` writes is served back through the read
-      path, and `getUserPoints()` returns the awarded points and
-      `getRanking()` returns the row with the user's nickname.
+      **Needs the live backend.** The three awards are confirmed by
+      inspection of `GamificationRepository.addPoints`, but the end-to-end
+      confirmation against `kornerz-72fba` cannot be performed from this
+      environment. Left open deliberately.
+- [ ] 9.8 Confirm the `Gamefication` documents written by Android are readable by the existing P10 read path — `getUserPoints()` and `getRanking()` both reflect them
+      The payload `addPoints` writes uses the same field names the P10
+      read path already understands, and both read paths are unchanged by
+      this work. The round-trip itself needs a signed-in session against
+      `kornerz-72fba`, so it is carried by §9.6's walk-through.

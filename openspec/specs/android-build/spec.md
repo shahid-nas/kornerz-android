@@ -197,7 +197,7 @@ mirroring `feature/profile/build.gradle.kts`:
 - `buildFeatures { compose = true }`
 - plugins: `android-library`, `kotlin-android`, `kotlin-kapt`, `kotlin-compose`, `hilt`
 - `kapt { correctErrorTypes = true }`
-- dependencies: `project(":core:ui")`, `project(":core:model")`, `project(":core:network")`, `project(":core:storage")`, Compose BOM + `ui` / `ui-graphics` / `ui-tooling-preview` / `material3` / `material-icons-extended`, `navigation-compose`, `lifecycle-runtime-compose`, `lifecycle-viewmodel-compose`, `hilt-android` + `hilt-compiler` (kapt) + `hilt-navigation-compose`, `coil-compose`, `kotlinx-coroutines-android`, `kotlinx-datetime`, `implementation(libs.android.billing)`, and the test stack (`junit`, `mockk`, `turbine`, `kotlinx-coroutines-test`)
+- dependencies: `project(":core:ui")`, `project(":core:model")`, `project(":core:network")`, `project(":core:storage")`, Compose BOM + `ui` / `ui-graphics` / `ui-tooling-preview` / `material3` / `material-icons-extended`, `navigation-compose`, `lifecycle-runtime-compose`, `lifecycle-viewmodel-compose`, `hilt-android` + `hilt-compiler` (kapt) + `hilt-navigation-compose`, `coil-compose`, `kotlinx-coroutines-android`, `kotlinx-datetime`, `implementation(libs.android.billing)`
 
 It SHALL NOT add `kotlin-serialization`: the only new serialized type is `SubscriptionVerificationResult`, which the client-side DTO layer parses with the same `kotlinx.serialization` stack already reachable through `core:network`'s transitive `kotlinx-serialization-json`. (If the build proves this unreachable, adding the plugin is a one-line change confined to this module.)
 

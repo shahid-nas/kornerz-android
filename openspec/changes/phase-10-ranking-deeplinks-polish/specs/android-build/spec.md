@@ -55,18 +55,16 @@ The release build type SHALL enable R8 minification (`isMinifyEnabled = true`) a
 
 ## ADDED Requirements
 
-### Requirement: The version catalog carries the test-only module-boundary dependency
-`gradle/libs.versions.toml` SHALL declare the ArchUnit test dependency (`com.tngtech.archunit:archunit-junit4`) as a version-catalog entry, referenced via a `libs.*` accessor. The dependency SHALL be `testImplementation`-scoped in `app/build.gradle.kts` and SHALL NOT be applied to any production source set.
+### Requirement: The version catalog carries no test-only dependency
+`gradle/libs.versions.toml` SHALL NOT declare any test-scoped dependency (`junit`, `androidx-junit`, `espresso`, `mockk`, `turbine`, `kotlinx-coroutines-test`, `archunit-junit4`, `androidx-compose-ui-test-junit4`, `androidx-compose-ui-test-manifest`), and no module's `build.gradle.kts` SHALL declare a `testImplementation` or `androidTestImplementation` configuration. The Android port does not carry an automated test suite, so the catalog carries only production dependencies.
 
-The project's JUnit 4 runner is the reason the `archunit-junit4` artifact is used rather than `archunit-junit5`.
-
-#### Scenario: The dependency is catalogued
+#### Scenario: No test-only catalog entries
 - **WHEN** `gradle/libs.versions.toml` is inspected
-- **THEN** it declares an ArchUnit entry referenced as `libs.*`
+- **THEN** it declares no JUnit, MockK, Turbine, Espresso, ArchUnit, or Compose UI Test entry
 
-#### Scenario: The dependency is test-scoped
-- **WHEN** `app/build.gradle.kts` is inspected
-- **THEN** the ArchUnit dependency is declared with `testImplementation` and is not declared with `implementation` or `api`
+#### Scenario: No test-scoped configurations
+- **WHEN** every module's `build.gradle.kts` is inspected
+- **THEN** none of them declares `testImplementation` or `androidTestImplementation`, and no module has a `src/test` or `src/androidTest` source set
 
 ### Requirement: The release build type keeps its signing configuration
 P10 SHALL NOT change how the release build type is signed. The release build type SHALL continue to use the existing signing configuration, and no upload key, keystore, or credential SHALL be introduced by this change.
