@@ -13,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
@@ -20,15 +21,23 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
 import com.kornerz.core.ui.theme.KornerzTheme
+import kotlin.math.sqrt
 
 /**
- * 45°-rotated rounded-square image clip. 1:1 port of iOS
+ * Rounded-square image rendered as a 45°-rotated diamond. 1:1 port of iOS
  * `DiamondImageView` (`kornerz/Kornerz/Components/DiamondImageView.swift`).
  *
- * The image (or fallback asset) is rendered into a rounded square of
- * [size] with [cornerRadius], then the whole layer is rotated 45° and
- * clipped back to the diamond extents. The visible bounds therefore
- * match iOS (`size × size` rotated 45° → diamond extents of `size`).
+ * iOS keeps the *image* upright and rotates only the **clip shape**
+ * (`RoundedRectangle(radius).rotation(45°).scale(1/√2)`), so the diamond is
+ * inscribed in the `size × size` frame and the image fills it.
+ *
+ * The same result is produced here by rotating + scaling one layer
+ * (which turns the rounded-square clip into the diamond mask) and undoing
+ * that transform exactly **once**, in a single wrapper, around all of the
+ * content. The counter-transform must not be repeated per slot: Coil's
+ * `loading`/`error` placeholders are children of `SubcomposeAsyncImage`, so
+ * they already inherit the wrapper's transform — rotating them again is what
+ * made the placeholder appear tilted by 45°.
  *
  * When [imageUrl] is `null` or Coil fails, the component falls back to
  * [fallbackAsset] (a `R.drawable.*` resource resolved by name at
@@ -43,7 +52,12 @@ fun KornerzDiamondImage(
     cornerRadius: Dp,
     modifier: Modifier = Modifier,
 ) {
-    val clipShape = RoundedCornerShape(cornerRadius)
+    // Pythagoras: a `size × size` square rotated 45° has a diagonal of
+    // `size * √2`. Scaling the rotated layer by `1/√2` brings the diagonal
+    // back to `size`, i.e. the diamond is inscribed in the frame exactly like
+    // the iOS clip shape (`sqrt(size * size / 2) / size`).
+    val diamondScale = 1f / sqrt(2f)
+
     Box(
         modifier = modifier.size(size),
         contentAlignment = Alignment.Center,
@@ -51,31 +65,43 @@ fun KornerzDiamondImage(
         Box(
             modifier = Modifier
                 .size(size)
+                // Rotating + scaling this layer is what turns the rounded
+                // square clip below into the diamond mask.
                 .rotate(45f)
-                .clip(clipShape)
+                .scale(diamondScale)
+                .clip(RoundedCornerShape(cornerRadius))
                 .background(MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center,
         ) {
-            if (imageUrl != null) {
-                SubcomposeAsyncImage(
-                    model = imageUrl,
-                    contentDescription = null,
-                    // `FillBounds` (vs `Crop`) ignores the source's
-                    // aspect ratio and stretches the image to cover
-                    // the entire diamond. The previous `Crop` setting
-                    // rendered the image as `Fit` for any source
-                    // whose aspect ratio didn't match the diamond's,
-                    // which produced the visible letterbox inside the
-                    // rotated shape.
-                    contentScale = ContentScale.FillBounds,
-                    modifier = Modifier
-                        .size(size)
-                        .rotate(-45f),
-                    loading = { FallbackBadgeContent(fallbackAsset, size) },
-                    error = { FallbackBadgeContent(fallbackAsset, size) },
-                )
-            } else {
-                FallbackBadgeContent(fallbackAsset, size, Modifier)
+            // Undo the layer transform once, for every piece of content
+            // (loaded image *and* Coil's loading/error placeholders), so the
+            // artwork always stays upright.
+            Box(
+                modifier = Modifier
+                    .size(size)
+                    .scale(1f / diamondScale)
+                    .rotate(-45f),
+                contentAlignment = Alignment.Center,
+            ) {
+                if (imageUrl != null) {
+                    SubcomposeAsyncImage(
+                        model = imageUrl,
+                        contentDescription = null,
+                        // `FillBounds` (vs `Crop`) ignores the source's
+                        // aspect ratio and stretches the image to cover
+                        // the entire diamond. The previous `Crop` setting
+                        // rendered the image as `Fit` for any source
+                        // whose aspect ratio didn't match the diamond's,
+                        // which produced the visible letterbox inside the
+                        // rotated shape.
+                        contentScale = ContentScale.FillBounds,
+                        modifier = Modifier.size(size),
+                        loading = { FallbackBadgeContent(fallbackAsset, size) },
+                        error = { FallbackBadgeContent(fallbackAsset, size) },
+                    )
+                } else {
+                    FallbackBadgeContent(fallbackAsset, size)
+                }
             }
         }
     }
@@ -96,16 +122,14 @@ private fun FallbackBadgeContent(
             model = resolved,
             contentDescription = null,
             contentScale = ContentScale.FillBounds,
-            modifier = modifier.size(size).rotate(-45f),
+            modifier = modifier.size(size),
         )
     } else {
         Icon(
             imageVector = Icons.Filled.Person,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = modifier
-                .size(size / 2)
-                .rotate(-45f),
+            modifier = modifier.size(size / 2),
         )
     }
 }
