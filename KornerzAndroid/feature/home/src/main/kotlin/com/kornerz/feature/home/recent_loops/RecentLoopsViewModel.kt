@@ -59,7 +59,7 @@ class RecentLoopsViewModel @Inject constructor(
         if (userCodes.isEmpty() && communityIds.isEmpty()) {
             emptyMap<String, UserSnippet>() to emptyMap()
         } else {
-            val usersJob = async { homeRepository.fetchUsersByCodes(userCodes) }
+            val usersJob = async { homeRepository.fetchUserSnippetsByCodes(userCodes) }
             val communitiesJob = async { homeRepository.fetchCommunityNamesByIds(communityIds) }
             awaitAll(usersJob, communitiesJob)
             usersJob.await() to communitiesJob.await()

@@ -14,4 +14,10 @@ data class LoopCommentInfo(
     val user: User? = null,
     val isLikedByUser: Boolean = false,
     val likesCount: Int = 0,
+    /**
+     * The number of replies the comment carries — denormalised on the
+     * `LoopComments` document and surfaced by the comment row's
+     * `message.fill` action. Mirrors the iOS `LoopCommentInfo` struct.
+     */
+    val repliesCount: Int = 0,
 )

@@ -50,8 +50,16 @@ fun HomeContent(
 @Composable
 private fun LoopSection(value: AsyncValue<com.kornerz.core.model.Loop>, onEvent: (HomeEvent) -> Unit) {
     when (value) {
-        is AsyncValue.Success -> value.data.id?.takeIf { it.isNotEmpty() }?.let { id ->
-            LoopOfDayContent(loop = value.data, onClick = { onEvent(HomeEvent.LoopOfDayClicked(id)) })
+        is AsyncValue.Success -> if (value.data.id?.isNotEmpty() == true) {
+            LoopOfDayContent(
+                loop = value.data,
+                // The loop of the day is the first tile of its
+                // section, so it wears the palette's first colour —
+                // the same one the tile was painted with.
+                onClick = { loopId, accentColorHex ->
+                    onEvent(HomeEvent.LoopOfDayClicked(loopId, accentColorHex))
+                },
+            )
         }
         is AsyncValue.Error -> LoopOfDayRetrySection(onRetry = { onEvent(HomeEvent.LoopOfDayRetry) })
         AsyncValue.Loading -> LoopOfDayShimmerSection()
@@ -84,7 +92,12 @@ private fun YourKornerzSection(value: AsyncValue<List<com.kornerz.core.model.Com
 private fun RecentLoopsSection(value: AsyncValue<List<com.kornerz.core.model.Loop>>, onEvent: (HomeEvent) -> Unit) {
     when (value) {
         is AsyncValue.Success -> if (value.data.isNotEmpty()) {
-            RecentLoopsContent(loops = value.data, onClick = { onEvent(HomeEvent.LoopOfDayClicked(it)) })
+            RecentLoopsContent(
+                loops = value.data,
+                onClick = { loopId, accentColorHex ->
+                    onEvent(HomeEvent.LoopOfDayClicked(loopId, accentColorHex))
+                },
+            )
         }
         is AsyncValue.Error -> RecentLoopsRetrySection(onRetry = { onEvent(HomeEvent.RecentLoopsRetry) })
         AsyncValue.Loading -> RecentLoopsShimmerSection()

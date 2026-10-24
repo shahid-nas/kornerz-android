@@ -66,7 +66,13 @@ class HomeViewModel @Inject constructor(
             HomeEvent.YourKornerzRetry -> yourKornerzVm.fetchData()
             HomeEvent.RecentLoopsRetry -> recentLoopsVm.fetchData()
             HomeEvent.AvatarTapped -> emit(HomeNavEvent.NavigateToProfile)
-            is HomeEvent.LoopOfDayClicked -> emit(HomeNavEvent.NavigateToLoopDetail(event.loopId))
+            is HomeEvent.LoopOfDayClicked ->
+                emit(
+                    HomeNavEvent.NavigateToLoopDetail(
+                        loopId = event.loopId,
+                        accentColorHex = event.accentColorHex,
+                    ),
+                )
             is HomeEvent.NookClicked -> emit(HomeNavEvent.NavigateToEventDetail(event.nookId))
             is HomeEvent.KornerClicked -> emit(HomeNavEvent.NavigateToKornerDetail(event.kornerId))
         }

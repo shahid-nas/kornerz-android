@@ -114,3 +114,23 @@ The loop detail SHALL render the full content tree redacted (shimmer placeholder
 - **THEN** `LoopDetailViewModel.refresh()` runs
 - **AND** the detail + comments fetch re-fires
 - **AND** the screen preserves scroll position
+
+### Requirement: Loop detail renders a back affordance over the media area
+The loop detail SHALL render a back control that floats over the top-leading corner of the media area, on top of the content rather than in a top bar — iOS makes the navigation bar transparent and hangs a leading control over the media (`LoopDetailController.setupCustomBackButton`), and a top bar would push the full-bleed media down. The control SHALL use the platform chevron (`Icons.AutoMirrored.Filled.ArrowBack`) on a translucent disc so it stays legible over both the accent-coloured placeholder and an arbitrary photo, and SHALL carry a non-empty content description naming the action (per the `app-polish` capability's accessibility requirement). The control SHALL be rendered in every state — loading, error, and loaded — so it is always reachable.
+
+Tapping the control SHALL emit `LoopDetailEvent.BackTapped`, which the ViewModel turns into `LoopDetailNavEvent.Pop`; the host route pops the destination off the tab's own nested `NavHost` back stack, returning the user to the list the detail was opened from. The screen SHALL NOT reference a `NavController` itself (architecture §2.4). The system back gesture SHALL take the same route as the control — both raise `LoopDetailEvent.BackTapped`, so the screen leaves through one event.
+
+#### Scenario: Tapping the back control leaves the loop detail
+- **WHEN** the user taps the back control on the loop detail
+- **THEN** `LoopDetailEvent.BackTapped` is emitted
+- **AND** `LoopDetailNavEvent.Pop` is raised
+- **AND** the nested `NavHost` pops the loop detail, returning the user to the list it was opened from
+
+#### Scenario: The back control is reachable in every state
+- **WHEN** the loop detail is loading, has failed to load, or is loaded
+- **THEN** the back control renders above the content in all three states
+
+#### Scenario: The system back gesture takes the same route
+- **WHEN** the user presses the system back button on the loop detail
+- **THEN** `LoopDetailEvent.BackTapped` is emitted
+- **AND** the detail is popped exactly as it is by the in-app control

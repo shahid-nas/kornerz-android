@@ -26,6 +26,7 @@ import androidx.navigation.compose.dialog
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.kornerz.core.model.DeepLink
+import com.kornerz.feature.home.HomeRoute
 import com.kornerz.feature.home.HomeScreen
 import com.kornerz.feature.kornerz.KornerzRoute
 import com.kornerz.feature.kornerz.KornerzScreen
@@ -42,6 +43,7 @@ import com.kornerz.feature.loops.list.LoopsScreen
 import com.kornerz.feature.loops.loopsCommentNavArguments
 import com.kornerz.feature.loops.loopsDetailNavArguments
 import com.kornerz.feature.loops.loopsReplyNavArguments
+import com.kornerz.feature.loops.reply.ReplyNavEvent
 import com.kornerz.feature.loops.reply.ReplyScreen
 import com.kornerz.feature.notifications.NotificationsRoute
 import com.kornerz.feature.notifications.list.NotificationsScreen
@@ -130,11 +132,6 @@ fun AppShell(
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
 
-    // Hoisted out of `profileGraph` so a top-level route — the P8 paywall
-    // — can reach the *existing* `profile/privacy-policy` destination
-    // rather than shipping a second copy of the PDF viewer.
-    val profileNavController = rememberNavController()
-
     val applicationContext = LocalContext.current.applicationContext
 
     // P10 — the shell owns the deep-link lifecycle. The manager is a
@@ -181,7 +178,11 @@ fun AppShell(
         ShellExtraRouteScope(
             navController = navController,
             openPrivacyPolicy = {
-                profileNavController.navigate(ProfileRoute.PrivacyPolicy.route)
+                // The privacy-policy viewer is registered on the shell's
+                // root graph (see `profileGraph`), so the root
+                // controller can push it directly — no second copy of
+                // the PDF viewer and no nested controller to keep alive.
+                navController.navigate(ProfileRoute.PrivacyPolicy.route)
             },
             onPremiumGateRequests = viewModel.premiumGateRequests,
             onOpenTermsOfUse = { url -> applicationContext.openExternally(url) },
@@ -199,7 +200,21 @@ fun AppShell(
     // and the Kornerz tab consumes it via a `LaunchedEffect` on its
     // own nested controller.
     var pendingKornerId by remember { mutableStateOf<String?>(null) }
-    var pendingLoopId by remember { mutableStateOf<String?>(null) }
+    var pendingLoopTarget by remember { mutableStateOf<LoopDetailTarget?>(null) }
+
+    /**
+     * Whether the loop detail currently on screen hides the bottom
+     * bar. The detail lives inside a tab's **nested** `NavHost` — the
+     * Loops tab's own feed and the Home tab's loop-of-the-day card
+     * both push it — so the root route cannot express the per-entry-
+     * point decision. Each tab lifts its nested entry's `hideBottomBar`
+     * nav argument (and its comment/reply destinations) up here, and
+     * the root `Scaffold` reads the flag of the **active** tab only —
+     * a flag left behind by a tab the user has left cannot hide the
+     * bar on another tab.
+     */
+    var homeLoopDetailHidesBottomBar by remember { mutableStateOf(false) }
+    var loopsLoopDetailHidesBottomBar by remember { mutableStateOf(false) }
 
     /**
      * Executes a resolved deep-link target.
@@ -219,7 +234,8 @@ fun AppShell(
             is DeepLinkTarget.LoopDetail -> navigateToLoopDetail(
                 navController = navController,
                 loopId = target.loopId,
-                onPending = { pendingLoopId = it },
+                hideBottomBar = true,
+                onPending = { pendingLoopTarget = it },
             )
 
             is DeepLinkTarget.KornerDetail -> navigateToKornerDetail(
@@ -281,12 +297,17 @@ fun AppShell(
             // (`AppTabController.swift:217-220`).
             // `deeplink/.*` added in P10: the deep-link interstitial is
             // full-screen too (inventory 13.1).
-            val showBottomBar = currentRoute?.matches(
-                Regex(
-                    "videocall/.*|notifications/list|profile/.*|community/admin/.*" +
-                        "|subscription/.*|deeplink/.*",
+            val showBottomBar = shouldShowBottomBar(
+                currentRoute = currentRoute,
+                // Only the active tab's flag counts — a flag left behind
+                // by a tab the user has left must not hide the bar on
+                // the tab they are on now.
+                hidesBottomBarForLoopDetail = hidesBottomBarForLoopDetail(
+                    currentRoute = currentRoute,
+                    homeHides = homeLoopDetailHidesBottomBar,
+                    loopsHides = loopsLoopDetailHidesBottomBar,
                 ),
-            ) == false
+            )
             if (showBottomBar) {
                 KornerzBottomBar(
                     currentRoute = currentRoute,
@@ -305,12 +326,10 @@ fun AppShell(
                 onNavigateToKornerDetail = { id ->
                     navigateToKornerDetail(navController, id, onPending = { pendingKornerId = id })
                 },
-                onNavigateToLoopDetail = { id ->
-                    navigateToLoopDetail(navController, id, onPending = { pendingLoopId = id })
-                },
                 onNavigateToProfile = {
                     navController.navigate(ProfileRoute.View.route)
                 },
+                onHideBottomBarChanged = { hides -> homeLoopDetailHidesBottomBar = hides },
             )
             kornerzTabGraph(
                 onNavEvent = { event ->
@@ -321,6 +340,16 @@ fun AppShell(
                             pendingKornerId = event.kornerId
                         }
                     }
+                },
+                // A loop detail opened from the Korner detail is a
+                // full-screen destination — the tab bar is hidden.
+                onLoopDetail = { id ->
+                    navigateToLoopDetail(
+                        navController = navController,
+                        loopId = id,
+                        hideBottomBar = true,
+                        onPending = { pendingLoopTarget = it },
+                    )
                 },
                 pendingKornerId = pendingKornerId,
                 onPendingConsumed = { pendingKornerId = null },
@@ -353,10 +382,25 @@ fun AppShell(
                     navController.navigate(ProfileRoute.View.route)
                 },
                 onLoopDetail = { id ->
-                    navigateToLoopDetail(navController, id, onPending = { pendingLoopId = id })
+                    // The Loops tab's own list keeps the bottom bar —
+                    // the detail is pushed **within** the tab.
+                    navigateToLoopDetail(
+                        navController = navController,
+                        loopId = id,
+                        hideBottomBar = false,
+                        onPending = { pendingLoopTarget = it },
+                    )
                 },
-                pendingLoopId = pendingLoopId,
-                onPendingConsumed = { pendingLoopId = null },
+                onNavigateToKornerDetail = { kornerId ->
+                    navigateToKornerDetail(
+                        navController = navController,
+                        kornerId = kornerId,
+                        onPending = { pendingKornerId = it },
+                    )
+                },
+                pendingLoopTarget = pendingLoopTarget,
+                onPendingConsumed = { pendingLoopTarget = null },
+                onHideBottomBarChanged = { loopsLoopDetailHidesBottomBar = it },
             )
             // P6 (task 9.1) — Profile is pushed onto the root NavHost
             // (mirrors iOS `UserProfileVC.hidesBottomBarWhenPushed`).
@@ -364,7 +408,8 @@ fun AppShell(
             // `profile/.*` so the bar is hidden across every nested
             // Profile destination.
             profileGraph(
-                profileNavController = profileNavController,
+                navController = navController,
+                onBack = { navController.popBackStack() },
                 onOpenPremium = onNavigateToPremium,
                 onOpenNotifications = { navController.navigate(NotificationsRoute.LIST) },
                 onOpenMyCommunities = { navController.navigate(CommunityRoute.AdminList.route) },
@@ -409,11 +454,14 @@ fun AppShell(
                         // tab's **nested** `NavHost`, so it cannot be
                         // pushed on the root controller — the shell's
                         // cross-tab mechanism (pending id + tab switch)
-                        // is the only way in.
+                        // is the only way in. The notification opens the
+                        // detail in a full-screen context, so the tab
+                        // bar is hidden.
                         navigateToLoopDetail(
                             navController = navController,
                             loopId = loopId,
-                            onPending = { pendingLoopId = it },
+                            hideBottomBar = true,
+                            onPending = { pendingLoopTarget = it },
                         )
                     },
                     onOpenForumComment = { forumId ->
@@ -482,6 +530,56 @@ internal object SubscriptionRoutePatterns {
 }
 
 /**
+ * Whether the loop detail on screen hides the bottom bar.
+ *
+ * The detail lives inside a tab's **nested** `NavHost` — the Loops
+ * tab's own feed and the Home tab's loop-of-the-day card both push it
+ * — so the root route cannot express the per-entry-point decision.
+ * Each tab lifts its own flag up to the shell, and only the flag of
+ * the **active** tab counts: a flag left behind by a tab the user has
+ * left must not hide the bar on the tab they are on now.
+ *
+ * Extracted as a pure function so the rule is unit-testable without an
+ * emulator.
+ */
+internal fun hidesBottomBarForLoopDetail(
+    currentRoute: String?,
+    homeHides: Boolean,
+    loopsHides: Boolean,
+): Boolean = when (currentRoute) {
+    ShellTab.Home.route -> homeHides
+    ShellTab.Loops.route -> loopsHides
+    else -> false
+}
+
+/**
+ * Whether the shell's bottom bar is visible.
+ *
+ * Two rules decide it:
+ *  1. the **route** — the full-screen routes (`videocall/…`,
+ *     `notifications/list`, `profile/…`, `community/admin/…`,
+ *     `subscription/…`, `deeplink/…`) hide it;
+ *  2. the **loop detail's `hideBottomBar` argument** — a loop detail
+ *     pushed from the Home carousel, the Korner detail, a deep link or
+ *     a notification hides it, while the Loops tab's own list keeps it.
+ *
+ * Extracted as a pure function so the rule is unit-testable without an
+ * emulator.
+ */
+internal fun shouldShowBottomBar(
+    currentRoute: String?,
+    hidesBottomBarForLoopDetail: Boolean,
+): Boolean {
+    if (hidesBottomBarForLoopDetail) return false
+    return currentRoute?.matches(
+        Regex(
+            "videocall/.*|notifications/list|profile/.*|community/admin/.*" +
+                "|subscription/.*|deeplink/.*|loops/.*/comment",
+        ),
+    ) == false
+}
+
+/**
  * The P10 deep-link route strings. The interstitial is registered on
  * the shell's root `NavHost`, outside every tab's nested graph, so no
  * bottom tab becomes active and the bottom bar is hidden for it.
@@ -545,9 +643,17 @@ private fun navigateToNookDetailInNooksTab(navController: NavHostController, noo
 private fun navigateToLoopDetail(
     navController: NavHostController,
     loopId: String,
-    onPending: (String) -> Unit = {},
+    hideBottomBar: Boolean = false,
+    accentColorHex: String = "",
+    onPending: (LoopDetailTarget) -> Unit = {},
 ) {
-    onPending(loopId)
+    onPending(
+        LoopDetailTarget(
+            loopId = loopId,
+            hideBottomBar = hideBottomBar,
+            accentColorHex = accentColorHex,
+        ),
+    )
     navController.navigate(ShellTab.Loops.route) {
         popUpTo(navController.graph.findStartDestination().id) { saveState = true }
         launchSingleTop = true
@@ -555,17 +661,160 @@ private fun navigateToLoopDetail(
     }
 }
 
+/**
+ * The Home tab's nested `NavHost`.
+ *
+ * iOS pushes the loop detail onto the **Home tab's own** navigation
+ * stack — `HomeTabCoordinator.navigateToLoopDetail` (`:67-73`) pushes
+ * the detail with `hidesBottomBarWhenPushed = true`, so the detail
+ * covers the Home feed and the tab bar is hidden. Android mirrors that
+ * by giving the Home tab a nested `NavHost` that hosts the Home feed
+ * and the very same loop-detail destinations the Loops tab hosts
+ * (see [loopDetailGraph]).
+ *
+ * Tapping the loop-of-the-day card (or a recent-loops tile) therefore
+ * pushes `loops/{loopId}` **inside the Home tab** — the user stays on
+ * Home, the tab bar is hidden, and system back returns to the feed.
+ */
 internal fun androidx.navigation.NavGraphBuilder.homeTabGraph(
     onNavigateToKornerDetail: (String) -> Unit = {},
-    onNavigateToLoopDetail: (String) -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
+    onHideBottomBarChanged: (Boolean) -> Unit = {},
 ) {
     composable(ShellTab.Home.route) {
-        HomeScreen(
+        val nested = rememberNavController()
+        // The nested entry's `hideBottomBar` argument and the
+        // comment/reply destinations decide the tab bar's visibility for
+        // the Home tab — the root route (`tab/home`) cannot express
+        // either, so the flag is lifted to the shell.
+        val nestedEntry by nested.currentBackStackEntryAsState()
+        val nestedRoute = nestedEntry?.destination?.route
+        val hidesBottomBar =
+            nestedEntry?.arguments?.getBoolean(LoopsRoute.Detail.ARG_HIDE_BOTTOM_BAR) == true ||
+                nestedRoute?.contains("/comment") == true ||
+                nestedRoute?.contains("/reply") == true
+        LaunchedEffect(hidesBottomBar) { onHideBottomBarChanged(hidesBottomBar) }
+        NavHost(
+            navController = nested,
+            startDestination = HomeRoute.Route,
+        ) {
+            composable(HomeRoute.Route) {
+                HomeScreen(
+                    modifier = Modifier,
+                    onNavigateToKornerDetail = onNavigateToKornerDetail,
+                    onNavigateToLoopDetail = { loopId, accentColorHex ->
+                        // iOS parity: the detail is pushed on the Home
+                        // tab's own stack, with the tab bar hidden —
+                        // and in the very colour the tapped tile was
+                        // painted with.
+                        nested.navigate(
+                            LoopsRoute.Detail.build(
+                                loopId,
+                                hideBottomBar = true,
+                                accentColorHex = accentColorHex,
+                            ),
+                        )
+                    },
+                    onNavigateToProfile = onNavigateToProfile,
+                )
+            }
+            loopDetailGraph(
+                navController = nested,
+                onNavigateToKornerDetail = onNavigateToKornerDetail,
+            )
+        }
+    }
+}
+
+/**
+ * The loop-detail destinations — `loops/{loopId}`, the create-comment
+ * sheet and the reply thread — hosted by a tab's nested `NavHost`.
+ *
+ * Both the Loops tab and the Home tab host them, because iOS pushes
+ * the loop detail onto the **originating tab's** navigation stack
+ * (`LoopsTabCoordinator` for the feed, `HomeTabCoordinator` for the
+ * Home carousel): the detail covers the tab it was opened from and the
+ * system back button returns to it.
+ */
+internal fun androidx.navigation.NavGraphBuilder.loopDetailGraph(
+    navController: NavHostController,
+    onNavigateToKornerDetail: (String) -> Unit = {},
+) {
+    composable(
+        route = LoopsRoute.Detail.PATTERN,
+        arguments = loopsDetailNavArguments,
+    ) {
+        LoopDetailScreen(
             modifier = Modifier,
-            onNavigateToKornerDetail = onNavigateToKornerDetail,
-            onNavigateToLoopDetail = onNavigateToLoopDetail,
-            onNavigateToProfile = onNavigateToProfile,
+            onNavEvent = { event ->
+                when (event) {
+                    LoopDetailNavEvent.Pop -> {
+                        // The in-app back button — same target as the
+                        // system back gesture: the detail is popped off
+                        // the tab's own stack, so the user returns to
+                        // the list it was opened from.
+                        navController.popBackStack()
+                    }
+                    is LoopDetailNavEvent.OpenCreateComment -> {
+                        navController.navigate(
+                            LoopsRoute.Comment.build(
+                                loopId = event.loopId,
+                                accentColorHex = event.accentColorHex,
+                            ),
+                        )
+                    }
+                    is LoopDetailNavEvent.OpenReply -> {
+                        navController.navigate(
+                            LoopsRoute.Reply.build(
+                                loopId = event.loopId,
+                                commentId = event.commentId,
+                                accentColorHex = event.accentColorHex,
+                            ),
+                        )
+                    }
+                    is LoopDetailNavEvent.NavigateToKornerDetail -> {
+                        // The Korner detail lives inside the Kornerz
+                        // tab's nested `NavHost`, so the shell's
+                        // pending-Korner seam is the only way in.
+                        onNavigateToKornerDetail(event.communityId)
+                    }
+                }
+            },
+        )
+    }
+    composable(
+        route = LoopsRoute.Comment.PATTERN,
+        arguments = loopsCommentNavArguments,
+    ) {
+        CreateCommentScreen(
+            modifier = Modifier,
+            onDismiss = { navController.popBackStack() },
+        )
+    }
+    composable(
+        route = LoopsRoute.Reply.PATTERN,
+        arguments = loopsReplyNavArguments,
+    ) {
+        ReplyScreen(
+            modifier = Modifier,
+            onNavEvent = { event ->
+                when (event) {
+                    ReplyNavEvent.Pop -> navController.popBackStack()
+                    is ReplyNavEvent.OpenCreateComment ->
+                        // The thread's add-comment bar opens the
+                        // create-comment sheet in reply mode —
+                        // iOS `showAddCommentSheet(type:
+                        // .replyToComment(loopId, commentInfo))`.
+                        navController.navigate(
+                            LoopsRoute.Comment.build(
+                                loopId = event.loopId,
+                                parentCommentId = event.parentCommentId,
+                                accentColorHex = event.accentColorHex,
+                            ),
+                        )
+                    is ReplyNavEvent.ShowError -> { /* surface via snackbar in shell */ }
+                }
+            },
         )
     }
 }
@@ -581,6 +830,7 @@ internal fun androidx.navigation.NavGraphBuilder.kornerzTabGraph(
     onNavEvent: (KornerzNavEvent) -> Unit = {},
     snackbarHostState: SnackbarHostState,
     onNookDetail: (String) -> Unit = {},
+    onLoopDetail: (String) -> Unit = {},
     pendingKornerId: String? = null,
     onPendingConsumed: () -> Unit = {},
 ) {
@@ -713,15 +963,35 @@ internal fun androidx.navigation.NavGraphBuilder.nooksTabGraph(
 internal fun androidx.navigation.NavGraphBuilder.loopsTabGraph(
     onProfileTap: () -> Unit = {},
     onLoopDetail: (String) -> Unit = {},
-    pendingLoopId: String? = null,
+    onNavigateToKornerDetail: (String) -> Unit = {},
+    pendingLoopTarget: LoopDetailTarget? = null,
     onPendingConsumed: () -> Unit = {},
+    onHideBottomBarChanged: (Boolean) -> Unit = {},
 ) {
     composable(ShellTab.Loops.route) {
         val nested = rememberNavController()
-        LaunchedEffect(pendingLoopId) {
-            val id = pendingLoopId
-            if (id != null) {
-                nested.navigate(LoopsRoute.Detail.build(id))
+        // The nested controller's current entry carries the loop
+        // detail's `hideBottomBar` nav argument; it is lifted to the
+        // shell so the root `Scaffold` can fold it into the bottom-bar
+        // visibility predicate. The comment and reply destinations hide
+        // the bar as well.
+        val nestedEntry by nested.currentBackStackEntryAsState()
+        val nestedRoute = nestedEntry?.destination?.route
+        val hidesBottomBar =
+            nestedEntry?.arguments?.getBoolean(LoopsRoute.Detail.ARG_HIDE_BOTTOM_BAR) == true ||
+                nestedRoute?.contains("/comment") == true ||
+                nestedRoute?.contains("/reply") == true
+        LaunchedEffect(hidesBottomBar) { onHideBottomBarChanged(hidesBottomBar) }
+        LaunchedEffect(pendingLoopTarget) {
+            val target = pendingLoopTarget
+            if (target != null) {
+                nested.navigate(
+                    LoopsRoute.Detail.build(
+                        target.loopId,
+                        target.hideBottomBar,
+                        target.accentColorHex,
+                    ),
+                )
                 onPendingConsumed()
             }
         }
@@ -735,42 +1005,22 @@ internal fun androidx.navigation.NavGraphBuilder.loopsTabGraph(
                     onNavEvent = { event ->
                         when (event) {
                             LoopsNavEvent.NavigateToProfile -> onProfileTap()
-                            is LoopsNavEvent.NavigateToLoopDetail -> onLoopDetail(event.loopId)
+                            is LoopsNavEvent.NavigateToLoopDetail ->
+                                nested.navigate(
+                                    LoopsRoute.Detail.build(
+                                        event.loopId,
+                                        hideBottomBar = true,
+                                        accentColorHex = event.accentColorHex,
+                                    ),
+                                )
                         }
                     },
                 )
             }
-            composable(
-                route = LoopsRoute.Detail.PATTERN,
-                arguments = loopsDetailNavArguments,
-            ) {
-                LoopDetailScreen(
-                    modifier = Modifier,
-                    onNavEvent = { event ->
-                        when (event) {
-                            is LoopDetailNavEvent.OpenCreateComment -> {
-                                nested.navigate(LoopsRoute.Comment.build(event.loopId))
-                            }
-                            is LoopDetailNavEvent.OpenReply -> {
-                                nested.navigate(LoopsRoute.Reply.build(event.loopId, event.commentId))
-                            }
-                            is LoopDetailNavEvent.NavigateToKornerDetail -> { /* P3 korner deep link */ }
-                        }
-                    },
-                )
-            }
-            dialog(
-                route = LoopsRoute.Comment.PATTERN,
-                arguments = loopsCommentNavArguments,
-            ) {
-                CreateCommentScreen(modifier = Modifier)
-            }
-            composable(
-                route = LoopsRoute.Reply.PATTERN,
-                arguments = loopsReplyNavArguments,
-            ) {
-                ReplyScreen(modifier = Modifier)
-            }
+            loopDetailGraph(
+                navController = nested,
+                onNavigateToKornerDetail = onNavigateToKornerDetail,
+            )
         }
     }
 }
@@ -798,13 +1048,28 @@ internal fun androidx.navigation.NavGraphBuilder.kloudersTabGraph() {
  * P6 (task 9.1) — Profile is **pushed** onto the root NavHost (not
  * a tab), mirroring iOS `UserProfileVC.hidesBottomBarWhenPushed =
  * true`. The bottom bar is hidden for every `profile/.*` route via
- * the regex in `AppShell`'s `Scaffold.bottomBar`. The root
- * `profile/view` composable hosts a nested NavHost that owns the
- * edit-basic-info, change-basic-info (dialog), change-success, and
- * privacy-policy destinations.
+ * the regex in `AppShell`'s `Scaffold.bottomBar`.
+ *
+ * Every Profile destination is registered **directly on the shell's
+ * root `NavHost`**. An earlier revision hosted them in a *nested*
+ * `NavHost` inside the `profile/view` destination, driven by a
+ * `NavHostController` hoisted to `AppShell` scope. That arrangement
+ * crashed with `IllegalStateException: ViewModelStore should be set
+ * before setGraph call`: `NavHost` calls
+ * `NavController.setViewModelStore()` with the store of the *current*
+ * back-stack entry, so a second visit to Profile handed the shared
+ * controller a different `ViewModelStore` while its `backQueue` was
+ * already populated — and `setViewModelStore` requires an empty
+ * back queue. Registering the destinations on the root graph gives
+ * every destination the root controller's single store, which is the
+ * same lifetime as the graph itself.
+ *
+ * The P8 paywall reaches the privacy-policy viewer through the same
+ * root graph now (see `ShellExtraRouteScope.openPrivacyPolicy`).
  */
 internal fun androidx.navigation.NavGraphBuilder.profileGraph(
-    profileNavController: androidx.navigation.NavHostController,
+    navController: NavHostController,
+    onBack: () -> Unit = {},
     onOpenPremium: () -> Unit = {},
     onOpenNotifications: () -> Unit,
     onOpenMyCommunities: () -> Unit = {},
@@ -816,46 +1081,39 @@ internal fun androidx.navigation.NavGraphBuilder.profileGraph(
     onShowError: (String) -> Unit = {},
 ) {
     composable(ProfileRoute.View.route) {
-        val nested = profileNavController
-        androidx.navigation.compose.NavHost(
-            navController = nested,
-            startDestination = ProfileRoute.View.route,
-        ) {
-            composable(ProfileRoute.View.route) {
-                ProfileScreen(
-                    onNavigateToPremium = onOpenPremium,
-                    onNavigateToNotifications = onOpenNotifications,
-                    onNavigateToEditBasicInfo = { nested.navigate(ProfileRoute.EditBasicInfo.route) },
-                    onNavigateToPrivacyPolicy = { nested.navigate(ProfileRoute.PrivacyPolicy.route) },
-                    onNavigateToMyCommunities = onOpenMyCommunities,
-                    onNavigateToLogout = onOpenLogout,
-                    onNavigateToDeleteAccount = { /* dialog is owned by the ProfileScreen itself */ },
-                )
-            }
-            composable(ProfileRoute.EditBasicInfo.route) {
-                EditBasicInfoScreen(
-                    onBack = { nested.popBackStack() },
-                    onNavigateToChange = { field -> nested.navigate(ProfileRoute.ChangeBasicInfo.build(field.key)) },
-                )
-            }
-            dialog(
-                route = ProfileRoute.ChangeBasicInfo.PATTERN,
-                arguments = listOf(
-                    androidx.navigation.navArgument(ProfileRoute.ChangeBasicInfo.ARG_FIELD) { type = NavType.StringType },
-                ),
-            ) {
-                ChangeBasicInfoScreen(
-                    onNavigateToSuccess = { msg -> nested.navigate(ProfileRoute.ChangeBasicInfoSuccess.build(msg)) },
-                    onShowError = onShowError,
-                    onBack = { nested.popBackStack() },
-                )
-            }
-            composable(ProfileRoute.ChangeBasicInfoSuccess.PATTERN) {
-                ChangeBasicInfoSuccessScreen(onClose = { nested.popBackStack(ProfileRoute.EditBasicInfo.route, inclusive = false) })
-            }
-            composable(ProfileRoute.PrivacyPolicy.route) {
-                PrivacyPolicyScreen(onBack = { nested.popBackStack() })
-            }
-        }
+        ProfileScreen(
+            onBack = onBack,
+            onNavigateToPremium = onOpenPremium,
+            onNavigateToNotifications = onOpenNotifications,
+            onNavigateToEditBasicInfo = { navController.navigate(ProfileRoute.EditBasicInfo.route) },
+            onNavigateToPrivacyPolicy = { navController.navigate(ProfileRoute.PrivacyPolicy.route) },
+            onNavigateToMyCommunities = onOpenMyCommunities,
+            onNavigateToLogout = onOpenLogout,
+            onNavigateToDeleteAccount = { /* dialog is owned by the ProfileScreen itself */ },
+        )
+    }
+    composable(ProfileRoute.EditBasicInfo.route) {
+        EditBasicInfoScreen(
+            onBack = { navController.popBackStack() },
+            onNavigateToChange = { field -> navController.navigate(ProfileRoute.ChangeBasicInfo.build(field.key)) },
+        )
+    }
+    dialog(
+        route = ProfileRoute.ChangeBasicInfo.PATTERN,
+        arguments = listOf(
+            androidx.navigation.navArgument(ProfileRoute.ChangeBasicInfo.ARG_FIELD) { type = NavType.StringType },
+        ),
+    ) {
+        ChangeBasicInfoScreen(
+            onNavigateToSuccess = { msg -> navController.navigate(ProfileRoute.ChangeBasicInfoSuccess.build(msg)) },
+            onShowError = onShowError,
+            onBack = { navController.popBackStack() },
+        )
+    }
+    composable(ProfileRoute.ChangeBasicInfoSuccess.PATTERN) {
+        ChangeBasicInfoSuccessScreen(onClose = { navController.popBackStack(ProfileRoute.EditBasicInfo.route, inclusive = false) })
+    }
+    composable(ProfileRoute.PrivacyPolicy.route) {
+        PrivacyPolicyScreen(onBack = { navController.popBackStack() })
     }
 }

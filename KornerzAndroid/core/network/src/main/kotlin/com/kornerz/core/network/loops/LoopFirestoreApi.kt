@@ -123,15 +123,37 @@ class LoopFirestoreApi @Inject constructor(
         )
     }.onFailure { Log.w(TAG, "searchLoops: ${it.message}") }
 
-    /** Single-loop read — mirrors iOS `fetchLoopById`. */
+    /**
+     * Single-loop read — mirrors iOS `fetchLoopById`.
+     *
+     * The document is resolved by its **`id` field** first
+     * (`whereEqualTo("id", loopId)`), falling back to the Firestore
+     * document id when no document carries that field value. iOS's
+     * deep-link handler resolves a loop the same way
+     * (`APICommunity.swift:606` — `Loop.whereField("id", isEqualTo:
+     * loopId)`), and the field and the document key are **different**
+     * values on the same backend document, so a payload carrying the
+     * `id` field resolves on iOS and 404s on Android when only the
+     * document id is read.
+     *
+     * The document-id fallback keeps every pre-existing caller working:
+     * a document that omits the `id` field is still reachable by its
+     * key.
+     */
     fun fetchLoopDetail(loopId: String): Flow<Result<Loop>> = flow {
         if (loopId.isBlank()) {
             emit(Result.failure(IllegalArgumentException("loopId must not be blank")))
             return@flow
         }
         val result = runCatching {
-            val snap = collection.document(loopId).get().await()
-            snap.data?.toLoop(loopId) ?: error("Loop $loopId not found")
+            val byField = collection
+                .whereEqualTo(FIELD_ID, loopId)
+                .limit(1)
+                .get()
+                .await()
+            val doc = byField.documents.firstOrNull()
+                ?: collection.document(loopId).get().await()
+            doc.data?.toLoop(doc.id) ?: error("Loop $loopId not found")
         }.onFailure { Log.w(TAG, "fetchLoopDetail: ${it.message}") }
         emit(result)
     }
@@ -227,6 +249,7 @@ class LoopFirestoreApi @Inject constructor(
         const val COLLECTION_LOOPS = "Loop"
 
         const val FIELD_ACTIVE = "active"
+        const val FIELD_ID = "id"
         const val FIELD_COMMUNITY_ID = "communityId"
         const val FIELD_PUBLISHER_ID = "publisherId"
         const val FIELD_TITLE = "title"

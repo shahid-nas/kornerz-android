@@ -15,6 +15,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -157,8 +158,13 @@ private fun RankingMedalSlot(
                 modifier = Modifier.size(RankingMedalSize),
             )
         } else {
+            // The numeral's box is width-fixed but **height-driven**: a
+            // fixed height would clip the text when the system font
+            // scale is increased (`app-polish` spec — no text container
+            // on a P10 screen has a fixed height that clips its
+            // content).
             Box(
-                modifier = Modifier.size(RankingMedalSize),
+                modifier = Modifier.width(RankingMedalSize),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
@@ -166,6 +172,7 @@ private fun RankingMedalSlot(
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
                 )
             }
         }

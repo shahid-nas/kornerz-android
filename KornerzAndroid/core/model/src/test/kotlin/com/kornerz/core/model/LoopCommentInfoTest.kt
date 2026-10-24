@@ -19,6 +19,12 @@ class LoopCommentInfoTest {
     }
 
     @Test
+    fun `defaults to zero replies`() {
+        val info = LoopCommentInfo(comment = LoopComment(comment = "hi"))
+        assertEquals(0, info.repliesCount)
+    }
+
+    @Test
     fun `exposes user and like state when set`() {
         val c = LoopComment(comment = "hi", creationDate = Instant.parse("2025-01-01T00:00:00Z"))
         val user = User(id = "u1", email = "u@x.com", displayName = "User", nickname = "u")
@@ -26,5 +32,22 @@ class LoopCommentInfoTest {
         assertTrue(info.isLikedByUser)
         assertEquals(4, info.likesCount)
         assertEquals(user, info.user)
+    }
+
+    @Test
+    fun `exposes the reply count when set`() {
+        val info = LoopCommentInfo(comment = LoopComment(comment = "hi"), repliesCount = 7)
+        assertEquals(7, info.repliesCount)
+    }
+
+    @Test
+    fun `the live like count replaces the denormalized comment count`() {
+        val comment = LoopComment(comment = "hi", likesCount = 2)
+        val liveCount = 5
+
+        val info = LoopCommentInfo(comment = comment, likesCount = liveCount)
+
+        assertEquals(2, info.comment.likesCount)
+        assertEquals(liveCount, info.likesCount)
     }
 }

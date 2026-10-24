@@ -8,7 +8,21 @@ package com.kornerz.feature.home
  */
 sealed interface HomeNavEvent {
     data object NavigateToProfile : HomeNavEvent
-    data class NavigateToLoopDetail(val loopId: String) : HomeNavEvent
+
+    /**
+     * Opens a loop's detail screen.
+     *
+     * @param loopId the loop to open.
+     * @param accentColorHex the tile's accent colour as a `#RRGGBB`
+     * hex string — the colour the tile was painted with. The detail
+     * screen inherits it, so the loop keeps one colour across the
+     * feed and the detail.
+     */
+    data class NavigateToLoopDetail(
+        val loopId: String,
+        val accentColorHex: String,
+    ) : HomeNavEvent
+
     data class NavigateToEventDetail(val nookId: String) : HomeNavEvent
     data class NavigateToKornerDetail(val kornerId: String) : HomeNavEvent
 }

@@ -2,6 +2,7 @@ package com.kornerz.core.network.gamification
 
 import com.google.android.gms.tasks.TaskCompletionSource
 import com.google.firebase.firestore.CollectionReference
+import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.QuerySnapshot
@@ -11,6 +12,7 @@ import com.kornerz.core.storage.session.SessionRepository
 import com.kornerz.core.storage.session.SessionState
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.verify
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -61,12 +63,22 @@ class GamificationRepositoryTest {
         return document
     }
 
+    /**
+     * Serves [documents] as the **first** page and an empty page after
+     * it — the read path pages with `startAfter` until a page comes
+     * back empty, so a mock that always returns the same page would
+     * never terminate.
+     */
     private fun gameficationPage(documents: List<DocumentSnapshot>) {
-        val snapshot = mockk<QuerySnapshot>()
-        every { snapshot.documents } returns documents
-        val task = TaskCompletionSource<QuerySnapshot>()
-        task.setResult(snapshot)
-        every { gameficationCollection.get() } returns task.task
+        val pages = ArrayDeque(listOf(documents, emptyList<DocumentSnapshot>()))
+        every { gameficationCollection.get() } answers {
+            val page = if (pages.isEmpty()) emptyList() else pages.removeFirst()
+            val snapshot = mockk<QuerySnapshot>()
+            every { snapshot.documents } returns page
+            val task = TaskCompletionSource<QuerySnapshot>()
+            task.setResult(snapshot)
+            task.task
+        }
     }
 
     private fun usersPage(entries: Map<String, String>) {
@@ -227,4 +239,129 @@ class GamificationRepositoryTest {
 
         assertTrue(result.isFailure)
     }
+
+    @Test
+    fun `addPoints writes a document with the ios field names`() = runTest {
+        every { sessionRepository.data } returns flowOf(
+            SessionState.Authenticated(User(id = "user-1", email = "a@example.com", displayName = "Ana", nickname = "Ana", userCode = "u1")),
+        )
+        val document = mockk<DocumentReference>()
+        every { gameficationCollection.document() } returns document
+        every { document.set(any<Map<String, Any?>>()) } returns TaskCompletionSource<Void>().apply {
+            setResult(null)
+        }.task
+
+        val result = repository.addPoints(action = "ACCESS_LOOP", points = 1, referenceId = "l1")
+
+        assertTrue(result.isSuccess)
+        val captured = slot<Map<String, Any?>>()
+        verify(exactly = 1) { document.set(capture(captured)) }
+        assertEquals("ACCESS_LOOP", captured.captured["gameficationAction"])
+        assertEquals(1, captured.captured["gameficationQtdPts"])
+        assertEquals("u1", captured.captured["gameficationUserId"])
+        assertEquals("l1", captured.captured["gameficationReferenceId"])
+        assertTrue(captured.captured.containsKey("gameficationDateHora"))
+    }
+
+    @Test
+    fun `addPoints is a no-op for an anonymous session`() = runTest {
+        every { sessionRepository.data } returns flowOf(SessionState.Anonymous)
+
+        val result = repository.addPoints(action = "ACCESS_LOOP", points = 1, referenceId = "l1")
+
+        assertTrue(result.isSuccess)
+        verify(exactly = 0) { gameficationCollection.document() }
+    }
+
+    @Test
+    fun `addPoints is a no-op for a user without a codeUser`() = runTest {
+        every { sessionRepository.data } returns flowOf(
+            SessionState.Authenticated(User(id = "user-1", email = "a@example.com", displayName = "Ana", nickname = "Ana", userCode = null)),
+        )
+
+        val result = repository.addPoints(action = "ACCESS_LOOP", points = 1, referenceId = "l1")
+
+        assertTrue(result.isSuccess)
+        verify(exactly = 0) { gameficationCollection.document() }
+    }
+
+    @Test
+    fun `addPoints reports a failed write rather than throwing`() = runTest {
+        every { sessionRepository.data } returns flowOf(
+            SessionState.Authenticated(User(id = "user-1", email = "a@example.com", displayName = "Ana", nickname = "Ana", userCode = "u1")),
+        )
+        val document = mockk<DocumentReference>()
+        every { gameficationCollection.document() } returns document
+        every { document.set(any<Map<String, Any?>>()) } throws IllegalStateException("offline")
+
+        val result = repository.addPoints(action = "ACCESS_LOOP", points = 1, referenceId = "l1")
+
+        assertTrue(result.isFailure)
+    }
+
+    /**
+     * The write path and the read path must agree on the field names —
+     * a `Gamefication` document Android writes has to be readable by the
+     * P10 leaderboard.
+     */
+    @Test
+    fun `the document written by addPoints is counted by the points read path`() = runTest {
+        every { sessionRepository.data } returns flowOf(
+            SessionState.Authenticated(User(id = "user-1", email = "a@example.com", displayName = "Ana", nickname = "Ana", userCode = "u1")),
+        )
+        val written = captureWrittenDocument()
+
+        repository.addPoints(action = "ACCESS_LOOP", points = 1, referenceId = "l1")
+
+        val payload = written.single()
+        assertEquals(1, payload["gameficationQtdPts"])
+        assertEquals("u1", payload["gameficationUserId"])
+        assertEquals("ACCESS_LOOP", payload["gameficationAction"])
+        assertEquals("l1", payload["gameficationReferenceId"])
+
+        gameficationPage(payloadsAsDocuments(written))
+        assertEquals(1, repository.getUserPoints().getOrThrow())
+    }
+
+    @Test
+    fun `the document written by addPoints shows up in the leaderboard`() = runTest {
+        every { sessionRepository.data } returns flowOf(
+            SessionState.Authenticated(User(id = "user-1", email = "a@example.com", displayName = "Ana", nickname = "Ana", userCode = "u1")),
+        )
+        val written = captureWrittenDocument()
+
+        repository.addPoints(action = "ACCESS_COMMENT", points = 3, referenceId = "l1")
+
+        gameficationPage(payloadsAsDocuments(written))
+        usersPage(mapOf("u1" to "Ana"))
+
+        val rows = repository.getRanking(10).getOrThrow()
+
+        assertEquals(listOf("u1"), rows.map { it.userId })
+        assertEquals(listOf(3), rows.map { it.points })
+        assertEquals(listOf("Ana"), rows.map { it.userName })
+    }
+
+    /** Captures the payload every `set` call writes. */
+    private fun captureWrittenDocument(): MutableList<Map<String, Any?>> {
+        val written = mutableListOf<Map<String, Any?>>()
+        val document = mockk<DocumentReference>()
+        every { gameficationCollection.document() } returns document
+        every { document.set(any<Map<String, Any?>>()) } answers {
+            written.add(firstArg<Map<String, Any?>>())
+            TaskCompletionSource<Void>().apply { setResult(null) }.task
+        }
+        return written
+    }
+
+    /** Serves the written payloads back through the read path. */
+    private fun payloadsAsDocuments(payloads: List<Map<String, Any?>>): List<DocumentSnapshot> =
+        payloads.map { payload ->
+            val document = mockk<DocumentSnapshot>()
+            every { document.get("gameficationQtdPts") } returns payload["gameficationQtdPts"]
+            every { document.get("gameficationPoints") } returns null
+            every { document.getString("gameficationUserId") } returns payload["gameficationUserId"] as? String
+            every { document.get("gameficationDateHora") } returns payload["gameficationDateHora"]
+            document
+        }
 }

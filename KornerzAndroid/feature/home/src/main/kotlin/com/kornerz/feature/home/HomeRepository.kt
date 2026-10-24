@@ -32,8 +32,8 @@ class HomeRepository @Inject constructor(
     suspend fun fetchCommunityNamesByIds(communityIds: List<String>): Map<String, String> =
         communitiesRepository.fetchCommunityNamesByIds(communityIds)
 
-    suspend fun fetchUsersByCodes(codes: List<String>): Map<String, UserSnippet> =
-        usersRepository.fetchUsersByCodes(codes)
+    suspend fun fetchUserSnippetsByCodes(codes: List<String>): Map<String, UserSnippet> =
+        usersRepository.fetchUserSnippetsByCodes(codes)
 
     suspend fun fetchYourKornerzCommunities(
         fellows: List<com.kornerz.core.model.FollowMember>,

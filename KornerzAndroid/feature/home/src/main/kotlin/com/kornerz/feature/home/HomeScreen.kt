@@ -35,7 +35,7 @@ fun HomeScreen(
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel(),
     onNavigateToKornerDetail: (String) -> Unit = {},
-    onNavigateToLoopDetail: (String) -> Unit = {},
+    onNavigateToLoopDetail: (String, String) -> Unit = { _, _ -> },
     onNavigateToProfile: () -> Unit = {},
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()

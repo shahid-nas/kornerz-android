@@ -14,8 +14,17 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -24,12 +33,16 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kornerz.core.model.AsyncValue
 import com.kornerz.core.ui.components.rememberKornerzImagePicker
+import com.kornerz.core.ui.theme.Satoshi
 import com.kornerz.feature.profile.accountdeletion.AccountDeletionConfirmDialog
 import com.kornerz.feature.profile.accountdeletion.AccountDeletionViewModel
 import com.kornerz.feature.profile.components.KornerzErrorState
@@ -47,8 +60,10 @@ import com.kornerz.feature.profile.components.UserInfoHeader
  * always-visible "Create Community" row that the previous P7 draft
  * added (and that iOS does not surface) was removed.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProfileScreen(
+    onBack: () -> Unit = {},
     onNavigateToPremium: () -> Unit,
     onNavigateToNotifications: () -> Unit,
     onNavigateToEditBasicInfo: () -> Unit,
@@ -98,18 +113,50 @@ fun ProfileScreen(
     val onAvatarPicked: (Bitmap) -> Unit = { bitmap ->
         currentUser?.let { viewModel.uploadAvatar(it.id, bitmap) }
     }
-    ProfileContent(
-        state = state,
-        premiumTrailingText = viewModel.premiumTrailingText(),
-        onPremiumTap = viewModel::onPremiumTap,
-        onNotificationsTap = viewModel::onNotificationsTap,
-        onEditBasicInfoTap = viewModel::onEditBasicInfoTap,
-        onPrivacyPolicyTap = viewModel::onPrivacyPolicyTap,
-        onMyCommunitiesTap = viewModel::onMyCommunitiesTap,
-        onLogoutTap = viewModel::onLogoutTap,
-        onDeleteAccountTap = viewModel::onDeleteAccountTap,
-        onAvatarPicked = onAvatarPicked,
-    )
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "Profile",
+                        fontFamily = Satoshi,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = Color(0xFF353446),
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color(0xFF353446),
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                ),
+            )
+        },
+    ) { padding ->
+        ProfileContent(
+            state = state,
+            premiumTrailingText = viewModel.premiumTrailingText(),
+            onPremiumTap = viewModel::onPremiumTap,
+            onNotificationsTap = viewModel::onNotificationsTap,
+            onEditBasicInfoTap = viewModel::onEditBasicInfoTap,
+            onPrivacyPolicyTap = viewModel::onPrivacyPolicyTap,
+            onMyCommunitiesTap = viewModel::onMyCommunitiesTap,
+            onLogoutTap = viewModel::onLogoutTap,
+            onDeleteAccountTap = viewModel::onDeleteAccountTap,
+            onAvatarPicked = onAvatarPicked,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+        )
+    }
     AccountDeletionConfirmDialog(
         state = deletionState,
         onCancel = {

@@ -34,10 +34,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
 import com.kornerz.core.ui.components.KornerzNetworkAvatar
+import com.kornerz.core.ui.components.timeAgoSinceDate
 import com.kornerz.core.ui.theme.KornerzTheme
 import kotlinx.datetime.Instant
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 
 /**
  * Shared loop item row used by the Loops tab list, the loop detail
@@ -82,12 +81,12 @@ fun LoopItemView(
             data.communityName?.takeIf { it.isNotBlank() }?.let { community ->
                 Spacer(Modifier.padding(top = 2.dp))
                 Text(
-                    text = "in $community · ${formatTimeAgo(data.creationDate)}",
+                    text = "in $community · ${timeAgoSinceDate(data.creationDate)}",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } ?: Text(
-                text = formatTimeAgo(data.creationDate),
+                text = timeAgoSinceDate(data.creationDate),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -172,22 +171,6 @@ private fun StatChip(icon: ImageVector, count: Int, tint: Color) {
             style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
             color = tint,
         )
-    }
-}
-
-private fun formatTimeAgo(instant: Instant?): String {
-    if (instant == null) return ""
-    val now = kotlinx.datetime.Clock.System.now()
-    val seconds = (now - instant).inWholeSeconds
-    return when {
-        seconds < 60 -> "just now"
-        seconds < 3600 -> "${seconds / 60}m ago"
-        seconds < 86_400 -> "${seconds / 3600}h ago"
-        seconds < 604_800 -> "${seconds / 86_400}d ago"
-        else -> {
-            val ldt = instant.toLocalDateTime(TimeZone.currentSystemDefault())
-            "${ldt.year}-${ldt.monthNumber.toString().padStart(2, '0')}-${ldt.dayOfMonth.toString().padStart(2, '0')}"
-        }
     }
 }
 

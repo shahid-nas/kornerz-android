@@ -167,6 +167,38 @@ class CommunitiesRepository @Inject constructor(
     }
 
     /**
+     * Fetches a single community by its **`communityId` field**, keeping
+     * the Firestore **document id** in [Community.id].
+     *
+     * [fetchById] resolves the same document but overwrites `Community.id`
+     * with the `communityId` field, which is convenient for the callers
+     * that address a community by its public id. The loop detail screen
+     * needs the opposite: it navigates to `kornerz/{kornerId}`, and that
+     * route reads `Communities/{documentId}` — so it needs the document
+     * id, not the field.
+     *
+     * Returns `null` when no community carries that `communityId`.
+     */
+    suspend fun fetchByCommunityId(id: String): Community? {
+        if (id.isBlank()) return null
+        val snapshot = collection
+            .whereIn(FIELD_COMMUNITY_ID, listOf(id))
+            .get()
+            .await()
+        val doc = snapshot.documents.firstOrNull() ?: return null
+        val data = doc.data ?: return null
+        val communityId = data[FIELD_COMMUNITY_ID] as? String
+        val name = (data[FIELD_COMMUNITY_NAME] as? String) ?: return null
+        return Community(
+            id = doc.id,
+            code = doc.id,
+            communityId = communityId,
+            name = name,
+            firebaseImageURL = data[FIELD_FIREBASE_IMAGE_URL] as? String,
+        )
+    }
+
+    /**
      * Translates a community's public `communityId` field into the
      * Firestore **document id** of the same community.
      *

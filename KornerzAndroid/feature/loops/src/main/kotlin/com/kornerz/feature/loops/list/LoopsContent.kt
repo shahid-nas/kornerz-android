@@ -44,7 +44,7 @@ import com.kornerz.core.ui.theme.KornerzTheme
 import com.kornerz.core.ui.theme.Spacing
 import com.kornerz.feature.loops.components.LoopCardData
 import com.kornerz.feature.loops.components.LoopItemView
-import com.kornerz.feature.loops.components.RandomColorService
+import com.kornerz.core.ui.theme.KornerzCardPalette
 import com.kornerz.feature.loops.list.LoopsEvent
 import com.kornerz.feature.loops.list.LoopsState
 import com.kornerz.feature.loops.list.PagingState
@@ -231,10 +231,14 @@ private fun SuccessList(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             itemsIndexed(paging.items) { index, item ->
+                // The row's accent colour travels with the navigation:
+                // the detail screen paints itself in the very colour
+                // the user tapped (iOS `LoopsTabView.swift:114-118`).
+                val accentHex = KornerzCardPalette.hexForIndex(index)
                 LoopItemView(
                     data = item,
-                    color = RandomColorService.colorFor(index),
-                    onClick = { id -> onEvent(LoopsEvent.LoopClicked(id)) },
+                    color = KornerzCardPalette.color(index),
+                    onClick = { id -> onEvent(LoopsEvent.LoopClicked(id, accentHex)) },
                 )
             }
             if (paging.isLoadingMore) {

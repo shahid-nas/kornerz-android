@@ -10,7 +10,6 @@ import com.kornerz.core.network.loops.LoopCursor
 import com.kornerz.core.network.user.UsersRepository
 import com.kornerz.core.ui.components.header.TabHeaderViewModel
 import com.kornerz.feature.loops.components.LoopCardData
-import com.kornerz.feature.loops.components.RandomColorService
 import com.kornerz.feature.loops.data.LoopMapper
 import com.kornerz.feature.loops.data.LoopRepository
 import com.kornerz.feature.loops.data.toCardData
@@ -84,7 +83,8 @@ class LoopsViewModel @Inject constructor(
             }
             LoopsEvent.Retry -> loadInitial()
             LoopsEvent.AvatarTapped -> emit(LoopsNavEvent.NavigateToProfile)
-            is LoopsEvent.LoopClicked -> emit(LoopsNavEvent.NavigateToLoopDetail(event.loopId))
+            is LoopsEvent.LoopClicked ->
+                emit(LoopsNavEvent.NavigateToLoopDetail(event.loopId, event.accentColorHex))
             is LoopsEvent.FilterChanged -> {
                 if (_state.value.selectedFilter != event.filter) {
                     _state.update { it.copy(selectedFilter = event.filter) }
@@ -106,9 +106,6 @@ class LoopsViewModel @Inject constructor(
             LoopsEvent.ScrollReachedEnd -> loadMore()
         }
     }
-
-    fun fetchLoopColor(index: Int): androidx.compose.ui.graphics.Color =
-        RandomColorService.colorFor(index)
 
     private fun loadInitial() {
         feedJob?.cancel()
@@ -200,7 +197,7 @@ class LoopsViewModel @Inject constructor(
                     )
                 }
         val users: Map<String, com.kornerz.core.model.User> =
-            usersRepository.fetchUsersByCodes(publisherIds)
+            usersRepository.fetchUserSnippetsByCodes(publisherIds)
                 .mapValues { (_, snippet) ->
                     com.kornerz.core.model.User(
                         id = snippet.code,

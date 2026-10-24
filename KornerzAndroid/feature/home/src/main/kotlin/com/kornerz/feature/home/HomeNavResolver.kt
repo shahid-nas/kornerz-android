@@ -18,13 +18,14 @@ object HomeNavResolver {
         snackbar: SnackbarHostState,
         events: Flow<HomeNavEvent>,
         onNavigateToKornerDetail: (String) -> Unit,
-        onNavigateToLoopDetail: (String) -> Unit = {},
+        onNavigateToLoopDetail: (String, String) -> Unit = { _, _ -> },
         onNavigateToProfile: () -> Unit = {},
     ) {
         events.collect { event ->
             when (event) {
                 HomeNavEvent.NavigateToProfile -> onNavigateToProfile()
-                is HomeNavEvent.NavigateToLoopDetail -> onNavigateToLoopDetail(event.loopId)
+                is HomeNavEvent.NavigateToLoopDetail ->
+                    onNavigateToLoopDetail(event.loopId, event.accentColorHex)
                 is HomeNavEvent.NavigateToEventDetail -> snackbar.showSnackbar("Event detail coming in Phase 4")
                 is HomeNavEvent.NavigateToKornerDetail -> onNavigateToKornerDetail(event.kornerId)
             }

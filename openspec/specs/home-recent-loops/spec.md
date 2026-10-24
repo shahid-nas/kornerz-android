@@ -4,22 +4,21 @@
 TBD - created by archiving change phase-2-home-tab-shell. Update Purpose after archive.
 ## Requirements
 ### Requirement: Recent loops renders a horizontal carousel of recent loops
-The Recent loops section SHALL render a horizontal carousel of the signed-in user's most recent loops (limit 10, sorted by `createdAt` descending), mirroring `SwiftUI/Dashboard/HomeTab/Sections/RecentLoops/RecentLoopsView.swift`. Each tile SHALL compose the `LoopItemView(data: LoopCardData, color: Color, modifier: Modifier = Modifier)` composable from `feature/loops` (introduced in P5, `loops-tab` capability) so the home carousel and the Loops tab feed share a single row renderer. The `LoopItemView` SHALL render the loop thumbnail (Coil-loaded with shimmer placeholder), the loop title in Satoshi Bold 12sp (2-line max), the community name + creation date subtitle row in Satoshi 12sp, the description in Satoshi 12sp (3-line max, gray foreground), the publisher-avatar overlay at the bottom-leading corner of the thumbnail, and the stats row (eye / comments / likes) in Satoshi 10sp gray. Each tile is tappable and emits `HomeNavEvent.NavigateToLoopDetail(loopId)` which the shell routes into `loops/{loopId}` (introduced in P5, `loop-detail` capability).
+The Recent loops section SHALL render a horizontal carousel of the signed-in user's most recent loops (limit 10, sorted by `createdAt` descending), mirroring `SwiftUI/Dashboard/HomeTab/Sections/RecentLoops/RecentLoopsView.swift`. Each tile SHALL compose the `LoopItemView(data: LoopCardData, color: Color, modifier: Modifier = Modifier)` composable from `feature/loops` (introduced in P5, `loops-tab` capability) so the home carousel and the Loops tab feed share a single row renderer. The `LoopItemView` SHALL render the loop thumbnail (Coil-loaded with shimmer placeholder), the loop title in Satoshi Bold 12sp (2-line max), the community name + creation date subtitle row in Satoshi 12sp, the description in Satoshi 12sp (3-line max, gray foreground), the publisher-avatar overlay at the bottom-leading corner of the thumbnail, and the stats row (eye / comments / likes) in Satoshi 10sp gray. Each tile is tappable and emits `HomeNavEvent.NavigateToLoopDetail(loopId)` which the shell routes into `loops/{loopId}` (introduced in P5, `loop-detail` capability) inside the **Home tab's** nested `NavHost`.
 
 #### Scenario: Carousel renders recent loops
 - **WHEN** the recent loops fetch returns 5 loops
 - **THEN** the section renders 5 tiles in a horizontal scrollable row
 - **AND** each tile composes `LoopItemView` from `feature/loops` with the matching `LoopCardData` and per-tile accent color
-- **AND** each tile is tappable and emits `HomeNavEvent.NavigateToLoopDetail(loopId)` which the shell routes into the Loops tab's nested NavHost at `loops/{loopId}`
+- **AND** each tile is tappable and emits `HomeNavEvent.NavigateToLoopDetail(loopId)` which the shell routes into the Home tab's nested NavHost at `loops/{loopId}`
 
-#### Scenario: Recent loops tile routes to loop detail (crosses tab boundary)
+#### Scenario: Recent loops tile routes to loop detail inside the Home tab
 - **WHEN** the user taps a `LoopItemView` row in the Home tab's recent-loops carousel
-- **THEN** the app switches the bottom navigation bar selection to the Loops tab
-- **AND** the Loops tab's nested NavHost pushes `loops/{loopId}`
-- **AND** the bottom navigation bar remains visible
+- **THEN** the Home tab's nested NavHost pushes `loops/{loopId}` with `hideBottomBar = true`
+- **AND** the bottom navigation bar is hidden
+- **AND** the Home tab remains the active tab (iOS parity — `HomeTabCoordinator.navigateToLoopDetail` pushes the detail on the Home tab's own navigation stack)
 - **WHEN** the user presses the system back button from `loops/{loopId}`
-- **THEN** the Loops tab's nested NavHost pops back to `loops/list`
-- **AND** the Loops tab remains selected (matching iOS `LoopDetailCoordinator.popView()` semantics)
+- **THEN** the Home tab's nested NavHost pops back to the Home feed
 
 #### Scenario: Empty recent loops hides the section
 - **WHEN** the recent loops fetch returns zero items

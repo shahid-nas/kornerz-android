@@ -32,19 +32,26 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
             <!--
-              P10 — the `kornerz://` deep-link scheme. The hosts are the
-              three the URI grammar uses: `loop`, `forum` and
-              `community`. `singleTop` on the activity above means a
-              warm link is delivered to the running instance through
-              `onNewIntent` instead of creating a second one.
+              P10 — the `kornerz://` deep-link scheme. The scheme and
+              the hosts are declared in separate `<data>` elements: the
+              platform merges every `<data>` element's attributes into
+              one filter, so this is the cross-product
+              "scheme = kornerz AND host ∈ {loop, forum, community}".
+              Splitting them is also what Android Lint's
+              `IntentFilterUniqueDataAttributes` asks for.
+
+              `singleTop` on the activity above means a warm link is
+              delivered to the running instance through `onNewIntent`
+              instead of creating a second one.
             -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="kornerz" android:host="loop" />
-                <data android:scheme="kornerz" android:host="forum" />
-                <data android:scheme="kornerz" android:host="community" />
+                <data android:scheme="kornerz" />
+                <data android:host="loop" />
+                <data android:host="forum" />
+                <data android:host="community" />
             </intent-filter>
         </activity>
 

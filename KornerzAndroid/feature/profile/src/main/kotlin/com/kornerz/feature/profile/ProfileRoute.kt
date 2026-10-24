@@ -7,11 +7,15 @@ import androidx.navigation.navArgument
 
 /**
  * Top-level routes for the Profile destination (P6, task 9.1 / 9.2).
- * `View.route` is registered on the shell's root NavHost as a
- * `composable` (pushed, not a tab), matching the iOS
- * `UserProfileVC.hidesBottomBarWhenPushed = true` pattern. The
- * remaining routes live on the nested NavHost hosted inside the
- * root `profile/view` composable.
+ * Every route is registered on the shell's root `NavHost` as a
+ * `composable` (`View.route` is pushed, not a tab, matching the iOS
+ * `UserProfileVC.hidesBottomBarWhenPushed = true` pattern).
+ *
+ * They are deliberately **not** hosted in a nested `NavHost`: a nested
+ * host needs its own `NavHostController`, and a controller shared
+ * across several outer back-stack entries crashes with
+ * `IllegalStateException: ViewModelStore should be set before setGraph
+ * call` when the screen is opened a second time.
  */
 sealed class ProfileRoute {
     data object View : ProfileRoute() {

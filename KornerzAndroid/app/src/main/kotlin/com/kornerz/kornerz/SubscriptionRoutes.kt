@@ -144,13 +144,15 @@ fun rememberSubscriptionRoutes(premiumGate: PremiumGate): List<ShellExtraRoute> 
 
 /**
  * Returns to the destination that was current before the paywall opened,
- * falling back to a plain pop when that entry is gone (for example after a
- * process restore).
+ * falling back to a plain pop when that entry is gone (for example after
+ * a process restore).
  *
- * Only the Privacy Policy link still needs this: the PDF viewer lives on the
- * Profile tab's nested `NavHost`, which is not composed while
- * `subscription/plans` is the current destination, so the plans route must
- * be popped for the viewer to render at all.
+ * The Privacy Policy link still needs this: the paywall route is
+ * mandatory (it has no close affordance and swallows the system back
+ * gesture), so it must be popped off the stack before the PDF viewer can
+ * take over. The viewer itself lives on the shell's root graph
+ * (`profile/privacy-policy`, registered by `feature/shell`), so it renders
+ * as soon as the plans route is gone.
  */
 private fun popToPreGateDestination(
     navController: androidx.navigation.NavHostController,

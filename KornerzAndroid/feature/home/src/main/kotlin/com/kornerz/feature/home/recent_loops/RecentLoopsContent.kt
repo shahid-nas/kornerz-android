@@ -17,6 +17,7 @@ import com.kornerz.core.model.Loop
 import com.kornerz.core.ui.components.HomeSectionHeader
 import com.kornerz.core.ui.components.HomeShimmerPlaceholder
 import com.kornerz.core.ui.components.KornerzErrorState
+import com.kornerz.core.ui.theme.KornerzCardPalette
 import com.kornerz.core.ui.theme.KornerzTheme
 import com.kornerz.core.ui.theme.Spacing
 import com.kornerz.feature.home.loop.LoopItem
@@ -28,11 +29,15 @@ import kotlinx.datetime.Instant
  * 16)` of `LoopItemView`s under the section header. The per-row accent
  * color cycles through `loopAccentColor(index)` matching iOS's
  * `colorService.color(for: index)`.
+ *
+ * The row's accent colour travels with the tap — the detail screen
+ * inherits it, so the loop keeps one colour across the feed and the
+ * detail (iOS hands the row's colour to the detail screen).
  */
 @Composable
 fun RecentLoopsContent(
     loops: List<Loop>,
-    onClick: (String) -> Unit,
+    onClick: (String, String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
@@ -50,7 +55,7 @@ fun RecentLoopsContent(
                 LoopItem(
                     loop = loop,
                     accentIndex = index,
-                    onClick = onClick,
+                    onClick = { id -> onClick(id, KornerzCardPalette.hexForIndex(index)) },
                 )
             }
         }
@@ -112,7 +117,7 @@ private fun RecentLoopsPreview() {
                     likesCount = 4,
                 ),
             ),
-            onClick = {},
+            onClick = { _, _ -> },
         )
     }
 }

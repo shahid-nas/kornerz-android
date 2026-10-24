@@ -4,7 +4,7 @@ import com.kornerz.core.network.loops.CommentLikeFirestoreApi
 import com.kornerz.core.network.loops.LoopCommentFirestoreApi
 import com.kornerz.core.network.loops.LoopFirestoreApi
 import com.kornerz.core.network.loops.LoopLikeFirestoreApi
-import com.kornerz.feature.loops.data.CommentLikeRepository
+import com.kornerz.core.network.loops.CommentLikeRepository
 import com.kornerz.feature.loops.data.LoopCommentRepository
 import com.kornerz.feature.loops.data.LoopLikeRepository
 import com.kornerz.feature.loops.data.LoopRepository

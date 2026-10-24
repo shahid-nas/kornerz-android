@@ -69,6 +69,56 @@ class GamificationRepository @Inject constructor(
     }
 
     /**
+     * Awards Klouders points by writing one `Gamefication` document.
+     * Mirrors iOS `GamificationService.addPoints(action:points:referenceId:)`
+     * (`kornerz/Kornerz/FirestoreService/GamificationService.swift`).
+     *
+     * The document carries the iOS field names verbatim:
+     *
+     * | Kotlin parameter | Firestore field |
+     * |---|---|
+     * | `action` | `gameficationAction` |
+     * | `points` | `gameficationQtdPts` |
+     * | now | `gameficationDateHora` |
+     * | the signed-in user's `codeUser` | `gameficationUserId` |
+     * | `referenceId` | `gameficationReferenceId` |
+     *
+     * The write is a **no-op** for an anonymous session (or a user
+     * without a `codeUser`): it returns `Result.success(Unit)` and
+     * creates no document, so an anonymous session never writes a
+     * `Gamefication` document with an empty user id.
+     *
+     * The document it writes is readable by the existing read path —
+     * [getUserPoints] and [getRanking] both read `gameficationQtdPts`
+     * and aggregate per `gameficationUserId`.
+     *
+     * Returns `Result.failure` rather than throwing when the write
+     * fails.
+     */
+    suspend fun addPoints(
+        action: String,
+        points: Int,
+        referenceId: String,
+    ): Result<Unit> = runCatching {
+        val user = (sessionRepository.data.first() as? SessionState.Authenticated)?.user
+        val userCode = user?.userCode?.takeIf { it.isNotBlank() }
+            ?: return@runCatching Unit
+
+        val payload = hashMapOf<String, Any?>(
+            FIELD_ACTION to action,
+            FIELD_POINTS to points,
+            FIELD_DATE to com.google.firebase.Timestamp.now(),
+            FIELD_USER_ID to userCode,
+            FIELD_REFERENCE_ID to referenceId,
+        )
+        firestore.collection(GAMIFICATION_COLLECTION)
+            .document()
+            .set(payload)
+            .await()
+        Unit
+    }
+
+    /**
      * Returns the current month's leaderboard, ordered by points
      * descending, capped at [count] rows. Mirrors iOS
      * `GamificationService.getRanking(_:)` (lines 106–140) plus its
@@ -245,6 +295,12 @@ class GamificationRepository @Inject constructor(
 
         const val FIELD_USER_CODE = "codeUser"
         const val FIELD_USER_NICKNAME = "nickname"
+
+        /** iOS `CodingKeys.action` (`Models/Gamification.swift`). */
+        const val FIELD_ACTION = "gameficationAction"
+
+        /** iOS `CodingKeys.referenceId` (`Models/Gamification.swift`). */
+        const val FIELD_REFERENCE_ID = "gameficationReferenceId"
 
         /** The name a row keeps when its user id does not resolve. */
         const val FALLBACK_USER_NAME = "User"

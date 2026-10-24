@@ -93,6 +93,62 @@ class CommentLikeFirestoreApi @Inject constructor(
         }
     }.onFailure { Log.w(TAG, "fetchLikesForComment: ${it.message}") }
 
+    /**
+     * The **live** like count of every comment in [commentIds], keyed by
+     * comment id.
+     *
+     * The read is batched: one `CommentLikes where commentId in […]`
+     * query per chunk of at most [MAX_IN_QUERY_VALUES] ids, counting
+     * the documents per comment id. iOS issues **two** queries per
+     * comment inside its `DispatchGroup` fan-out, so a 40-comment loop
+     * costs 80 reads on iOS and two reads here.
+     *
+     * The count replaces the denormalized `LoopComments.likesCount` —
+     * matching iOS, where `LoopCommentInfo.setLikeCount(_:)` overwrites
+     * the stored count with the fetched one.
+     */
+    suspend fun fetchLikeCounts(commentIds: List<String>): Result<Map<String, Int>> = runCatching {
+        if (commentIds.isEmpty()) return@runCatching emptyMap()
+        val counts = LinkedHashMap<String, Int>()
+        for (chunk in commentIds.distinct().chunked(MAX_IN_QUERY_VALUES)) {
+            val snap = collection
+                .whereIn(FIELD_COMMENT_ID, chunk)
+                .get()
+                .await()
+            for (doc in snap.documents) {
+                val commentId = doc.getString(FIELD_COMMENT_ID) ?: continue
+                counts[commentId] = (counts[commentId] ?: 0) + 1
+            }
+        }
+        counts
+    }.onFailure { Log.w(TAG, "fetchLikeCounts: ${it.message}") }
+
+    /**
+     * The ids of the comments in [commentIds] that [userId] has liked.
+     *
+     * The read is batched: one
+     * `CommentLikes where userId == userId AND commentId in […]` query
+     * per chunk of at most [MAX_IN_QUERY_VALUES] ids.
+     */
+    suspend fun fetchLikedCommentIds(
+        userId: String,
+        commentIds: List<String>,
+    ): Result<Set<String>> = runCatching {
+        if (userId.isBlank() || commentIds.isEmpty()) return@runCatching emptySet()
+        val liked = LinkedHashSet<String>()
+        for (chunk in commentIds.distinct().chunked(MAX_IN_QUERY_VALUES)) {
+            val snap = collection
+                .whereEqualTo(FIELD_USER_ID, userId)
+                .whereIn(FIELD_COMMENT_ID, chunk)
+                .get()
+                .await()
+            for (doc in snap.documents) {
+                doc.getString(FIELD_COMMENT_ID)?.let { liked.add(it) }
+            }
+        }
+        liked
+    }.onFailure { Log.w(TAG, "fetchLikedCommentIds: ${it.message}") }
+
     companion object {
         private const val TAG = "CommentLikeFirestoreApi"
 
@@ -103,5 +159,11 @@ class CommentLikeFirestoreApi @Inject constructor(
         const val FIELD_COMMENT_ID = "commentId"
         const val FIELD_CREATION_DATE = "creationDate"
         const val FIELD_LIKES_COUNT = "likesCount"
+
+        /**
+         * Firestore's cap on the number of values in an `in` clause.
+         * The comment ids are chunked into groups of this size.
+         */
+        const val MAX_IN_QUERY_VALUES = 30
     }
 }

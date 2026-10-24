@@ -15,211 +15,347 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChatBubble
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Message
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.PlayCircleFilled
 import androidx.compose.material.icons.filled.RemoveRedEye
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
 import com.kornerz.core.model.AsyncValue
+import com.kornerz.core.model.Community
 import com.kornerz.core.model.Loop
 import com.kornerz.core.model.LoopCommentInfo
+import com.kornerz.core.model.LoopDetailInfo
+import com.kornerz.core.model.User
 import com.kornerz.core.ui.components.HomeShimmerPlaceholder
-import com.kornerz.core.ui.components.KornerzEmptyState
 import com.kornerz.core.ui.components.KornerzErrorState
-import com.kornerz.core.ui.components.KornerzNetworkAvatar
+import com.kornerz.core.ui.components.KornerzExpandableText
+import com.kornerz.core.ui.components.KornerzHtmlText
+import com.kornerz.core.ui.components.KornerzTriangleImage
+import com.kornerz.core.ui.components.TriangleCorner
+import com.kornerz.core.ui.components.timeAgoSinceDate
+import com.kornerz.core.ui.theme.KornerzCardPalette
 import com.kornerz.core.ui.theme.KornerzTheme
 import com.kornerz.core.ui.theme.Spacing
 import com.kornerz.feature.loops.components.LoopCommentView
-import com.kornerz.feature.loops.components.RandomColorService
-import com.kornerz.feature.loops.video.VideoPlayerView
-import kotlinx.datetime.Instant
 
 /**
  * Stateless renderer for the loop detail screen (architecture §2.1).
- * Renders media + title row + description + stats + comments list +
- * add-comment affordance. Switches between shimmer / error / content
- * via the `AsyncValue` pattern (arch §2.2).
+ *
+ * The layout is a 1:1 port of iOS `LoopDetailView.swift`: the media
+ * area, the title row, the description, the stats row, the comments
+ * header, the comment list and the empty-comments state — in that
+ * order, driven entirely by [LoopDetailState] with no business logic
+ * in the composable.
+ *
+ * The **back affordance** floats over the media area — iOS makes the
+ * navigation bar transparent and hangs a leading control over the
+ * media (`LoopDetailController.setupCustomBackButton`), so the button
+ * is painted on top of the content rather than in a top bar that would
+ * push the media down.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoopDetailContent(
     state: LoopDetailState,
     onEvent: (LoopDetailEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier.fillMaxSize()) {
+    val accent = KornerzCardPalette.colorFromHex(state.resolvedAccentColorHex)
+        ?: Color(0xFFE27D5A)
+
+    Box(modifier = modifier.fillMaxSize()) {
         when (val detail = state.detail) {
-            is AsyncValue.Loading -> ShimmerDetail()
+            is AsyncValue.Loading -> ShimmerDetail(accent = accent)
             is AsyncValue.Error -> KornerzErrorState(
                 message = "Failed to load loop",
                 onRetry = { onEvent(LoopDetailEvent.Retry) },
             )
             is AsyncValue.Success -> DetailSuccess(
-                loop = detail.data,
-                isLikedByUser = state.isLikedByUser,
-                isLikeInProgress = state.isLikeInProgress,
-                likesCount = state.likesCount,
-                commentsCount = state.commentsCount,
-                comments = state.comments,
+                detail = detail.data,
+                state = state,
+                accent = accent,
                 onEvent = onEvent,
             )
         }
+        LoopDetailBackButton(
+            onBack = { onEvent(LoopDetailEvent.BackTapped) },
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(vertical = Spacing.space8),
+        )
     }
 }
 
+/**
+ * The back affordance — the Android counterpart of iOS
+ * `LoopDetailController.setupCustomBackButton`.
+ *
+ * iOS draws a 30 pt leading control over the media area. Android
+ * keeps the platform chevron every other back affordance in the app
+ * uses (`ReplyContent`, `NotificationsScreen`, `CommunityDetailScreen`)
+ * and paints it on a translucent disc, so it stays legible over both
+ * the accent-coloured placeholder and an arbitrary photo.
+ */
 @Composable
-private fun ShimmerDetail() {
+private fun LoopDetailBackButton(
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    IconButton(
+        onClick = onBack,
+        modifier = modifier,
+    ) {
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+            contentDescription = "Back",
+            tint = Color.White,
+            modifier = Modifier
+                .size(36.dp)
+                .background(Color.Black.copy(alpha = 0.4f), CircleShape)
+                .padding(8.dp),
+        )
+    }
+}
+
+/**
+ * The loading state — iOS `.redacted(reason: .placeholder)`.
+ *
+ * Only the media, the title and the stats sections are redacted; the
+ * description, the comments header and the comment list are **not**
+ * rendered at all while the loop is loading.
+ */
+@Composable
+private fun ShimmerDetail(accent: Color) {
     HomeShimmerPlaceholder {
-        Column(
-            modifier = Modifier.padding(Spacing.space8),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
+        Column {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(250.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                    .background(accent.copy(alpha = 0.4f)),
             )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(0.7f)
-                    .height(20.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-            )
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(80.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-            )
+            Column(
+                modifier = Modifier.padding(Spacing.space8),
+                verticalArrangement = Arrangement.spacedBy(Spacing.space4),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.7f)
+                        .height(20.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.4f)
+                        .height(12.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                )
+                HorizontalDivider()
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(0.5f)
+                        .height(12.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                )
+                HorizontalDivider()
+            }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DetailSuccess(
-    loop: Loop,
-    isLikedByUser: Boolean,
-    isLikeInProgress: Boolean,
-    likesCount: Int,
-    commentsCount: Int,
-    comments: AsyncValue<List<LoopCommentInfo>>,
+    detail: LoopDetailInfo,
+    state: LoopDetailState,
+    accent: Color,
     onEvent: (LoopDetailEvent) -> Unit,
 ) {
-    LazyColumn(
+    val loop = detail.loop
+    PullToRefreshBox(
+        isRefreshing = state.isRefreshing,
+        onRefresh = { onEvent(LoopDetailEvent.Refresh) },
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 96.dp),
     ) {
-        item {
-            MediaSection(loop = loop, onEvent = onEvent)
-        }
-        item {
-            TitleRow(
-                loop = loop,
-                isLikedByUser = isLikedByUser,
-                isLikeInProgress = isLikeInProgress,
-                likesCount = likesCount,
-                onEvent = onEvent,
-            )
-        }
-        loop.description?.takeIf { it.isNotBlank() }?.let { description ->
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = Spacing.space16),
+        ) {
             item {
-                ExpandableText(text = description)
+                MediaSection(
+                    loop = loop,
+                    owner = detail.owner,
+                    accent = accent,
+                    onEvent = onEvent,
+                )
             }
-        }
-        item { StatsRow(viewCounts = loop.viewCounts ?: 0, commentsCount = commentsCount, likesCount = likesCount) }
-        item { CommentsHeader() }
-        when (val c = comments) {
-            is AsyncValue.Loading -> item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(Spacing.space8),
-                ) { Text("Loading comments…", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            item {
+                TitleRow(
+                    loop = loop,
+                    owner = detail.owner,
+                    community = detail.community,
+                    accent = accent,
+                    isLikedByUser = state.isLikedByUser,
+                    isLikeInProgress = state.isLikeInProgress,
+                    onEvent = onEvent,
+                )
             }
-            is AsyncValue.Error -> item {
-                KornerzErrorState(message = "Failed to load comments", onRetry = { onEvent(LoopDetailEvent.Retry) })
+            item {
+                DescriptionSection(
+                    loop = loop,
+                    accent = accent,
+                )
             }
-            is AsyncValue.Success -> {
-                if (c.data.isEmpty()) {
-                    item { KornerzEmptyState(title = "No comments yet", subtitle = "Be the first to comment") }
-                } else {
-                    items(c.data) { info ->
-                        LoopCommentView(
-                            info = info,
-                            color = RandomColorService.colorFor(info.comment.id?.hashCode() ?: 0),
-                            onReply = { onEvent(LoopDetailEvent.CommentReplyTapped(it.comment.id.orEmpty())) },
-                            onLike = { onEvent(LoopDetailEvent.CommentLikeToggled(it)) },
-                            onDelete = { onEvent(LoopDetailEvent.CommentDeleteConfirmed(it.comment.id.orEmpty())) },
+            item {
+                StatsRow(
+                    viewCounts = loop.viewCounts ?: 0,
+                    commentsCount = state.commentsCount,
+                    likesCount = state.likesCount,
+                    isLikedByUser = state.isLikedByUser,
+                )
+            }
+            item { CommentsHeader() }
+            when (val comments = state.comments) {
+                is AsyncValue.Loading -> item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(Spacing.space8),
+                    ) {
+                        Text(
+                            text = "Loading comments…",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                    }
+                }
+                is AsyncValue.Error -> item {
+                    KornerzErrorState(
+                        message = "Failed to load comments",
+                        onRetry = { onEvent(LoopDetailEvent.Retry) },
+                    )
+                }
+                is AsyncValue.Success -> {
+                    if (comments.data.isEmpty()) {
+                        item { EmptyCommentsState() }
+                    } else {
+                        items(comments.data, key = { it.comment.id ?: it.hashCode().toString() }) { info ->
+                            LoopCommentView(
+                                info = info,
+                                accent = accent,
+                                canDelete = state.canDelete(info),
+                                onReply = {
+                                    onEvent(LoopDetailEvent.CommentReplyTapped(it.comment.id.orEmpty()))
+                                },
+                                onLike = { onEvent(LoopDetailEvent.CommentLikeToggled(it)) },
+                                onDelete = {
+                                    onEvent(LoopDetailEvent.CommentDeleteConfirmed(it.comment.id.orEmpty()))
+                                },
+                            )
+                            HorizontalDivider()
+                        }
                     }
                 }
             }
         }
-        item { AddCommentRow(onClick = { onEvent(LoopDetailEvent.AddCommentTapped(loop.id.orEmpty())) }) }
     }
 }
 
+/**
+ * The media area — 250dp, full-bleed, painted with the per-loop accent
+ * colour so it doubles as the placeholder.
+ *
+ * A video loop renders its **poster** with a centred 70dp
+ * `play.circle.fill` badge; the player itself lives in a modal
+ * (see `LoopDetailVideoDialog`), never inline.
+ */
 @Composable
-private fun MediaSection(loop: Loop, onEvent: (LoopDetailEvent) -> Unit) {
-    val loopId = loop.id.orEmpty()
-    val accent = Color(0xFF5D47ED)
+private fun MediaSection(
+    loop: Loop,
+    owner: User?,
+    accent: Color,
+    onEvent: (LoopDetailEvent) -> Unit,
+) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(250.dp)
             .background(accent)
-            .clickable { onEvent(LoopDetailEvent.MediaTapped(loopId)) },
+            .clickable { onEvent(LoopDetailEvent.MediaTapped(loop.id.orEmpty())) },
     ) {
-        if (loop.isVideo) {
-            VideoPlayerView(
-                videoUrl = loop.iOsVideoUrl,
-                autoPlay = false,
+        val poster = if (loop.isVideo) {
+            loop.iOsThumbnailUrl
+        } else {
+            loop.iOsImageUrl ?: loop.iOsThumbnailUrl
+        }
+        if (poster != null) {
+            SubcomposeAsyncImage(
+                model = poster,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
-        } else {
-            val image = loop.iOsImageUrl ?: loop.iOsThumbnailUrl
-            if (image != null) {
-                SubcomposeAsyncImage(
-                    model = image,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
         }
-        // Publisher avatar overlay (bottom-leading, 16dp padding).
-        KornerzNetworkAvatar(
-            imageUrl = null,
-            size = 48.dp,
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(16.dp),
-        )
+        if (loop.isVideo) {
+            Icon(
+                imageVector = Icons.Filled.PlayCircleFilled,
+                contentDescription = "Play",
+                tint = Color.White,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(70.dp),
+            )
+        }
+        owner?.let { resolved ->
+            KornerzTriangleImage(
+                imageUrl = resolved.thumbnailURL ?: resolved.photoUrl,
+                size = 55.dp,
+                cornerRadius = 8.dp,
+                corner = TriangleCorner.BottomLeft,
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(16.dp),
+            )
+        }
     }
 }
 
+/**
+ * The title row — the title, the publisher / "in" / community /
+ * timestamp meta row and the 36dp like toggle.
+ *
+ * The like **count** is deliberately absent: it lives in the stats
+ * row, matching iOS.
+ */
 @Composable
 private fun TitleRow(
     loop: Loop,
+    owner: User?,
+    community: Community?,
+    accent: Color,
     isLikedByUser: Boolean,
     isLikeInProgress: Boolean,
-    likesCount: Int,
     onEvent: (LoopDetailEvent) -> Unit,
 ) {
     Row(
@@ -230,146 +366,251 @@ private fun TitleRow(
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = loop.title.orEmpty().ifEmpty { "Untitled loop" },
-                style = MaterialTheme.typography.titleLarge,
+                text = loop.title.orEmpty(),
+                style = MaterialTheme.typography.titleLarge.copy(
+                    fontWeight = FontWeight.Medium,
+                    fontSize = 20.sp,
+                ),
                 color = MaterialTheme.colorScheme.onBackground,
             )
-            Spacer(Modifier.padding(top = 4.dp))
-            Text(
-                text = listOfNotNull(
-                    loop.publisherId,
-                    loop.communityId?.let { "in $it" },
-                ).joinToString(" · "),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Spacer(Modifier.height(4.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                owner?.let { resolved ->
+                    Text(
+                        text = resolved.nickname.ifEmpty { resolved.displayName },
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 12.sp,
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
+                community?.let { resolved ->
+                    Text(
+                        text = "in",
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 12.sp,
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                    Text(
+                        text = resolved.name,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 12.sp,
+                        ),
+                        color = accent,
+                        modifier = Modifier.clickable {
+                            onEvent(LoopDetailEvent.KornerTapped(resolved.id))
+                        },
+                    )
+                }
+                val createdAt = loop.creationDate ?: loop.createdAt
+                if (createdAt != null) {
+                    Text(
+                        text = timeAgoSinceDate(createdAt),
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 12.sp,
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
         }
-        IconButton(onClick = { onEvent(LoopDetailEvent.LikeToggled) }) {
+        IconButton(
+            onClick = { onEvent(LoopDetailEvent.LikeToggled) },
+            enabled = !isLikeInProgress,
+            modifier = Modifier.size(36.dp),
+        ) {
             if (isLikeInProgress) {
-                androidx.compose.material3.CircularProgressIndicator(modifier = Modifier.size(20.dp))
-            } else if (isLikedByUser) {
-                Icon(
-                    imageVector = Icons.Filled.Favorite,
-                    contentDescription = "Unlike",
-                    tint = MaterialTheme.colorScheme.primary,
+                CircularProgressIndicator(
+                    modifier = Modifier.size(20.dp),
+                    strokeWidth = 2.dp,
                 )
             } else {
                 Icon(
-                    imageVector = Icons.Filled.FavoriteBorder,
-                    contentDescription = "Like",
+                    imageVector = if (isLikedByUser) {
+                        Icons.Filled.Favorite
+                    } else {
+                        Icons.Filled.FavoriteBorder
+                    },
+                    contentDescription = if (isLikedByUser) "Unlike" else "Like",
+                    tint = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.size(28.dp),
                 )
             }
         }
-        Text(
-            text = likesCount.toString(),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
     }
 }
 
+/**
+ * The description — the HTML branch when `descriptionHtml` is
+ * non-empty, the expandable plain-text branch otherwise, and nothing
+ * at all when both are empty.
+ */
 @Composable
-fun ExpandableText(
-    text: String,
-    modifier: Modifier = Modifier,
-) {
-    val expanded = androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-    Column(modifier = modifier.padding(horizontal = Spacing.space8, vertical = 4.dp)) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = if (expanded.value) Int.MAX_VALUE else 2,
-        )
-        if (text.length > 120) {
-            androidx.compose.material3.TextButton(onClick = { expanded.value = !expanded.value }) {
-                Text(if (expanded.value) "less" else "more")
-            }
+private fun DescriptionSection(loop: Loop, accent: Color) {
+    val html = loop.descriptionHtml?.takeIf { it.isNotBlank() }
+    val plain = loop.description?.takeIf { it.isNotBlank() }
+    if (html == null && plain == null) return
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.space8, vertical = Spacing.space4),
+    ) {
+        if (html != null) {
+            KornerzHtmlText(
+                html = html,
+                accentColor = accent,
+            )
+        } else if (plain != null) {
+            KornerzExpandableText(
+                text = plain,
+                accentColor = accent,
+            )
         }
     }
 }
 
+/**
+ * The stats row — edge-to-edge between two dividers, with 16dp icons
+ * and 25dp gaps.
+ */
 @Composable
-private fun StatsRow(viewCounts: Int, commentsCount: Int, likesCount: Int) {
+private fun StatsRow(
+    viewCounts: Int,
+    commentsCount: Int,
+    likesCount: Int,
+    isLikedByUser: Boolean,
+) {
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = Spacing.space8, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Stat(Icons.Filled.RemoveRedEye, viewCounts, muted)
-        Spacer(Modifier.size(16.dp))
-        Stat(Icons.Filled.ChatBubble, commentsCount, muted)
-        Spacer(Modifier.size(16.dp))
-        Stat(Icons.Filled.Favorite, likesCount, muted)
+    Column(modifier = Modifier.fillMaxWidth()) {
+        HorizontalDivider()
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.space8),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(25.dp),
+        ) {
+            Stat(Icons.Filled.RemoveRedEye, viewCounts, muted)
+            Stat(Icons.AutoMirrored.Filled.Message, commentsCount, muted)
+            Stat(
+                icon = if (isLikedByUser) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                count = likesCount,
+                tint = muted,
+            )
+        }
+        HorizontalDivider()
     }
 }
 
 @Composable
-private fun Stat(icon: androidx.compose.ui.graphics.vector.ImageVector, count: Int, tint: Color) {
+private fun Stat(icon: ImageVector, count: Int, tint: Color) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(imageVector = icon, contentDescription = null, tint = tint, modifier = Modifier.size(16.dp))
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.size(16.dp),
+        )
         Spacer(Modifier.size(4.dp))
-        Text(text = count.toString(), color = tint, style = MaterialTheme.typography.labelSmall)
+        Text(
+            text = count.toString(),
+            color = tint,
+            style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+        )
     }
 }
 
+/** The "Comments" section header. */
 @Composable
 private fun CommentsHeader() {
-    Column {
-        HorizontalDivider()
+    Column(modifier = Modifier.fillMaxWidth()) {
         Text(
             text = "Comments",
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(Spacing.space8),
+            style = MaterialTheme.typography.titleLarge.copy(
+                fontWeight = FontWeight.Medium,
+                fontSize = 20.sp,
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.space8),
         )
+        HorizontalDivider()
     }
 }
 
+/** The empty-comments state — iOS `no_comment_message`. */
 @Composable
-private fun AddCommentRow(onClick: () -> Unit) {
-    Row(
+private fun EmptyCommentsState() {
+    Text(
+        text = "No comments yet. Be the first!",
+        style = MaterialTheme.typography.bodyMedium.copy(fontSize = 14.sp),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(Spacing.space8)
-            .clip(RoundedCornerShape(24.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        KornerzNetworkAvatar(imageUrl = null, size = 32.dp)
-        Spacer(Modifier.size(8.dp))
-        Text(
-            text = "Leave a comment",
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
+            .padding(Spacing.space8),
+    )
 }
 
-@Preview(showBackground = true, locale = "en")
+@Preview(showBackground = true, name = "Loop detail — loaded")
 @Composable
-private fun LoopDetailContentPreview() {
+private fun LoopDetailContentLoadedPreview() {
     KornerzTheme(darkTheme = false) {
         LoopDetailContent(
-            state = LoopDetailState(
-                detail = AsyncValue.Success(
-                    Loop(
-                        id = "l1",
-                        title = "How engines work",
-                        description = "A short description that wraps to two lines of text under the title.",
-                        firebaseImageUrl = null,
-                        firebaseThumbnailUrl = null,
-                        firebaseVideoUrl = null,
-                        viewCounts = 124,
-                        commentsCount = 7,
-                        likesCount = 22,
-                    ),
-                ),
-                comments = AsyncValue.Success(emptyList()),
-            ),
+            state = previewState(),
             onEvent = {},
         )
     }
 }
+
+@Preview(showBackground = true, name = "Loop detail — empty comments")
+@Composable
+private fun LoopDetailContentEmptyCommentsPreview() {
+    KornerzTheme(darkTheme = true) {
+        LoopDetailContent(
+            state = previewState(comments = AsyncValue.Success(emptyList())),
+            onEvent = {},
+        )
+    }
+}
+
+@Preview(showBackground = true, name = "Loop detail — shimmer")
+@Composable
+private fun LoopDetailContentShimmerPreview() {
+    KornerzTheme(darkTheme = false) {
+        LoopDetailContent(
+            state = LoopDetailState(),
+            onEvent = {},
+        )
+    }
+}
+
+private fun previewState(
+    comments: AsyncValue<List<LoopCommentInfo>> = AsyncValue.Success(emptyList()),
+): LoopDetailState = LoopDetailState(
+    detail = AsyncValue.Success(
+        LoopDetailInfo(
+            loop = Loop(
+                id = "l1",
+                title = "How engines work",
+                description = "A short description that wraps to two lines of text under the title.",
+                viewCounts = 124,
+                commentsCount = 7,
+                likesCount = 22,
+            ),
+            owner = User(id = "u1", email = "u@x.com", displayName = "Ana", nickname = "ana"),
+            community = Community(id = "c1", communityId = "c1", name = "Brazil Travel"),
+        ),
+    ),
+    comments = comments,
+    likesCount = 22,
+    commentsCount = 7,
+)

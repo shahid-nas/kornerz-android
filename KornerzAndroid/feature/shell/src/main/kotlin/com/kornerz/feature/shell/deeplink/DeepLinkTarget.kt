@@ -8,7 +8,7 @@ package com.kornerz.feature.shell.deeplink
  * tab, the Korner detail in the Kornerz tab — so the shell's root
  * controller cannot push them directly. The shell owns the navigation
  * and consumes the target through its existing cross-tab mechanism
- * (`pendingLoopId` / `pendingKornerId` plus the tab switch).
+ * (`pendingLoopTarget` / `pendingKornerId` plus the tab switch).
  *
  * The `kornerId` a [KornerDetail] carries is the Korner's **Firestore
  * document id** — the Korner detail route is addressed by document id

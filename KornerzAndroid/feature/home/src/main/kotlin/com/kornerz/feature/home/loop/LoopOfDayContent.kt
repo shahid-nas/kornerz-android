@@ -35,6 +35,7 @@ import com.kornerz.core.ui.components.HomeSectionHeader
 import com.kornerz.core.ui.components.HomeShimmerPlaceholder
 import com.kornerz.core.ui.components.KornerzDiamondImage
 import com.kornerz.core.ui.components.KornerzErrorState
+import com.kornerz.core.ui.theme.KornerzCardPalette
 import com.kornerz.core.ui.theme.KornerzTheme
 import com.kornerz.core.ui.theme.Spacing
 import com.kornerz.feature.home.components.loopAccentColor
@@ -44,7 +45,7 @@ import kotlinx.datetime.Instant
 @Composable
 fun LoopOfDayContent(
     loop: Loop,
-    onClick: (String) -> Unit,
+    onClick: (String, String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
@@ -55,7 +56,7 @@ fun LoopOfDayContent(
         LoopItem(
             loop = loop,
             accentIndex = 0,
-            onClick = onClick,
+            onClick = { id -> onClick(id, KornerzCardPalette.hexForIndex(0)) },
             modifier = Modifier.padding(horizontal = Spacing.space8, vertical = Spacing.space4),
         )
     }
@@ -234,7 +235,7 @@ private fun LoopOfDayPreview() {
                 commentsCount = 7,
                 likesCount = 22,
             ),
-            onClick = {},
+            onClick = { _, _ -> },
         )
     }
 }

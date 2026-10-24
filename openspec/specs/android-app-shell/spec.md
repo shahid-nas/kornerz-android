@@ -57,14 +57,31 @@ any `LoopItemView` tap, `loops/{loopId}/comment` (introduced in P5,
 loop detail's add-comment row, and `loops/{loopId}/reply/{commentId}`
 (introduced in P5, `loop-comments` capability) as a tertiary
 destination reachable from any `LoopCommentView` `onReply` affordance.
-The Profile tab SHALL host a nested `NavHost` with `profile/view`
-(introduced in P6, `user-profile` capability) as its start
-destination, and `profile/edit-basic-info`,
+The Profile destination SHALL be registered **directly on the shell's
+root `NavHost`** — not inside a nested `NavHost`. `profile/view`
+(introduced in P6, `user-profile` capability) is pushed onto the root
+graph (not a tab), and `profile/edit-basic-info`,
 `profile/edit-basic-info/{field}` (dialog),
 `profile/edit-basic-info/{field}/success`, `profile/privacy-policy`
-as secondary destinations reachable from the corresponding menu rows
-(introduced in P6, `user-profile` + `profile-edit-basic-info` +
-`privacy-policy-pdf` capabilities). The shell SHALL register three
+are registered as sibling destinations on the same root graph,
+reachable from the corresponding menu rows (introduced in P6,
+`user-profile` + `profile-edit-basic-info` + `privacy-policy-pdf`
+capabilities).
+
+**Amendment (crash fix):** the Profile destinations were previously
+hosted in a nested `NavHost` inside the `profile/view` destination,
+driven by a `NavHostController` hoisted to `AppShell` scope. That
+arrangement threw `IllegalStateException: ViewModelStore should be set
+before setGraph call` on the **second** visit to Profile: `NavHost`
+calls `NavController.setViewModelStore()` with the store of the
+*current* back-stack entry, so re-entering Profile handed the shared
+controller a different `ViewModelStore` while its `backQueue` was
+already populated — and `setViewModelStore` requires an empty back
+queue. Registering the destinations on the root graph gives them the
+root controller's single store, whose lifetime matches the graph.
+Because the destinations are pushed on the root graph, the bottom bar
+is hidden across all of them (the `profile/.*` pattern in the
+bottom-bar-hidden regex). The shell SHALL register three
 additional top-level, full-screen (bottom-bar-hidden) routes alongside
 the shell graph: `community/admin/list` (introduced in P7),
 `subscription/plans`, and `subscription/success` (both introduced in
@@ -103,9 +120,13 @@ edge, matching iOS `SubscriptionScreen.swift:22`
 - **WHEN** user opens `loops/{loopId}/comment` and `loops/{loopId}/reply/{commentId}` dialog routes
 - **THEN** the bottom bar stays visible behind the dialog scrim
 
-#### Scenario: Profile tab nested navigation
-- **WHEN** user taps the Profile tab and then taps Edit Basic Info / Privacy Policy / Change Basic Info (Field)
-- **THEN** the bottom bar stays visible and the matching nested profile destination renders inside the Profile tab's nested NavHost
+#### Scenario: Profile destinations render on the root graph
+- **WHEN** user opens Profile and then taps Edit Basic Info / Privacy Policy / Change Basic Info (Field)
+- **THEN** the bottom bar stays hidden and the matching profile destination renders on the shell's root `NavHost`
+
+#### Scenario: Profile can be reopened without crashing
+- **WHEN** user opens Profile, navigates back, and opens Profile again
+- **THEN** the Profile screen renders without an `IllegalStateException` (the profile destinations share the root controller's `ViewModelStore`)
 
 #### Scenario: Admin list route hides bottom bar (full-screen)
 - **WHEN** user navigates to `community/admin/list` from Profile
@@ -132,7 +153,7 @@ edge, matching iOS `SubscriptionScreen.swift:22`
 - **THEN** they are registered on the root `NavHost` outside every tab's nested `NavHost`, so no bottom tab becomes the active tab
 
 ### Requirement: Loops tab hosts nested NavHost for loops, comment sheet, and reply screen
-The Loops tab in `feature/shell` SHALL host a nested `NavHost` with destinations in this order: `loops/list` (the populated Loops tab introduced in P5, `loops-tab` capability) as the start destination; `loops/{loopId}` (the loop detail destination introduced in P5, `loop-detail` capability) reachable from any `LoopItemView` tap inside the Loops feed or the Home recent loops carousel (P2 `home-recent-loops` capability amendment in P5); `loops/{loopId}/comment` (the create-comment sheet introduced in P5, `loop-comments` capability) registered as a `dialog` route reachable from the loop detail's add-comment row; `loops/{loopId}/reply/{commentId}` (the reply thread introduced in P5, `loop-comments` capability) reachable from any `LoopCommentView` `onReply` affordance. The bottom navigation bar SHALL remain visible across `loops/list` and `loops/{loopId}`. The bottom navigation bar SHALL remain visible across `loops/{loopId}/comment` (iOS parity — the create-comment modal is centered, not full-screen). The bottom navigation bar SHALL remain visible across `loops/{loopId}/reply/{commentId}` (iOS parity — the reply screen is a regular destination, not full-screen). The Klouders tab SHALL continue to render its P0 empty-state placeholder with the text "Coming in Phase 10" until P10 ships.
+The Loops tab in `feature/shell` SHALL host a nested `NavHost` with destinations in this order: `loops/list` (the populated Loops tab introduced in P5, `loops-tab` capability) as the start destination; `loops/{loopId}` (the loop detail destination introduced in P5, `loop-detail` capability) reachable from any `LoopItemView` tap inside the Loops feed; `loops/{loopId}/comment` (the create-comment sheet introduced in P5, `loop-comments` capability) registered as a `dialog` route reachable from the loop detail's add-comment row; `loops/{loopId}/reply/{commentId}` (the reply thread introduced in P5, `loop-comments` capability) reachable from any `LoopCommentView` `onReply` affordance. The bottom navigation bar SHALL remain visible across `loops/list` and `loops/{loopId}`. The bottom navigation bar SHALL remain visible across `loops/{loopId}/comment` (iOS parity — the create-comment modal is centered, not full-screen). The bottom navigation bar SHALL remain visible across `loops/{loopId}/reply/{commentId}` (iOS parity — the reply screen is a regular destination, not full-screen). The Klouders tab SHALL continue to render its P0 empty-state placeholder with the text "Coming in Phase 10" until P10 ships.
 
 #### Scenario: Loops tab shows populated content in P5+
 - **WHEN** a signed-in user opens the Loops tab in P5+
@@ -146,13 +167,6 @@ The Loops tab in `feature/shell` SHALL host a nested `NavHost` with destinations
 - **THEN** the nested NavHost pushes `loops/{loopId}`
 - **AND** the bottom navigation bar remains visible
 - **AND** the Loops tab remains selected
-
-#### Scenario: Tap a recent-loops row in the Home tab navigates to loop detail
-- **WHEN** the user taps any `LoopItemView` row inside the Home tab's `RecentLoopsView` carousel (P2 `home-recent-loops` capability, refactored in P5)
-- **THEN** the app-level NavHost routes through the shell to the Loops tab's nested NavHost and pushes `loops/{loopId}`
-- **AND** the bottom navigation bar remains visible
-- **AND** the Loops tab becomes selected (the recent-loops carousel entry crosses tab boundaries — same as P3/P4 iOS `LoopDetailCoordinator` behavior)
-- **AND** pressing system back from `loops/{loopId}` returns to the Loops tab's `loops/list` destination
 
 #### Scenario: Tap add-comment row opens the create-comment sheet
 - **WHEN** the user taps the safe-area-inset add-comment row inside the loop detail
@@ -186,15 +200,49 @@ The Loops tab in `feature/shell` SHALL host a nested `NavHost` with destinations
 - **THEN** the bottom navigation bar remains visible
 - **AND** the Loops tab remains selected
 
+### Requirement: Home tab hosts a nested NavHost for the feed and the loop detail
+The Home tab in `feature/shell` SHALL host a nested `NavHost` whose start destination renders `HomeScreen`, and which additionally hosts the loop-detail destinations — `loops/{loopId}`, `loops/{loopId}/comment` and `loops/{loopId}/reply/{commentId}` — exactly as the Loops tab hosts them.
+
+Tapping the loop-of-the-day card (`home-loop-of-day` capability) or a recent-loops tile (`home-recent-loops` capability) SHALL push `loops/{loopId}` with `hideBottomBar = true` on the **Home tab's** nested `NavHost`. The user SHALL stay on the Home tab, the bottom navigation bar SHALL be hidden, and the system back button SHALL pop back to the Home feed. This mirrors iOS `HomeTabCoordinator.navigateToLoopDetail`, which pushes the loop detail on the Home tab's own navigation stack with `hidesBottomBarWhenPushed = true`; the Home tab SHALL NOT switch to the Loops tab.
+
+Because the loop detail lives in a tab's **nested** `NavHost`, the root `NavHost`'s current route cannot express the per-entry-point decision. Each tab that hosts the loop detail SHALL lift its nested back-stack entry's `hideBottomBar` argument up to the root `Scaffold`, and the root bottom bar's visibility predicate SHALL read the flag of the **active tab only** — a flag left behind by a tab the user has left SHALL NOT hide the bar on another tab.
+
+#### Scenario: Tap the loop-of-the-day card opens the loop detail inside the Home tab
+- **WHEN** the user taps the loop-of-the-day card in the Home tab
+- **THEN** the Home tab's nested NavHost pushes `loops/{loopId}` with `hideBottomBar = true`
+- **AND** the bottom navigation bar is hidden
+- **AND** the Home tab remains the active tab (the Loops tab is not selected)
+
+#### Scenario: Tap a recent-loops tile opens the loop detail inside the Home tab
+- **WHEN** the user taps any `LoopItemView` row inside the Home tab's `RecentLoopsView` carousel
+- **THEN** the Home tab's nested NavHost pushes `loops/{loopId}` with `hideBottomBar = true`
+- **AND** the bottom navigation bar is hidden
+- **AND** the Home tab remains the active tab
+
+#### Scenario: System back from the Home tab's loop detail returns to the Home feed
+- **WHEN** the user is on `loops/{loopId}` pushed from the Home tab and presses the system back button
+- **THEN** the Home tab's nested NavHost pops back to the Home feed
+- **AND** the bottom navigation bar becomes visible again
+
+#### Scenario: The comment and reply destinations work inside the Home tab
+- **WHEN** the user taps the add-comment bar of a loop detail opened from the Home tab
+- **THEN** the Home tab's nested NavHost pushes `loops/{loopId}/comment`
+- **WHEN** the user taps the reply affordance on a comment row
+- **THEN** the Home tab's nested NavHost pushes `loops/{loopId}/reply/{commentId}`
+
+#### Scenario: A stale tab flag does not hide the bar on another tab
+- **WHEN** the user leaves the Loops tab while its loop detail had hidden the bottom bar, and opens the Home tab
+- **THEN** the bottom navigation bar is visible on the Home tab
+
 ### Requirement: Each tab renders a populated screen or empty-state placeholder
-The Home tab in `feature/shell` SHALL render `HomeScreen` (the populated Home tab introduced in P2) instead of the P0 placeholder. The Kornerz tab in `feature/shell` SHALL render `KornerzScreen` (the populated Kornerz tab introduced in P3) and SHALL continue to host its nested `NavHost` with the list and detail destinations. The Nooks tab in `feature/shell` SHALL render `NooksScreen` (the populated Nooks tab introduced in P4) instead of the P0 "Coming in Phase 4" placeholder; the Nooks tab hosts a nested `NavHost` with the list and detail destinations. The Loops tab in `feature/shell` SHALL render `LoopsScreen` (the populated Loops tab introduced in P5) instead of the P0 "Coming in Phase 5" placeholder; the Loops tab hosts a nested `NavHost` with the list, detail, comment sheet, and reply destinations. The **Profile** tab in `feature/shell` SHALL render `ProfileScreen` (the populated Profile tab introduced in P6) instead of the P0 "Coming in Phase 6" placeholder; the Profile tab hosts a nested `NavHost` with the view, edit-basic-info, change-field modal, success modal, and privacy-policy destinations. Until P10 ships its full destination, the Klouders tab SHALL continue to render its P0 empty-state placeholder with the text "Coming in Phase 10".
+The Home tab in `feature/shell` SHALL render `HomeScreen` (the populated Home tab introduced in P2) instead of the P0 placeholder, hosted on the Home tab's nested `NavHost` together with the loop-detail destinations. The Kornerz tab in `feature/shell` SHALL render `KornerzScreen` (the populated Kornerz tab introduced in P3) and SHALL continue to host its nested `NavHost` with the list and detail destinations. The Nooks tab in `feature/shell` SHALL render `NooksScreen` (the populated Nooks tab introduced in P4) instead of the P0 "Coming in Phase 4" placeholder; the Nooks tab hosts a nested `NavHost` with the list and detail destinations. The Loops tab in `feature/shell` SHALL render `LoopsScreen` (the populated Loops tab introduced in P5) instead of the P0 "Coming in Phase 5" placeholder; the Loops tab hosts a nested `NavHost` with the list, detail, comment sheet, and reply destinations. The **Profile** destination in `feature/shell` SHALL render `ProfileScreen` (the populated Profile screen introduced in P6); its destinations (`profile/view`, edit-basic-info, change-field modal, success modal, privacy-policy) are registered on the shell's root `NavHost` rather than a nested `NavHost` (see the crash-fix amendment above). Until P10 ships its full destination, the Klouders tab SHALL continue to render its P0 empty-state placeholder with the text "Coming in Phase 10".
 
 (modified to add the Profile tab and clarify Klouders)
 
 #### Scenario: Profile tab shows populated content in P6+
 - **WHEN** a signed-in user opens the Profile tab in P6+
 - **THEN** the Profile tab content area displays `ProfileScreen` with the user header (avatar + name + nickName + Calls/Communities counts) and the menu rows (Notifications, My Data, Privacy Policy, conditionally My Communities)
-- **AND** the bottom navigation bar remains visible across `profile/edit-basic-info` and `profile/privacy-policy`
+- **AND** the bottom navigation bar stays hidden across `profile/edit-basic-info` and `profile/privacy-policy` (the Profile destinations are pushed on the root graph)
 
 #### Scenario: Empty state in non-populated tabs until their phase ships
 - **WHEN** user opens any tab other than Home, Kornerz, Nooks, Loops, and Profile before that tab's phase ships
