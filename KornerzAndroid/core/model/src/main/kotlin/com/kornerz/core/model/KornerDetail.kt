@@ -5,8 +5,9 @@ import kotlinx.serialization.Serializable
 /**
  * Aggregate payload for the Korner detail screen. Composed from three
  * Firestore reads by [com.kornerz.core.network.kornerz.KornerzRepository]
- * — `communities/{id}` (the [korner]), `communities/{id}/events` (the
- * [nooks] list), and `communities/{id}/members` (the [members] list).
+ * — the `Communities` document (the [korner]), the top-level `Events`
+ * collection (the [nooks] list), and the `Fellow` + `Users`
+ * collections (the [members] list).
  *
  * `User` is the existing P1 model, reused without modification per spec
  * `korner-domain/spec.md` §"User model from P1 is reused for members".

@@ -79,6 +79,20 @@ class CommunitiesRepository @Inject constructor(
         }.toMap()
     }
 
+    /**
+     * Fetches the communities the given fellows follow.
+     *
+     * [Community.id] carries the Firestore **document id** and
+     * [Community.communityId] the public `communityId` field — iOS
+     * `CommunitiesRepository.fetchFollowingCommunities` decodes the
+     * document into `Community` (whose `id` is the `@DocumentID`) and
+     * keeps the `communityId` field alongside it.
+     *
+     * The document id is the value the Korner detail route
+     * (`kornerz/{kornerId}` → `Communities/{documentId}`) needs, and it
+     * is URL-safe; the `communityId` field is not interchangeable with
+     * it.
+     */
     suspend fun fetchFollowingCommunities(fellows: List<FollowMember>): List<Community> {
         if (fellows.isEmpty()) return emptyList()
         val communityNames = fellows.mapNotNull { it.communityFollowed?.takeIf { n -> n.isNotBlank() } }
@@ -91,11 +105,10 @@ class CommunitiesRepository @Inject constructor(
         return snapshot.documents.mapNotNull { doc ->
             val data = doc.data ?: return@mapNotNull null
             val communityId = data[FIELD_COMMUNITY_ID] as? String
-            val id = communityId ?: doc.id
             val name = (data[FIELD_COMMUNITY_NAME] as? String) ?: return@mapNotNull null
             Community(
-                id = id,
-                code = id,
+                id = doc.id,
+                code = doc.id,
                 communityId = communityId,
                 name = name,
                 firebaseImageURL = data[FIELD_FIREBASE_IMAGE_URL] as? String,

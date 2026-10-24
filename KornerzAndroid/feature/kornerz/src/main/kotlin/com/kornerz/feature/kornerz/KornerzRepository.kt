@@ -78,8 +78,17 @@ class KornerzRepository @Inject constructor(
      * Streams the aggregate detail for a single Korner. Same as the
      * detail screen's read — single source of truth for the korner
      * document, nooks, and members.
+     *
+     * [kornerId] may be the Firestore document id **or** the
+     * community's public `communityId` field — the Home tab's "Your
+     * Kornerz" carousel carries the latter, the Kornerz tab the former.
+     * The API resolves both.
      */
     fun fetchKornerDetail(kornerId: String): Flow<Result<KornerDetail>> = flow {
-        emit(api.fetchKornerDetail(kornerId))
+        val userCode = sessionRepository.data.first()
+            .let { it as? SessionState.Authenticated }
+            ?.user?.userCode
+            ?.takeIf { it.isNotBlank() }
+        emit(api.fetchKornerDetail(kornerId, userCode))
     }
 }
