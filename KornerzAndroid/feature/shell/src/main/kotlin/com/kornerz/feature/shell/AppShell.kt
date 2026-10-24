@@ -355,12 +355,14 @@ fun AppShell(
                     }
                 },
                 // A loop detail opened from the Korner detail is a
-                // full-screen destination — the tab bar is hidden.
-                onLoopDetail = { id ->
+                // full-screen destination — the tab bar is hidden — and
+                // it opens in the colour the tapped row was painted with.
+                onLoopDetail = { id, accentColorHex ->
                     navigateToLoopDetail(
                         navController = navController,
                         loopId = id,
                         hideBottomBar = true,
+                        accentColorHex = accentColorHex,
                         onPending = { pendingLoopTarget.value = it },
                     )
                 },
@@ -826,7 +828,7 @@ internal fun androidx.navigation.NavGraphBuilder.loopDetailGraph(
 internal fun androidx.navigation.NavGraphBuilder.kornerzTabGraph(
     onNavEvent: (KornerzNavEvent) -> Unit = {},
     snackbarHostState: SnackbarHostState,
-    onLoopDetail: (String) -> Unit = {},
+    onLoopDetail: (loopId: String, accentColorHex: String) -> Unit = { _, _ -> },
     pendingKornerId: MutableStateFlow<String?>,
     onPendingConsumed: () -> Unit = {},
 ) {
@@ -881,6 +883,22 @@ internal fun androidx.navigation.NavGraphBuilder.kornerzTabGraph(
                             is KornerDetailNavEvent.NavigateToMemberProfile -> {
                                 scope.launch {
                                     snackbarHostState.showSnackbar("Member profile coming in Phase 6")
+                                }
+                            }
+                            // The hero's back chevron — the in-app
+                            // equivalent of the system back button,
+                            // which pops the same nested entry.
+                            KornerDetailNavEvent.NavigateBack -> nested.popBackStack()
+                            // A loop tapped in the Korner detail's
+                            // "Recently in <community>" section opens
+                            // the full-screen loop detail — in the very
+                            // colour the tapped row was painted with.
+                            is KornerDetailNavEvent.NavigateToLoopDetail -> {
+                                onLoopDetail(event.loopId, event.accentColorHex)
+                            }
+                            is KornerDetailNavEvent.ShowMessage -> {
+                                scope.launch {
+                                    snackbarHostState.showSnackbar(event.message)
                                 }
                             }
                         }

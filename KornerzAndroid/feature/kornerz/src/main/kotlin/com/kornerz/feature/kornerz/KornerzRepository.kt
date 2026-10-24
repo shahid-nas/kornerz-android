@@ -2,8 +2,11 @@ package com.kornerz.feature.kornerz
 
 import com.kornerz.core.model.Korner
 import com.kornerz.core.model.KornerDetail
+import com.kornerz.core.model.Loop
+import com.kornerz.core.model.User
 import com.kornerz.core.network.fellow.FellowRepository
 import com.kornerz.core.network.kornerz.KornerFirestoreApi
+import com.kornerz.core.network.loops.LoopFirestoreApi
 import com.kornerz.core.storage.session.SessionRepository
 import com.kornerz.core.storage.session.SessionState
 import kotlinx.coroutines.flow.Flow
@@ -29,6 +32,7 @@ import javax.inject.Singleton
 @Singleton
 class KornerzRepository @Inject constructor(
     private val api: KornerFirestoreApi,
+    private val loopApi: LoopFirestoreApi,
     private val fellowRepository: FellowRepository,
     private val sessionRepository: SessionRepository,
 ) {
@@ -90,5 +94,28 @@ class KornerzRepository @Inject constructor(
             ?.user?.userCode
             ?.takeIf { it.isNotBlank() }
         emit(api.fetchKornerDetail(kornerId, userCode))
+    }
+
+    /**
+     * Streams the Korner's admins — the "Kornerstones" tab of the Korner
+     * detail screen. Mirrors iOS `KornerDetailViewModel.fetchLeaders`,
+     * which reads the `CommunityAdm` collection.
+     */
+    fun fetchKornerAdmins(kornerId: String): Flow<Result<List<User>>> = flow {
+        emit(api.fetchCommunityAdmins(kornerId))
+    }
+
+    /**
+     * Streams the Korner's latest loops — the "Recently in &lt;community&gt;"
+     * section of the Korner detail screen. Mirrors iOS
+     * `KornerDetailViewModel.fetchLoops`.
+     *
+     * The loops carry the community's **public** `communityId` field, so
+     * that is the key the read is addressed by; the document id is the
+     * fallback for a community that does not carry the field.
+     */
+    fun fetchKornerRecentLoops(korner: Korner): Flow<Result<List<Loop>>> = flow {
+        val communityId = korner.communityId?.takeIf { it.isNotBlank() } ?: korner.id
+        emit(loopApi.fetchCommunityLoops(communityId))
     }
 }

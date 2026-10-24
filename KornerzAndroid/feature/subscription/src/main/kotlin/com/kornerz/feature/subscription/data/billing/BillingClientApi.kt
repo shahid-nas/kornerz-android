@@ -15,6 +15,7 @@ import com.android.billingclient.api.QueryPurchasesParams
 import com.android.billingclient.api.acknowledgePurchase
 import com.android.billingclient.api.queryProductDetails
 import com.android.billingclient.api.queryPurchasesAsync
+import com.kornerz.core.model.IAP_ENABLED
 import com.kornerz.core.model.SubscriptionProduct
 import com.kornerz.core.model.SubscriptionProductType
 import com.kornerz.feature.subscription.data.SubscriptionError
@@ -107,7 +108,15 @@ class BillingClientApi @Inject constructor(
     }
 
     private val _connectionState = MutableStateFlow<BillingConnectionState>(
-        BillingConnectionState.Disconnected,
+        // TEMPORARY: while [IAP_ENABLED] is `false` the client is never
+        // built, so the state would otherwise sit at `Disconnected` forever
+        // and the plans screen would render as if billing were merely still
+        // connecting. `Unavailable` is the honest shape here.
+        if (IAP_ENABLED) {
+            BillingConnectionState.Disconnected
+        } else {
+            BillingConnectionState.Unavailable(BillingUnavailableReason.Unknown)
+        },
     )
 
     /**
@@ -166,44 +175,58 @@ class BillingClientApi @Inject constructor(
         Unit
     }
 
-    private val billingClient: BillingClient by lazy {
-        BillingClient.newBuilder(context)
-            .setListener(purchasesUpdatedListener)
-            .enablePendingPurchases()
-            .build()
-            .also { client ->
-                _connectionState.value = BillingConnectionState.Connecting
-                client.startConnection(object : BillingClientStateListener {
-                    override fun onBillingSetupFinished(billingResult: BillingResult) {
-                        _connectionState.value = when (val code = billingResult.responseCode) {
-                            BillingClient.BillingResponseCode.OK ->
-                                BillingConnectionState.Ready(licenseResponseCode = code)
+    /**
+     * The Play client — `null` while IAP is off.
+     *
+     * TEMPORARY: the nullable type is what makes "the Play SDK is never
+     * constructed while IAP is off" a *compile-time* guarantee: every
+     * call site has to deal with the absent client, so a new call path
+     * cannot silently reach Play. The `!IAP_ENABLED` branch returns
+     * before `BillingClient.newBuilder` is ever called, so the Play
+     * services are never contacted.
+     */
+    private val billingClient: BillingClient? by lazy {
+        if (!IAP_ENABLED) {
+            null
+        } else {
+            BillingClient.newBuilder(context)
+                .setListener(purchasesUpdatedListener)
+                .enablePendingPurchases()
+                .build()
+                .also { client ->
+                    _connectionState.value = BillingConnectionState.Connecting
+                    client.startConnection(object : BillingClientStateListener {
+                        override fun onBillingSetupFinished(billingResult: BillingResult) {
+                            _connectionState.value = when (val code = billingResult.responseCode) {
+                                BillingClient.BillingResponseCode.OK ->
+                                    BillingConnectionState.Ready(licenseResponseCode = code)
 
-                            // The `dev` flavor's application id
-                            // (`com.kornerz.kornerz.dev`) is not a
-                            // registered Play listing, so its license
-                            // check fails exactly this way.
-                            BillingClient.BillingResponseCode.DEVELOPER_ERROR ->
-                                BillingConnectionState.Unavailable(
-                                    BillingUnavailableReason.UnsupportedApplicationId,
-                                )
+                                // The `dev` flavor's application id
+                                // (`com.kornerz.kornerz.dev`) is not a
+                                // registered Play listing, so its license
+                                // check fails exactly this way.
+                                BillingClient.BillingResponseCode.DEVELOPER_ERROR ->
+                                    BillingConnectionState.Unavailable(
+                                        BillingUnavailableReason.UnsupportedApplicationId,
+                                    )
 
-                            else ->
-                                BillingConnectionState.Unavailable(
-                                    billingResult.toUnavailableReason(),
-                                )
+                                else ->
+                                    BillingConnectionState.Unavailable(
+                                        billingResult.toUnavailableReason(),
+                                    )
+                            }
                         }
-                    }
 
-                    override fun onBillingServiceDisconnected() {
-                        _connectionState.value = BillingConnectionState.Unavailable(
-                            BillingUnavailableReason.Disconnected(
-                                BillingClient.BillingResponseCode.SERVICE_DISCONNECTED,
-                            ),
-                        )
-                    }
-                })
-            }
+                        override fun onBillingServiceDisconnected() {
+                            _connectionState.value = BillingConnectionState.Unavailable(
+                                BillingUnavailableReason.Disconnected(
+                                    BillingClient.BillingResponseCode.SERVICE_DISCONNECTED,
+                                ),
+                            )
+                        }
+                    })
+                }
+        }
     }
 
     /**
@@ -218,44 +241,60 @@ class BillingClientApi @Inject constructor(
      */
     override suspend fun queryProductDetails(
         ids: List<String>,
-    ): Result<List<SubscriptionProduct>> = runCatching {
-        val params = QueryProductDetailsParams.newBuilder()
-            .setProductList(
-                ids.map { id ->
-                    QueryProductDetailsParams.Product.newBuilder()
-                        .setProductId(id)
-                        .setProductType(BillingClient.ProductType.SUBS)
-                        .build()
-                },
-            )
-            .build()
-
-        val result = billingClient.queryProductDetails(params)
-        val billingResult = result.billingResult
-        if (billingResult.responseCode != BillingClient.BillingResponseCode.OK) {
-            val error = billingResult.toSubscriptionError()
-            if (error == SubscriptionError.ProductUnavailable) {
-                // Console misconfiguration: the products are absent or
-                // unpublished. An empty catalog is the honest outcome —
-                // the screen renders "no plans available" plus retry.
-                return@runCatching emptyList()
-            }
-            throw SubscriptionException(
-                error,
-                "queryProductDetails failed: ${billingResult.debugMessage}",
+    ): Result<List<SubscriptionProduct>> {
+        // TEMPORARY: IAP is switched off (the app is not on the Play
+        // Store), so the catalog is served from the offline copy instead
+        // of a Play round trip that can only fail with
+        // "queryProductDetails failed: ...".
+        if (!IAP_ENABLED) {
+            return Result.success(
+                OfflineCatalog.all().filter { it.planId in ids },
             )
         }
 
-        result.productDetailsList.orEmpty()
-            .onEach { details -> resolvedProducts[details.productId] = details }
-            .map { it.toSubscriptionProduct() }
-            .sortedBy { product ->
-                // Preserve the pinned MONTHLY-then-YEARLY order rather
-                // than whatever order Play happens to return.
-                SubscriptionProductType.fromRawValue(product.planId)?.ordinal ?: Int.MAX_VALUE
+        return runCatching {
+            val params = QueryProductDetailsParams.newBuilder()
+                .setProductList(
+                    ids.map { id ->
+                        QueryProductDetailsParams.Product.newBuilder()
+                            .setProductId(id)
+                            .setProductType(BillingClient.ProductType.SUBS)
+                            .build()
+                    },
+                )
+                .build()
+
+            val result = billingClient?.queryProductDetails(params)
+                ?: throw SubscriptionException(
+                    SubscriptionError.BillingUnavailable,
+                    "In-app purchases are disabled in this build",
+                )
+            val billingResult = result.billingResult
+            if (billingResult.responseCode != BillingClient.BillingResponseCode.OK) {
+                val error = billingResult.toSubscriptionError()
+                if (error == SubscriptionError.ProductUnavailable) {
+                    // Console misconfiguration: the products are absent or
+                    // unpublished. An empty catalog is the honest outcome —
+                    // the screen renders "no plans available" plus retry.
+                    return@runCatching emptyList()
+                }
+                throw SubscriptionException(
+                    error,
+                    "queryProductDetails failed: ${billingResult.debugMessage}",
+                )
             }
-    }.recoverCatching { throwable ->
-        throw throwable.asSubscriptionThrowable("queryProductDetails")
+
+            result.productDetailsList.orEmpty()
+                .onEach { details -> resolvedProducts[details.productId] = details }
+                .map { it.toSubscriptionProduct() }
+                .sortedBy { product ->
+                    // Preserve the pinned MONTHLY-then-YEARLY order rather
+                    // than whatever order Play happens to return.
+                    SubscriptionProductType.fromRawValue(product.planId)?.ordinal ?: Int.MAX_VALUE
+                }
+        }.recoverCatching { throwable ->
+            throw throwable.asSubscriptionThrowable("queryProductDetails")
+        }
     }
 
     /**
@@ -263,20 +302,32 @@ class BillingClientApi @Inject constructor(
      * device. Pending purchases are excluded: a deferred purchase has not
      * granted an entitlement yet.
      */
-    override suspend fun queryPurchases(): Result<List<PurchaseRecord>> = runCatching {
-        val params = QueryPurchasesParams.newBuilder()
-            .setProductType(BillingClient.ProductType.SUBS)
-            .build()
-        val result = billingClient.queryPurchasesAsync(params)
-        if (result.billingResult.responseCode != BillingClient.BillingResponseCode.OK) {
-            throw SubscriptionException(
-                result.billingResult.toSubscriptionError(),
-                "queryPurchases failed: ${result.billingResult.debugMessage}",
-            )
+    override suspend fun queryPurchases(): Result<List<PurchaseRecord>> {
+        // TEMPORARY: no Play client is built while IAP is off, so there
+        // are no local purchases to report.
+        if (!IAP_ENABLED) {
+            return Result.success(emptyList())
         }
-        result.purchasesList.mapNotNull { it.toPurchaseRecord() }
-    }.recoverCatching { throwable ->
-        throw throwable.asSubscriptionThrowable("queryPurchases")
+
+        return runCatching {
+            val params = QueryPurchasesParams.newBuilder()
+                .setProductType(BillingClient.ProductType.SUBS)
+                .build()
+            val result = billingClient?.queryPurchasesAsync(params)
+                ?: throw SubscriptionException(
+                    SubscriptionError.BillingUnavailable,
+                    "In-app purchases are disabled in this build",
+                )
+            if (result.billingResult.responseCode != BillingClient.BillingResponseCode.OK) {
+                throw SubscriptionException(
+                    result.billingResult.toSubscriptionError(),
+                    "queryPurchases failed: ${result.billingResult.debugMessage}",
+                )
+            }
+            result.purchasesList.mapNotNull { it.toPurchaseRecord() }
+        }.recoverCatching { throwable ->
+            throw throwable.asSubscriptionThrowable("queryPurchases")
+        }
     }
 
     /**
@@ -313,6 +364,18 @@ class BillingClientApi @Inject constructor(
         productId: String,
         offerToken: String?,
     ): Result<Unit> {
+        // TEMPORARY: IAP is switched off, so there is no Play sheet to
+        // present. Report the same typed failure the ViewModel already
+        // renders as "Billing is unavailable right now".
+        if (!IAP_ENABLED) {
+            return Result.failure(
+                SubscriptionException(
+                    SubscriptionError.BillingUnavailable,
+                    "In-app purchases are disabled in this build",
+                ),
+            )
+        }
+
         val activity = activityRef?.get()
         // `launchBillingFlow` in 7.0.0 takes the resolved ProductDetails
         // rather than a bare product id, so the catalog query's result is
@@ -334,11 +397,16 @@ class BillingClientApi @Inject constructor(
             .setProductDetails(productDetails)
             .apply { if (!offerToken.isNullOrEmpty()) setOfferToken(offerToken) }
             .build()
-        val result = billingClient.launchBillingFlow(
+        val result = billingClient?.launchBillingFlow(
             activity,
             BillingFlowParams.newBuilder()
                 .setProductDetailsParamsList(listOf(detailsParams))
                 .build(),
+        ) ?: return Result.failure(
+            SubscriptionException(
+                SubscriptionError.BillingUnavailable,
+                "In-app purchases are disabled in this build",
+            ),
         )
         return if (result.responseCode == BillingClient.BillingResponseCode.OK) {
             Result.success(Unit)
@@ -362,20 +430,37 @@ class BillingClientApi @Inject constructor(
      * days, which would silently reverse an entitlement the user was
      * already shown as active.
      */
-    override suspend fun acknowledgePurchase(token: String): Result<Unit> = runCatching {
-        val params = AcknowledgePurchaseParams.newBuilder()
-            .setPurchaseToken(token)
-            .build()
-        val result = billingClient.acknowledgePurchase(params)
-        if (result.responseCode != BillingClient.BillingResponseCode.OK) {
-            throw SubscriptionException(
-                SubscriptionError.NotAcknowledged,
-                "acknowledgePurchase failed: ${result.debugMessage}",
+    override suspend fun acknowledgePurchase(token: String): Result<Unit> {
+        // TEMPORARY: no purchase can be made while IAP is off, so there
+        // is nothing to acknowledge.
+        if (!IAP_ENABLED) {
+            return Result.failure(
+                SubscriptionException(
+                    SubscriptionError.NotAcknowledged,
+                    "In-app purchases are disabled in this build",
+                ),
             )
         }
-        Unit
-    }.recoverCatching { throwable ->
-        throw throwable.asSubscriptionThrowable("acknowledgePurchase")
+
+        return runCatching {
+            val params = AcknowledgePurchaseParams.newBuilder()
+                .setPurchaseToken(token)
+                .build()
+            val result = billingClient?.acknowledgePurchase(params)
+                ?: throw SubscriptionException(
+                    SubscriptionError.NotAcknowledged,
+                    "In-app purchases are disabled in this build",
+                )
+            if (result.responseCode != BillingClient.BillingResponseCode.OK) {
+                throw SubscriptionException(
+                    SubscriptionError.NotAcknowledged,
+                    "acknowledgePurchase failed: ${result.debugMessage}",
+                )
+            }
+            Unit
+        }.recoverCatching { throwable ->
+            throw throwable.asSubscriptionThrowable("acknowledgePurchase")
+        }
     }
 
     /**
@@ -384,7 +469,9 @@ class BillingClientApi @Inject constructor(
      * while a purchase is still in flight.
      */
     override fun endConnection() {
-        runCatching { billingClient.endConnection() }
+        // TEMPORARY: the lazy returns `null` while IAP is off, so the Play
+        // client is never even constructed here.
+        runCatching { billingClient?.endConnection() }
         _connectionState.value = BillingConnectionState.Disconnected
     }
 

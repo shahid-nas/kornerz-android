@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.kornerz.core.model.IAP_ENABLED
 import com.kornerz.core.ui.theme.KornerzColors
 import com.kornerz.feature.subscription.data.billing.SubscriptionBillingGateway
 import dagger.hilt.EntryPoint
@@ -70,7 +71,10 @@ fun SubscriptionScreen(
     // consumes the event, so the gesture cannot pop this route and drop the
     // user into the un-gated app. The handler stays enabled even mid-purchase
     // so the Play sheet's dismissal can never route out through here.
-    BackHandler { }
+    //
+    // TEMPORARY: while IAP is off there is no purchase to complete, so the
+    // paywall must not be a dead end — the gesture pops the route instead.
+    BackHandler(enabled = IAP_ENABLED) { }
 
     LaunchedEffect(viewModel) {
         viewModel.navEvents.collect(onNavEvent)

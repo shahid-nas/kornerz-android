@@ -208,6 +208,37 @@ class LoopFirestoreApi @Inject constructor(
         emit(result)
     }
 
+    /**
+     * The loops published in a community, newest first. Mirrors iOS
+     * `LoopRepository.fetchCommunityLoops(communityId:)` —
+     * `whereField("communityId", isEqualTo: communityId)` ordered by
+     * `creationDate` descending.
+     *
+     * The Korner detail screen's "Recently in &lt;community&gt;" section
+     * is built from this read (iOS `KornerDetailViewModel.fetchLoops`).
+     *
+     * The equality filter combined with the `creationDate` ordering
+     * needs a Firestore composite index — the same one iOS relies on.
+     * A missing index (or any other read failure) degrades to an empty
+     * list so the screen still renders its empty state, which is what
+     * iOS does when the query fails.
+     */
+    suspend fun fetchCommunityLoops(
+        communityId: String,
+        limit: Long = DEFAULT_PAGE_SIZE.toLong(),
+    ): Result<List<Loop>> = runCatching {
+        if (communityId.isBlank()) return@runCatching emptyList()
+        collection
+            .whereEqualTo(FIELD_COMMUNITY_ID, communityId)
+            .orderBy(FIELD_CREATION_DATE, Query.Direction.DESCENDING)
+            .limit(limit)
+            .get()
+            .await()
+            .documents
+            .mapNotNull { it.data?.toLoop(it.id) }
+    }.onFailure { Log.w(TAG, "fetchCommunityLoops: ${it.message}") }
+        .recover { emptyList() }
+
     private fun currentUserIdOrNull(): String? = auth.currentUser?.uid
 
     private fun Map<String, Any?>.toLoop(id: String): Loop? = Loop(

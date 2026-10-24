@@ -1,6 +1,7 @@
 package com.kornerz.feature.subscription.data
 
 import com.kornerz.core.model.AsyncValue
+import com.kornerz.core.model.IAP_ENABLED
 import com.kornerz.core.model.SubscriptionProduct
 import com.kornerz.core.model.SubscriptionProductType
 import com.kornerz.core.storage.session.SessionRepository
@@ -190,6 +191,10 @@ class SubscriptionRepository @Inject constructor(
      *    premium state.
      */
     suspend fun reconcileEntitlement(): Result<Unit> {
+        // TEMPORARY: there is no Play purchase to reconcile while IAP is
+        // off, so the launch-time reconciliation is skipped entirely.
+        if (!IAP_ENABLED) return Result.success(Unit)
+
         val user = (sessionRepository.data.first() as? SessionState.Authenticated)?.user
             ?: return Result.failure(
                 SubscriptionException(

@@ -34,6 +34,11 @@ dependencies {
     implementation(project(":core:model"))
     implementation(project(":core:network"))
     implementation(project(":core:storage"))
+    // One-way edge: feature/kornerz composes LoopItemView + LoopCardData
+    // from feature/loops so the Korner detail's "Recently in <community>"
+    // section shares the same row chrome as the Loops tab and the Home
+    // carousel — the same edge feature/home already uses.
+    implementation(project(":feature:loops"))
 
     implementation(libs.androidx.core.ktx)
 

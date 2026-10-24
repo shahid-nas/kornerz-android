@@ -38,6 +38,10 @@ import com.kornerz.core.ui.theme.Spacing
  * brand palette. `fillMaxWidth` is always on, matching iOS's
  * `width: .infinite` at every call site.
  *
+ * [containerColor] / [contentColor] override the style's pair — the
+ * Korner detail's About sheet paints its Follow action in the brand
+ * purple, which is iOS' `.capsuleStyle(.primary)`.
+ *
  * Modifier is the last parameter (architecture §4).
  */
 enum class KornerzCapsuleButtonStyle {
@@ -55,18 +59,25 @@ fun KornerzCapsuleButton(
     modifier: Modifier = Modifier,
     style: KornerzCapsuleButtonStyle = KornerzCapsuleButtonStyle.BlackOnWhite,
     enabled: Boolean = true,
+    containerColor: Color? = null,
+    contentColor: Color? = null,
 ) {
-    val (containerColor, contentColor) = when (style) {
+    val (styleContainer, styleContent) = when (style) {
         KornerzCapsuleButtonStyle.BlackOnWhite ->
             KornerzColors.InkLight to Color.White
         KornerzCapsuleButtonStyle.WhiteOnBlack ->
             Color.White to KornerzColors.InkLight
     }
+    // An explicit pair wins over the style's pair — the Korner detail's
+    // About sheet paints the button in the brand purple, which is iOS'
+    // `.capsuleStyle(.primary)`.
+    val container = containerColor ?: styleContainer
+    val content = contentColor ?: styleContent
     // Disabled capsules keep the pairing recognisable but drop to a
     // translucent fill, so a dev build with no Play listing still reads as
     // "subscribe is unavailable" rather than "subscribe is missing".
-    val resolvedContainer = if (enabled) containerColor else containerColor.copy(alpha = 0.4f)
-    val resolvedContent = if (enabled) contentColor else contentColor.copy(alpha = 0.7f)
+    val resolvedContainer = if (enabled) container else container.copy(alpha = 0.4f)
+    val resolvedContent = if (enabled) content else content.copy(alpha = 0.7f)
 
     Button(
         onClick = onClick,

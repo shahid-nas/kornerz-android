@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kornerz.core.model.AsyncValue
+import com.kornerz.core.model.Korner
 import com.kornerz.feature.kornerz.KornerzRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
@@ -22,9 +23,25 @@ import javax.inject.Inject
  * Keyed by `kornerId` via Navigation-Compose's `SavedStateHandle` (per
  * design §"Decision: `KornerDetailViewModel` keyed by `kornerId` via
  * Hilt `SavedStateHandle`"). Initiates the read on `init` (per task
- * 7.6). Nook and member tile clicks forward to the navigation channel
- * — destinations resolve to "Coming in Phase N" snackbars until P4/P6
- * ship.
+ * 7.6).
+ *
+ * The read mirrors iOS `KornerDetailViewModel.fetchData()`, which
+ * fans out into five parallel reads. Android resolves three of them:
+ *
+ *  - the Korner document, its nooks and its followers
+ *    (`KornerzRepository.fetchKornerDetail`),
+ *  - the Korner's admins — the "Kornerstones" tab
+ *    (`KornerzRepository.fetchKornerAdmins`),
+ *  - the Korner's latest loops — the "Recently in" section
+ *    (`KornerzRepository.fetchKornerRecentLoops`).
+ *
+ * The two extra reads are kicked off once the Korner document has been
+ * resolved, because both are keyed by the community's `communityId`
+ * field.
+ *
+ * Nook and member tile clicks forward to the navigation channel —
+ * destinations resolve to "Coming soon" snackbars until the
+ * corresponding screens ship.
  */
 @HiltViewModel
 class KornerDetailViewModel @Inject constructor(
@@ -48,22 +65,76 @@ class KornerDetailViewModel @Inject constructor(
 
     fun onEvent(event: KornerDetailEvent) {
         when (event) {
-            KornerDetailEvent.Retry -> fetchData()
-            KornerDetailEvent.JoinCtaClicked -> { /* join flow deferred — snackbar fired at shell */ }
+            KornerDetailEvent.Retry -> fetchData(showLoading = true)
+            KornerDetailEvent.Refresh -> {
+                // A pull-to-refresh keeps the current content on screen
+                // under the refresh indicator — only the very first load
+                // swaps the content for the shimmer.
+                _state.update { it.copy(isRefreshing = true) }
+                fetchData(showLoading = false)
+            }
+            KornerDetailEvent.BackClicked -> emit(KornerDetailNavEvent.NavigateBack)
+            // The follow / unfollow write is not implemented on Android
+            // yet — the `Fellow` collection is only read. The button
+            // carries the iOS affordance, the action reports back.
+            KornerDetailEvent.FollowClicked -> emit(
+                KornerDetailNavEvent.ShowMessage("Following a Korner is coming soon"),
+            )
+            KornerDetailEvent.AboutClicked -> _state.update { it.copy(isAboutSheetVisible = true) }
+            KornerDetailEvent.AboutDismissed -> _state.update { it.copy(isAboutSheetVisible = false) }
+            is KornerDetailEvent.NookTabSelected ->
+                _state.update { it.copy(selectedNookTab = event.tab) }
+            is KornerDetailEvent.UserTabSelected ->
+                _state.update { it.copy(selectedUserTab = event.tab) }
             is KornerDetailEvent.NookTileClicked -> emit(KornerDetailNavEvent.NavigateToNookDetail(event.nookId))
             is KornerDetailEvent.MemberTileClicked -> emit(KornerDetailNavEvent.NavigateToMemberProfile(event.userId))
+            is KornerDetailEvent.LoopTileClicked -> emit(
+                KornerDetailNavEvent.NavigateToLoopDetail(event.loopId, event.accentColorHex),
+            )
+            is KornerDetailEvent.JoinCtaClicked -> emit(
+                KornerDetailNavEvent.ShowMessage("Joining a session is coming soon"),
+            )
         }
     }
 
-    private fun fetchData() {
+    private fun fetchData(showLoading: Boolean = true) {
         viewModelScope.launch {
-            _state.update { it.copy(detail = AsyncValue.Loading) }
+            if (showLoading) {
+                _state.update { it.copy(detail = AsyncValue.Loading) }
+            }
             repository.fetchKornerDetail(kornerId).collect { result ->
-                val next = result.fold(
-                    onSuccess = { AsyncValue.Success(it) },
-                    onFailure = { AsyncValue.Error(it) },
-                )
-                _state.update { it.copy(detail = next) }
+                result
+                    .onSuccess { detail ->
+                        _state.update {
+                            it.copy(detail = AsyncValue.Success(detail), isRefreshing = false)
+                        }
+                        loadExtras(detail.korner)
+                    }
+                    .onFailure { error ->
+                        _state.update {
+                            it.copy(detail = AsyncValue.Error(error), isRefreshing = false)
+                        }
+                    }
+            }
+        }
+    }
+
+    /**
+     * The two reads that hang off the resolved Korner document: its
+     * admins (the "Kornerstones" tab) and its latest loops (the
+     * "Recently in" section). Both degrade to an empty list so the
+     * screen still renders — iOS prints the error and keeps the screen
+     * alive.
+     */
+    private fun loadExtras(korner: Korner) {
+        viewModelScope.launch {
+            repository.fetchKornerAdmins(kornerId).collect { result ->
+                _state.update { it.copy(kornerstones = result.getOrDefault(emptyList())) }
+            }
+        }
+        viewModelScope.launch {
+            repository.fetchKornerRecentLoops(korner).collect { result ->
+                _state.update { it.copy(recentLoops = result.getOrDefault(emptyList())) }
             }
         }
     }

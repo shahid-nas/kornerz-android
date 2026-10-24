@@ -200,6 +200,57 @@ class KornerFirestoreApi @Inject constructor(
     }
 
     /**
+     * The community's admins — the "Kornerstones" tab of the Korner
+     * detail screen. Mirrors iOS `KornerDetailViewModel.fetchLeaders`,
+     * which reads the `CommunityAdm` collection
+     * (`AdminCommunitiesRepository.fetchCommunityAdmins`:
+     * `whereField("communityId", isEqualTo: communityId)`) and joins the
+     * `userId` of every admin record against the `Users` collection.
+     *
+     * [kornerId] is resolved the same way as in [fetchKornerDetail] — a
+     * Firestore document id **or** the community's public `communityId`
+     * field — and the admin records are matched against every lookup
+     * key the community is known by (`communityId`, `communityName`,
+     * `communityNameEn`).
+     *
+     * A failed read degrades to an empty list so the screen still
+     * renders (iOS prints the error and keeps the screen alive).
+     */
+    suspend fun fetchCommunityAdmins(kornerId: String): Result<List<User>> = runCatching {
+        if (kornerId.isBlank()) error("kornerId must not be blank")
+        val doc = resolveCommunityDocument(kornerId)
+        val lookupKeys = doc.data?.communityLookupKeys().orEmpty()
+        fetchCommunityAdminsByKeys(lookupKeys)
+    }
+
+    private suspend fun fetchCommunityAdminsByKeys(lookupKeys: List<String>): List<User> {
+        if (lookupKeys.isEmpty()) return emptyList()
+        return try {
+            val admins = firestore.collection(COLLECTION_COMMUNITY_ADM)
+                .whereIn(FIELD_ADMIN_COMMUNITY_ID, lookupKeys.take(MAX_WHERE_IN))
+                .get()
+                .await()
+                .documents
+            // iOS `CommunityAdmin.userId` carries the user's **code** —
+            // the same value `Users.codeUser` is keyed by.
+            val userCodes = admins.mapNotNull { it.data?.get(FIELD_ADMIN_USER_ID) as? String }
+                .filter { it.isNotBlank() }
+                .distinct()
+            if (userCodes.isEmpty()) return emptyList()
+            firestore.collection(COLLECTION_USERS)
+                .whereIn(FIELD_USER_CODE, userCodes.take(MAX_WHERE_IN))
+                .limit(MEMBERS_LIMIT)
+                .get()
+                .await()
+                .documents
+                .mapNotNull { it.data?.toUser(it.id) }
+        } catch (t: Throwable) {
+            Log.w(TAG, "fetchCommunityAdmins failed for $lookupKeys: ${t.message}")
+            emptyList()
+        }
+    }
+
+    /**
      * The community's upcoming nooks — the top-level `Events`
      * collection filtered by `eventCommunityId`. Mirrors iOS
      * `EventsRepository.fetchCommunityEvents(communityName:communityId:)`.
@@ -384,6 +435,8 @@ class KornerFirestoreApi @Inject constructor(
         const val COLLECTION_EVENTS = "Events"
         const val COLLECTION_FELLOW = "Fellow"
         const val COLLECTION_USERS = "Users"
+        // iOS `CommunityAdm` collection (iOS `AdminCommunitiesRepository`).
+        const val COLLECTION_COMMUNITY_ADM = "CommunityAdm"
 
         const val FIELD_COMMUNITY_ID = "communityId"
         const val FIELD_SESSION_ID = "sessionId"
@@ -425,6 +478,10 @@ class KornerFirestoreApi @Inject constructor(
         // Fellow fields (iOS `FollowMember.CodingKeys`).
         const val FIELD_FELLOW_COMMUNITY = "fellowCommunity"
         const val FIELD_FELLOW_USER_NAME = "fellowUserName"
+
+        // CommunityAdm fields (iOS `CommunityAdmin`).
+        const val FIELD_ADMIN_COMMUNITY_ID = "communityId"
+        const val FIELD_ADMIN_USER_ID = "userId"
 
         const val LIST_QUERY_LIMIT = 30L
         const val MEMBERS_LIMIT = 50L

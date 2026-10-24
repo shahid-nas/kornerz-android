@@ -1,5 +1,6 @@
 package com.kornerz.feature.shell
 
+import com.kornerz.core.model.IAP_ENABLED
 import com.kornerz.core.storage.session.SessionRepository
 import com.kornerz.core.storage.session.SessionState
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -87,6 +88,13 @@ class PremiumGate @Inject constructor(
     }
 
     private suspend fun evaluate(): Boolean {
+        // TEMPORARY: in-app purchases are switched off while the app is
+        // not on the Play Store. The paywall is mandatory — it has no
+        // close affordance and swallows the back gesture — so presenting
+        // it with no way to complete a purchase would lock the tester out
+        // of the app entirely. The gate therefore reports "do not present".
+        if (!IAP_ENABLED) return false
+
         // Clause 5 — the per-process dismissal latch.
         if (dismissedThisProcess || satisfiedThisProcess) return false
 

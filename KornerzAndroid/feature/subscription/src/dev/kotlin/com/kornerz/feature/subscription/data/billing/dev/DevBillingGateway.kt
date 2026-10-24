@@ -2,11 +2,11 @@ package com.kornerz.feature.subscription.data.billing.dev
 
 import android.app.Activity
 import com.kornerz.core.model.SubscriptionProduct
-import com.kornerz.core.model.SubscriptionProductType
 import com.kornerz.feature.subscription.data.SubscriptionError
 import com.kornerz.feature.subscription.data.SubscriptionException
 import com.kornerz.feature.subscription.data.billing.BillingConnectionState
 import com.kornerz.feature.subscription.data.billing.BillingPurchaseResult
+import com.kornerz.feature.subscription.data.billing.OfflineCatalog
 import com.kornerz.feature.subscription.data.billing.PurchaseRecord
 import com.kornerz.feature.subscription.data.billing.SubscriptionBillingGateway
 import kotlinx.coroutines.CoroutineScope
@@ -89,7 +89,7 @@ class DevBillingGateway @Inject constructor() : SubscriptionBillingGateway {
     override fun detachActivity() = Unit
 
     override fun launchPurchase(productId: String, offerToken: String?): Result<Unit> {
-        if (DevCatalog.resolve(productId) == null) {
+        if (OfflineCatalog.resolve(productId) == null) {
             return Result.failure(
                 SubscriptionException(
                     SubscriptionError.ProductUnavailable,
@@ -133,7 +133,7 @@ class DevBillingGateway @Inject constructor() : SubscriptionBillingGateway {
     override suspend fun queryProductDetails(
         ids: List<String>,
     ): Result<List<SubscriptionProduct>> = Result.success(
-        DevCatalog.all().filter { it.planId in ids },
+        OfflineCatalog.all().filter { it.planId in ids },
     )
 
     override suspend fun queryPurchases(): Result<List<PurchaseRecord>> = Result.success(
@@ -160,49 +160,4 @@ class DevBillingGateway @Inject constructor() : SubscriptionBillingGateway {
         /** Long enough for the in-flight button state to be observable. */
         const val PURCHASE_SETTLE_DELAY_MILLIS = 900L
     }
-}
-
-/**
- * The two-plan catalog the `dev` flavor renders, with the pricing iOS
- * declares in `Kornerz-SKConfig.storekit` (monthly `10.99`, yearly `95.9`)
- * and the per-month equivalent derived the same way
- * `SubscriptionViewModel.mothlyPriceForYearlySubscription()` derives it
- * (`SubscriptionViewModel.swift:81-91`).
- *
- * `hasFreeTrialOffer` is `true` for **both** plans because
- * `Kornerz-SKConfig.storekit:185-200` gives both products a `P1W`
- * introductory offer. On `prod` the flag is read from Play's own pricing
- * phases instead, so whichever plan the Play Console configures with a
- * trial drives the "Try It Free" label — no code change either way.
- */
-internal object DevCatalog {
-
-    fun all(): List<SubscriptionProduct> = listOf(
-        SubscriptionProduct(
-            planId = SubscriptionProductType.MONTHLY.rawValue,
-            title = "Monthly",
-            priceLabel = MONTHLY_PRICE,
-            periodLabel = "per month",
-            pricePerMonthEquivalent = null,
-            hasFreeTrialOffer = true,
-            offerTag = "dev-offer-monthly",
-        ),
-        SubscriptionProduct(
-            planId = SubscriptionProductType.YEARLY.rawValue,
-            title = "Yearly",
-            priceLabel = YEARLY_PRICE,
-            periodLabel = "per year",
-            pricePerMonthEquivalent = YEARLY_PER_MONTH,
-            hasFreeTrialOffer = true,
-            offerTag = "dev-offer-yearly",
-        ),
-    )
-
-    fun resolve(planId: String): SubscriptionProduct? = all().firstOrNull { it.planId == planId }
-
-    private const val MONTHLY_PRICE = "$10.99"
-    private const val YEARLY_PRICE = "$95.90"
-
-    /** `95.90 / 12 = 7.99`, rounded — the grey second line on the card. */
-    private const val YEARLY_PER_MONTH = "$7.99/month"
 }
