@@ -59,6 +59,7 @@ import com.kornerz.feature.profile.editbasicinfo.EditBasicInfoScreen
 import com.kornerz.feature.profile.privacy.PrivacyPolicyScreen
 import com.kornerz.feature.profile.successbasicinfo.ChangeBasicInfoSuccessScreen
 import com.kornerz.feature.profile.view.ProfileScreen
+import com.kornerz.feature.ranking.list.RankingNavEvent
 import com.kornerz.feature.ranking.list.RankingScreen
 import com.kornerz.feature.community.CommunityRoute
 import com.kornerz.feature.shell.deeplink.DeepLinkResolution
@@ -498,7 +499,11 @@ fun AppShell(
                     },
                 )
             }
-            kloudersTabGraph()
+            kloudersTabGraph(
+                onProfileTap = {
+                    navController.navigate(ProfileRoute.View.route)
+                },
+            )
             videocallGraph(
                 onNavEvent = { event ->
                     when (event) {
@@ -1099,10 +1104,22 @@ internal fun androidx.navigation.NavGraphBuilder.loopsTabGraph(
  * The tab has no nested `NavHost` — the leaderboard is a single screen
  * with no detail destination — so the destination is registered
  * directly on the shell's root `NavHost`.
+ *
+ * The tab carries the shared avatar + points header, so its avatar
+ * tap opens the profile — the same affordance the Home / Kornerz /
+ * Nooks / Loops tabs offer.
  */
-internal fun androidx.navigation.NavGraphBuilder.kloudersTabGraph() {
+internal fun androidx.navigation.NavGraphBuilder.kloudersTabGraph(
+    onProfileTap: () -> Unit = {},
+) {
     composable(ShellTab.Klouders.route) {
-        RankingScreen()
+        RankingScreen(
+            onNavEvent = { event ->
+                when (event) {
+                    RankingNavEvent.NavigateToProfile -> onProfileTap()
+                }
+            },
+        )
     }
 }
 

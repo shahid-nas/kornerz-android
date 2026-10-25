@@ -2,6 +2,7 @@ package com.kornerz.feature.ranking.list
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -9,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
@@ -16,6 +18,7 @@ import com.kornerz.core.model.AsyncValue
 import com.kornerz.core.ui.components.KornerzLoadingView
 import com.kornerz.core.ui.components.KornerzNoDataView
 import com.kornerz.core.ui.components.KornerzRetryView
+import com.kornerz.core.ui.components.header.TabHeaderContent
 import com.kornerz.core.ui.theme.KornerzTheme
 import com.kornerz.core.ui.theme.Spacing
 import com.kornerz.feature.ranking.list.components.RankingHeaderRow
@@ -25,6 +28,8 @@ import com.kornerz.feature.ranking.list.components.RankingRow
  * Stateless renderer for the Klouders leaderboard. Mirrors iOS
  * `RankingScreen.swift` (`kornerz/Kornerz/HomeVC/Ranking/RankingScreen.swift`):
  *
+ *  - the shared avatar + points header every bottom-bar tab carries
+ *    (`TabHeaderContent`);
  *  - a plain list — no row separators;
  *  - a sticky header row reading `#` / `Name` / `Points`;
  *  - one row per leaderboard entry.
@@ -42,7 +47,45 @@ import com.kornerz.feature.ranking.list.components.RankingRow
 @Composable
 fun RankingContent(
     state: RankingState,
-    onRetry: () -> Unit,
+    onEvent: (RankingEvent) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier.fillMaxSize()) {
+        TabHeaderContent(
+            state = state.header,
+            onAvatarTap = { onEvent(RankingEvent.AvatarTapped) },
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .padding(horizontal = Spacing.space8, vertical = Spacing.space4),
+        ) {
+            Text(
+                text = SCREEN_TITLE,
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onBackground,
+            )
+            RankingBody(
+                state = state,
+                onEvent = onEvent,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
+            )
+        }
+    }
+}
+
+/**
+ * The leaderboard itself — the title's body: the loading / error /
+ * empty states and the ranked list.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun RankingBody(
+    state: RankingState,
+    onEvent: (RankingEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     when (val rankings = state.rankings) {
@@ -50,7 +93,7 @@ fun RankingContent(
 
         is AsyncValue.Error -> KornerzRetryView(
             message = rankings.throwable.message ?: "Failed to load leaderboard",
-            onRetry = onRetry,
+            onRetry = { onEvent(RankingEvent.Retry) },
             modifier = modifier.fillMaxSize(),
         )
 
@@ -98,7 +141,7 @@ private fun RankingContentEmptyPreview() {
     KornerzTheme(darkTheme = false) {
         RankingContent(
             state = RankingState(rankings = AsyncValue.Success(emptyList())),
-            onRetry = {},
+            onEvent = {},
         )
     }
 }
