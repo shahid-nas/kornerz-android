@@ -16,11 +16,12 @@ TBD - created by archiving change phase-2-home-tab-shell. Update Purpose after a
 - **AND** each tile is tappable and invokes `onItemClick(community)`
 
 ### Requirement: KornerzCarousel matches iOS visual design
-Each tile SHALL be a 135dp square (matches iOS `KornerzSquareView(size: 135)`) with 16dp outer corner radius, 5dp inner padding, a 13dp corner-radius triangle clipped from the top-right corner (mirrors `TriangleClippedShape.swift`), the cover image filling the tile, and the community name overlaid in white Satoshi Bold 12sp at the bottom-leading edge. The accent strip uses `community.themeColor` (mapped to the iOS palette when missing).
+Each tile SHALL be a 145dp square card — iOS `KornerzSquareView` renders a 135dp cover with 5dp of padding around it — filled with the community's accent colour and rounded with a 16dp corner radius. The cover SHALL be inset 5dp inside that card, clipped by the top-right triangle at a 13dp corner radius, and drawn over a neutral grey placeholder while it loads. The community name SHALL be overlaid in white Satoshi Bold 12sp at the bottom-leading edge with an 8dp inset and a width of two thirds of the cover. The accent strip uses `community.themeColor` (mapped to the iOS palette when missing).
 
 #### Scenario: Tile dimensions match iOS
 - **WHEN** a tile is rendered
-- **THEN** its size is 135dp × 135dp
+- **THEN** its size is 145dp × 145dp
+- **AND** the cover inside it is 135dp × 135dp with a 5dp inset
 - **AND** the outer corner radius is 16dp
 - **AND** the top-right triangle clip uses a 13dp radius
 

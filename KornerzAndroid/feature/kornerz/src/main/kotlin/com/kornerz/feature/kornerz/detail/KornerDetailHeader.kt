@@ -70,6 +70,7 @@ fun KornerDetailHeader(
     onAboutClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val headerContentHeight = 125.dp
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -81,7 +82,11 @@ fun KornerDetailHeader(
                 .padding(Spacing.space8),
             verticalAlignment = Alignment.Top,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(headerContentHeight),
+            ) {
                 // The chevron is 20 dp, but its touch target is 40 dp —
                 // iOS' `chevron.left` is only 16×16, which is too small
                 // for a thumb.
@@ -89,13 +94,13 @@ fun KornerDetailHeader(
                     modifier = Modifier
                         .size(40.dp)
                         .clickable(onClick = onBackClick),
-                    contentAlignment = Alignment.Center,
+                    contentAlignment = Alignment.CenterStart,
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
                         contentDescription = "Back",
                         tint = Color.White,
-                        modifier = Modifier.size(20.dp),
+                        modifier = Modifier.size(30.dp),
                     )
                 }
                 Text(
@@ -107,7 +112,7 @@ fun KornerDetailHeader(
                     ),
                     color = Color.White,
                 )
-                Spacer(modifier = Modifier.height(Spacing.space12))
+                Spacer(modifier = Modifier.weight(1f))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     KornerzMiniCapsuleButton(
                         text = if (isFollowing) "Unfollow" else "Follow",
@@ -120,7 +125,7 @@ fun KornerDetailHeader(
             Spacer(modifier = Modifier.width(Spacing.space8))
             KornerzTriangleImage(
                 imageUrl = korner.coverUrl,
-                size = 125.dp,
+                size = headerContentHeight,
                 cornerRadius = 15.dp,
                 corner = TriangleCorner.TopRight,
             )
@@ -166,6 +171,7 @@ private fun AboutButton(onClick: () -> Unit) {
 @Composable
 fun KornerDetailHeaderShimmer(modifier: Modifier = Modifier) {
     val placeholder = MaterialTheme.colorScheme.surfaceVariant
+    val headerContentHeight = 125.dp
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -177,7 +183,11 @@ fun KornerDetailHeaderShimmer(modifier: Modifier = Modifier) {
                 .padding(Spacing.space8),
             verticalAlignment = Alignment.Top,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(headerContentHeight),
+            ) {
                 Box(
                     modifier = Modifier
                         .size(20.dp)
@@ -190,7 +200,7 @@ fun KornerDetailHeaderShimmer(modifier: Modifier = Modifier) {
                         .height(20.dp)
                         .background(placeholder),
                 )
-                Spacer(modifier = Modifier.height(Spacing.space12))
+                Spacer(modifier = Modifier.weight(1f))
                 Box(
                     modifier = Modifier
                         .width(96.dp)
@@ -201,7 +211,7 @@ fun KornerDetailHeaderShimmer(modifier: Modifier = Modifier) {
             Spacer(modifier = Modifier.width(Spacing.space8))
             Box(
                 modifier = Modifier
-                    .size(125.dp)
+                    .size(headerContentHeight)
                     .background(placeholder),
             )
         }

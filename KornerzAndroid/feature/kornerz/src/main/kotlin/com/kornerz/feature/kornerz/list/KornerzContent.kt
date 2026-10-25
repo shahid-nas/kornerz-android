@@ -13,13 +13,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import com.kornerz.core.model.AsyncValue
 import com.kornerz.core.model.Korner
 import com.kornerz.core.ui.components.HomeShimmerPlaceholder
 import com.kornerz.core.ui.components.KornerzCarousel
 import com.kornerz.core.ui.components.KornerzErrorState
 import com.kornerz.core.ui.components.KornerzHeaderView
+import com.kornerz.core.ui.components.KornerzSquareTileDefaults
 import com.kornerz.core.ui.components.header.TabHeaderContent
 import com.kornerz.core.ui.theme.KornerzTheme
 import com.kornerz.core.ui.theme.Spacing
@@ -115,7 +115,7 @@ private fun ShimmerRow() {
     HomeShimmerPlaceholder(
         modifier = Modifier.padding(horizontal = Spacing.space8),
     ) {
-        Spacer(modifier = Modifier.height(135.dp))
+        Spacer(modifier = Modifier.height(KornerzSquareTileDefaults.TileSize))
     }
 }
 

@@ -23,6 +23,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kornerz.core.model.Nook
+import com.kornerz.core.ui.components.HomeSectionHeader
 import com.kornerz.core.ui.components.HomeShimmerPlaceholder
 import com.kornerz.core.ui.components.KornerzErrorState
 import com.kornerz.core.ui.theme.KornerzTheme
@@ -43,11 +44,9 @@ fun UpcomingNooksContent(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
-        Text(
-            text = "Upcoming Nooks",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.padding(horizontal = Spacing.space8, vertical = Spacing.space4),
+        HomeSectionHeader(
+            title = "Upcoming Nooks",
+            modifier = Modifier.padding(horizontal = Spacing.space8, vertical = Spacing.space2),
         )
         LazyRow(
             contentPadding = PaddingValues(horizontal = Spacing.space8),
@@ -91,19 +90,31 @@ private fun NookCard(nook: Nook, onClick: (String) -> Unit) {
 
 @Composable
 fun UpcomingNooksShimmerSection() {
-    HomeShimmerPlaceholder(modifier = Modifier.padding(Spacing.space8)) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(96.dp)
-                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp)),
+    Column(modifier = Modifier.fillMaxWidth()) {
+        HomeSectionHeader(
+            title = "Upcoming Nooks",
+            modifier = Modifier.padding(horizontal = Spacing.space8, vertical = Spacing.space2),
         )
+        HomeShimmerPlaceholder(modifier = Modifier.padding(Spacing.space8)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(96.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp)),
+            )
+        }
     }
 }
 
 @Composable
 fun UpcomingNooksRetrySection(onRetry: () -> Unit) {
-    KornerzErrorState(message = "Upcoming nooks failed to load", onRetry = onRetry)
+    Column(modifier = Modifier.fillMaxWidth()) {
+        HomeSectionHeader(
+            title = "Upcoming Nooks",
+            modifier = Modifier.padding(horizontal = Spacing.space8, vertical = Spacing.space2),
+        )
+        KornerzErrorState(message = "Upcoming nooks failed to load", onRetry = onRetry)
+    }
 }
 
 private fun formatDate(nook: Nook): String {

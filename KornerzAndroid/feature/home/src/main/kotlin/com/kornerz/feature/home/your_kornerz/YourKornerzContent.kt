@@ -5,15 +5,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.dp
 import com.kornerz.core.model.Community
+import com.kornerz.core.ui.components.HomeSectionHeader
 import com.kornerz.core.ui.components.HomeShimmerPlaceholder
 import com.kornerz.core.ui.components.KornerzErrorState
+import com.kornerz.core.ui.components.KornerzSquareTileDefaults
 import com.kornerz.core.ui.theme.KornerzTheme
 import com.kornerz.core.ui.theme.Spacing
 import com.kornerz.feature.home.components.KornerzCarousel
@@ -30,11 +29,9 @@ fun YourKornerzContent(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
-        Text(
-            text = "Your Kornerz",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.padding(horizontal = Spacing.space8, vertical = Spacing.space4),
+        HomeSectionHeader(
+            title = "Your Kornerz",
+            modifier = Modifier.padding(horizontal = Spacing.space8, vertical = Spacing.space2),
         )
         KornerzCarousel(items = items, onItemClick = { onItemClick(it.id) })
     }
@@ -42,14 +39,26 @@ fun YourKornerzContent(
 
 @Composable
 fun YourKornerzShimmerSection() {
-    HomeShimmerPlaceholder(modifier = Modifier.padding(Spacing.space8)) {
-        Spacer(modifier = Modifier.height(135.dp))
+    Column(modifier = Modifier.fillMaxWidth()) {
+        HomeSectionHeader(
+            title = "Your Kornerz",
+            modifier = Modifier.padding(horizontal = Spacing.space8, vertical = Spacing.space2),
+        )
+        HomeShimmerPlaceholder(modifier = Modifier.padding(Spacing.space8)) {
+            Spacer(modifier = Modifier.height(KornerzSquareTileDefaults.TileSize))
+        }
     }
 }
 
 @Composable
 fun YourKornerzRetrySection(onRetry: () -> Unit) {
-    KornerzErrorState(message = "Your Kornerz failed to load", onRetry = onRetry)
+    Column(modifier = Modifier.fillMaxWidth()) {
+        HomeSectionHeader(
+            title = "Your Kornerz",
+            modifier = Modifier.padding(horizontal = Spacing.space8, vertical = Spacing.space2),
+        )
+        KornerzErrorState(message = "Your Kornerz failed to load", onRetry = onRetry)
+    }
 }
 
 @Preview(showBackground = true)

@@ -8,8 +8,11 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -20,25 +23,138 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
 import com.kornerz.core.model.Korner
 import com.kornerz.core.ui.theme.KornerzTheme
+import com.kornerz.core.ui.theme.KornerzCardPalette
 import com.kornerz.core.ui.theme.Spacing
 import com.kornerz.core.ui.theme.kornerzCardColor
 
 /**
- * 135dp × 135dp square tile used by every carousel on the Kornerz tab
- * (Your / Recommended / New this week). Mirrors iOS
- * `KornerzSquareView.swift` / `TriangleClippedShape.swift`: outer
- * corners are 16dp, the top-right corner is clipped via a rounded
- * triangle at `cornerRadius = 13dp`.
+ * Layout tokens of the iOS `KornerzSquareView.Constants`.
+ */
+object KornerzSquareTileDefaults {
+    /** iOS `Constants.size` — the side of the cover image. */
+    val ImageSize: Dp = 135.dp
+
+    /** iOS `Constants.padding` — the accent frame around the cover. */
+    val CardPadding: Dp = 5.dp
+
+    /** The rendered card: the cover plus the accent frame on each side. */
+    val TileSize: Dp = ImageSize + CardPadding * 2
+
+    /** iOS `Constants.radius` — the card's own corner radius. */
+    val CardRadius: Dp = 16.dp
+
+    /** iOS `Constants.radius - 3` — the triangle clip's corner radius. */
+    val TriangleRadius: Dp = 13.dp
+
+    /** iOS `Constants.titlePadding`. */
+    val TitlePadding: Dp = 8.dp
+
+    /** iOS `Constants.fontSize`. */
+    val TitleFontSize: TextUnit = 12.sp
+
+    /** iOS `.background(.gray)` — the surface behind the cover. */
+    val Placeholder: Color = Color(0xFF808080)
+}
+
+/**
+ * The Kornerz carousel tile. 1:1 port of iOS
+ * `SwiftUI/Common/KornerzSquareView.swift`.
  *
- * Cover image is `ContentScale.Crop`; the Korner name sits at the
- * bottom-leading edge in Satoshi Bold 12sp white with 8dp inset. When
- * [Korner.themeColor] is blank we rotate through the
- * [kornerzCardColor] palette.
+ * iOS does **not** fill the tile with the accent colour and lay the
+ * cover on top of it. It stacks an accent-coloured rounded card with the
+ * cover inset inside that card:
+ *
+ * ```
+ * TriangleImageView(image: .url(community.imageURL),
+ *                   size: 135, radius: 13, type: .topRight)
+ *     .padding(5)
+ *     .background(RoundedRectangle(cornerRadius: 16).foregroundStyle(color))
+ *     .overlay(alignment: .bottomLeading) { title }
+ * ```
+ *
+ * so the rendered tile is 145 × 145: a 135 × 135 cover clipped by the
+ * top-right triangle (the bottom-left half of the cover is cut away and
+ * shows the accent colour), a 5dp accent frame around it, and the name
+ * on the accent-coloured half at the bottom-leading edge.
+ *
+ * @param name the tile's title, overlaid on the bottom-leading edge.
+ * @param coverUrl the cover image; `null` renders the placeholder.
+ * @param accent the card's background colour.
+ * @param onClick invoked when the tile is tapped.
+ * @param size the side of the cover image (iOS `Constants.size`); the
+ *  card itself is `size + 2 × [CardPadding]`.
+ */
+@Composable
+fun KornerzSquareImageTile(
+    name: String,
+    coverUrl: String?,
+    accent: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    size: Dp = KornerzSquareTileDefaults.ImageSize,
+) {
+    Box(
+        modifier = modifier
+            .size(size + KornerzSquareTileDefaults.CardPadding * 2)
+            .clip(RoundedCornerShape(KornerzSquareTileDefaults.CardRadius))
+            .background(accent)
+            .clickable(onClick = onClick),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(KornerzSquareTileDefaults.CardPadding)
+                .clip(
+                    TriangleClippedShape(
+                        corner = TriangleCorner.TopRight,
+                        cornerRadius = KornerzSquareTileDefaults.TriangleRadius,
+                    ),
+                )
+                .background(KornerzSquareTileDefaults.Placeholder),
+        ) {
+            if (coverUrl != null) {
+                SubcomposeAsyncImage(
+                    model = coverUrl,
+                    contentDescription = name,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize(),
+                    loading = {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = Color.White,
+                        )
+                    },
+                    error = {},
+                )
+            }
+        }
+        Text(
+            text = name,
+            style = MaterialTheme.typography.labelMedium.copy(
+                fontWeight = FontWeight.Bold,
+                fontSize = KornerzSquareTileDefaults.TitleFontSize,
+                color = Color.White,
+            ),
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(KornerzSquareTileDefaults.TitlePadding)
+                .width(size * 2 / 3),
+        )
+    }
+}
+
+/**
+ * [KornerzSquareImageTile] bound to a [Korner]. The accent colour is
+ * the Korner's own theme colour, falling back to the rotating
+ * [kornerzCardColor] palette (iOS `RandomColorService.color(for:)`).
  */
 @Composable
 fun KornerzSquareTile(
@@ -47,32 +163,14 @@ fun KornerzSquareTile(
     onClick: (Korner) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val accent = parseHexColor(korner.themeColor) ?: kornerzCardColor(index)
-    Box(
-        modifier = modifier
-            .size(135.dp)
-            .clip(TriangleClippedShape(TriangleCorner.TopRight, cornerRadius = 13.dp))
-            .background(accent)
-            .clickable { onClick(korner) },
-    ) {
-        SubcomposeAsyncImage(
-            model = korner.coverUrl,
-            contentDescription = korner.name,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize(),
-        )
-        Text(
-            text = korner.name,
-            style = MaterialTheme.typography.labelMedium.copy(
-                fontWeight = FontWeight.Bold,
-                fontSize = 12.sp,
-                color = Color.White,
-            ),
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(start = Spacing.space4, bottom = Spacing.space4),
-        )
-    }
+    KornerzSquareImageTile(
+        name = korner.name,
+        coverUrl = korner.coverUrl,
+        accent = KornerzCardPalette.colorFromHex(korner.themeColor)
+            ?: kornerzCardColor(index),
+        onClick = { onClick(korner) },
+        modifier = modifier,
+    )
 }
 
 /**
@@ -98,15 +196,6 @@ fun KornerzCarousel(
                 onClick = onItemClick,
             )
         }
-    }
-}
-
-private fun parseHexColor(hex: String): Color? {
-    val cleaned = hex.removePrefix("#").takeIf { it.length == 6 } ?: return null
-    return try {
-        Color(android.graphics.Color.parseColor("#$cleaned"))
-    } catch (_: Throwable) {
-        null
     }
 }
 

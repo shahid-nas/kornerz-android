@@ -70,7 +70,7 @@ fun ScheduledNookCard(
             TriangleCover(
                 imageUrl = publisher?.photoUrl,
                 contentDescription = publisher?.displayName.orEmpty(),
-                corner = TriangleCorner.TopLeft,
+                corner = TriangleCorner.BottomLeft,
                 size = 55.dp,
                 radius = 8.dp,
             )
