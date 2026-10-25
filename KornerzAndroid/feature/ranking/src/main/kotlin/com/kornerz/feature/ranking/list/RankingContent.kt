@@ -84,7 +84,7 @@ fun RankingContent(
                         position = index + 1,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = Spacing.space4),
+                            .padding(vertical = Spacing.space8),
                     )
                 }
             }

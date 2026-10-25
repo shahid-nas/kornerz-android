@@ -2,6 +2,7 @@ package com.kornerz.feature.ranking.list.components
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
@@ -22,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import com.kornerz.core.model.Rank
 import com.kornerz.core.model.UserRanking
 import com.kornerz.core.ui.theme.KornerzTheme
+import com.kornerz.core.ui.theme.Spacing
 import com.kornerz.feature.ranking.R
 
 /**
@@ -39,13 +41,16 @@ import com.kornerz.feature.ranking.R
  * }
  * ```
  *
- * The three columns are fixed the same way: the leading slot and the
- * trailing points slot are 75 dp wide, the name column takes what is
- * left.
+ * The three columns are fixed the same way: the leading slot is 50 dp
+ * wide, the trailing points slot is 75 dp wide, the name column takes
+ * what is left, and the columns are separated by an 8 dp gap.
  */
 
-/** The width of the leading slot (medal or rank numeral) — iOS `.frame(width: 75)`. */
-val RankingLeadingSlotWidth = 75.dp
+/**
+ * The width of the leading slot (medal or rank numeral) — 50 dp, so the
+ * 40 dp medal sits closer to the `#` than iOS's 75-pt slot does.
+ */
+val RankingLeadingSlotWidth = 50.dp
 
 /** The width of the trailing points slot — iOS `.frame(width: 75)`. */
 val RankingTrailingSlotWidth = 75.dp
@@ -56,20 +61,33 @@ val RankingMedalSize = 40.dp
 /**
  * The leaderboard's header row: `#`, `Name`, `Points` in three columns.
  *
- * The outer two columns are fixed at 75 dp and the middle column is
+ * The outer two columns are fixed width and the middle column is
  * flexible — iOS's `HStack { Text("#").frame(width: 75); Text("Name");
  * Spacer(); Text("Points").frame(width: 75) }`.
+ *
+ * Each label is aligned with the column it titles: `#` is **centred** in
+ * the leading slot — SwiftUI's `.frame(width: 75)` centres its content,
+ * and the medal / rank numeral below it is centred in the same slot, so
+ * the icon reads as directly under the `#` — and `Points` is
+ * **end-aligned** in the trailing slot, matching the right-aligned
+ * points values of the rows below.
+ *
+ * The row uses the same column gap as [RankingRow], so the header labels
+ * stay in their columns.
  */
+@JvmOverloads
 @Composable
 fun RankingHeaderRow(modifier: Modifier = Modifier) {
     Row(
         modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.space4),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
             text = "#",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
             modifier = Modifier.width(RankingLeadingSlotWidth),
         )
         Text(
@@ -82,6 +100,7 @@ fun RankingHeaderRow(modifier: Modifier = Modifier) {
             text = "Points",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.End,
             modifier = Modifier.width(RankingTrailingSlotWidth),
         )
     }
@@ -107,6 +126,7 @@ fun RankingRow(
                 points = ranking.points,
             )
         },
+        horizontalArrangement = Arrangement.spacedBy(Spacing.space4),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         RankingMedalSlot(
@@ -125,7 +145,7 @@ fun RankingRow(
             text = ranking.points.toString(),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onBackground,
-            textAlign = androidx.compose.ui.text.style.TextAlign.End,
+            textAlign = TextAlign.End,
             modifier = Modifier.width(RankingTrailingSlotWidth),
         )
     }

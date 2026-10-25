@@ -54,9 +54,6 @@ fun KornerzContent(
                 onAvatarTap = { onEvent(KornerzEvent.AvatarTapped) },
             )
         }
-        item(key = "kornerzTitle") {
-            KornerzHeaderView(title = "Kornerz")
-        }
         section("your", "Your Kornerz", state.yourKornerz, onEvent)
         section("recommended", "Recommended for you", state.recommended, onEvent)
         section("newThisWeek", "New this week", state.newThisWeek, onEvent)
@@ -104,7 +101,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.section(
 private fun SectionTitle(title: String) {
     Text(
         text = title,
-        style = MaterialTheme.typography.titleMedium,
+        style = MaterialTheme.typography.titleLarge,
         color = MaterialTheme.colorScheme.onBackground,
         modifier = Modifier.padding(horizontal = Spacing.space8, vertical = Spacing.space2),
     )
