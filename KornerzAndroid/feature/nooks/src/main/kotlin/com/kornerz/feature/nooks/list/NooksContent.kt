@@ -126,7 +126,9 @@ private fun LiveSection(
                         korner = korner,
                         accentColor = nooksAccentColor(index),
                         onClick = { id -> onEvent(NooksEvent.LiveCardClicked(id)) },
-                        onJoin = { sessionId -> onEvent(NooksEvent.JoinVideoCall(sessionId)) },
+                        onJoin = { sessionId ->
+                            onEvent(NooksEvent.JoinVideoCall(sessionId, korner.name, korner.id))
+                        },
                     )
                 }
             }

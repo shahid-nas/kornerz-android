@@ -56,9 +56,11 @@ class VideoCallRepository @Inject constructor(
                 localPublisherId = publisher?.stream?.streamId,
                 remoteSubscribers = subscribers.map {
                     SubscriberSnapshot(
-                        streamId = it.stream.streamId,
-                        subscriberName = it.stream.name,
-                        hasVideo = it.stream.hasVideo(),
+                        streamId = it.streamId,
+                        subscriberName = it.displayName,
+                        hasVideo = it.hasVideo,
+                        thumbnailUrl = it.thumbnailUrl,
+                        raisedHand = it.raisedHand,
                     )
                 },
             )

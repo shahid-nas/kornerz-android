@@ -1,69 +1,165 @@
 package com.kornerz.feature.videocall.ui
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.kornerz.core.model.AsyncValue
 import com.kornerz.core.model.CallSession
 import com.kornerz.core.ui.theme.KornerzTheme
+import com.kornerz.core.ui.theme.Satoshi
+import com.kornerz.feature.videocall.R
+import com.kornerz.feature.videocall.VideoCallState
 
 /**
- * Full-screen overlay rendered while the call is connecting. Mirrors
- * iOS `VideoCallLoadingState.swift`. `status` is one of the strings
- * defined in `CallSession.STATUS_*`.
+ * The status overlay drawn on top of the subscriber area.
+ *
+ * Mirrors iOS `VideoCallView.loadingView`:
+ *  - `.authenticating` → "Authenticating, please wait",
+ *  - `.connecting` → "Connecting",
+ *  - `.waitingForUsers` → "Waiting for others to join" in the
+ *    emphasised (18pt bold italic) style,
+ *  - `.connected` → no overlay at all.
+ *
+ * iOS reports a failed call through an alert; Android keeps the
+ * equivalent in-call state with a "Try again" action, styled with the
+ * same call palette.
  */
 @Composable
-fun VideoCallLoadingState(
-    status: String?,
+internal fun CallStatusOverlay(
+    state: VideoCallState,
+    onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val status = (state.callStatus as? AsyncValue.Success)?.data?.status
+    when {
+        state.callStatus is AsyncValue.Error -> VideoCallErrorState(
+            message = stringResource(R.string.video_call_error_title),
+            onRetry = onRetry,
+            modifier = modifier,
+        )
+
+        status == CallSession.STATUS_FAILED -> VideoCallErrorState(
+            message = stringResource(R.string.video_call_error_title),
+            onRetry = onRetry,
+            modifier = modifier,
+        )
+
+        status == CallSession.STATUS_AUTHENTICATING -> VideoCallLoadingState(
+            message = stringResource(R.string.video_call_authenticating),
+            modifier = modifier,
+        )
+
+        status == CallSession.STATUS_CONNECTING || state.callStatus is AsyncValue.Loading ->
+            VideoCallLoadingState(
+                message = stringResource(R.string.video_call_connecting),
+                modifier = modifier,
+            )
+
+        status == CallSession.STATUS_CONNECTED && state.participants.isEmpty() ->
+            VideoCallLoadingState(
+                message = stringResource(R.string.video_call_waiting_for_others),
+                emphasis = true,
+                modifier = modifier,
+            )
+    }
+}
+
+/**
+ * Centred spinner plus status copy. Mirrors iOS
+ * `VideoCallView.loadingView` (white `ProgressView` scaled 1.5× with
+ * 16pt of spacing to the message).
+ */
+@Composable
+internal fun VideoCallLoadingState(
+    message: String,
+    modifier: Modifier = Modifier,
+    emphasis: Boolean = false,
+) {
     Box(
-        modifier = modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.6f)),
+        modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.Center,
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
             CircularProgressIndicator(
-                color = Color.White,
+                color = VideoCallPalette.OnBackground,
                 modifier = Modifier.scale(1.5f),
             )
-            Spacer(modifier = Modifier.size(16.dp))
             Text(
-                text = when (status) {
-                    CallSession.STATUS_AUTHENTICATING -> "Authenticating"
-                    CallSession.STATUS_CONNECTING -> "Connecting"
-                    CallSession.STATUS_CONNECTED -> "Waiting for others to join"
-                    CallSession.STATUS_FAILED -> "Failed"
-                    null -> "Connecting"
-                    else -> status
-                },
-                color = Color.White,
-                style = MaterialTheme.typography.bodyLarge,
-                modifier = Modifier.padding(top = 8.dp),
+                text = message,
+                color = VideoCallPalette.OnBackground,
+                textAlign = TextAlign.Center,
+                style = TextStyle(
+                    fontFamily = Satoshi,
+                    fontWeight = if (emphasis) FontWeight.Bold else FontWeight.Normal,
+                    fontStyle = if (emphasis) FontStyle.Italic else FontStyle.Normal,
+                    fontSize = if (emphasis) 18.sp else 16.sp,
+                ),
             )
         }
     }
 }
 
-@Preview(showBackground = true, name = "VideoCallLoadingState — Authenticating")
+/**
+ * Failure state with a "Try again" action. Android-specific — iOS
+ * raises an alert instead — but painted with the call palette.
+ */
 @Composable
-private fun VideoCallLoadingAuthenticatingPreview() {
-    KornerzTheme(darkTheme = false) {
-        VideoCallLoadingState(status = CallSession.STATUS_AUTHENTICATING)
+internal fun VideoCallErrorState(
+    message: String,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(
+                text = message,
+                color = VideoCallPalette.OnBackground,
+                textAlign = TextAlign.Center,
+                style = TextStyle(
+                    fontFamily = Satoshi,
+                    fontWeight = FontWeight.Normal,
+                    fontSize = 16.sp,
+                ),
+            )
+            Button(
+                onClick = onRetry,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = VideoCallPalette.Control,
+                    contentColor = VideoCallPalette.Tile,
+                ),
+            ) {
+                Text(text = stringResource(R.string.video_call_try_again))
+            }
+        }
     }
 }
 
@@ -71,7 +167,7 @@ private fun VideoCallLoadingAuthenticatingPreview() {
 @Composable
 private fun VideoCallLoadingConnectingPreview() {
     KornerzTheme(darkTheme = false) {
-        VideoCallLoadingState(status = CallSession.STATUS_CONNECTING)
+        VideoCallLoadingState(message = "Connecting")
     }
 }
 
@@ -79,6 +175,6 @@ private fun VideoCallLoadingConnectingPreview() {
 @Composable
 private fun VideoCallLoadingWaitingPreview() {
     KornerzTheme(darkTheme = false) {
-        VideoCallLoadingState(status = CallSession.STATUS_CONNECTED)
+        VideoCallLoadingState(message = "Waiting for others to join", emphasis = true)
     }
 }

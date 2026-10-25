@@ -1,5 +1,7 @@
 package com.kornerz.feature.shell
 
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -14,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -332,10 +335,27 @@ fun AppShell(
         },
         snackbarHost = { SnackbarHost(comingSoonSnackbar) },
     ) { padding ->
+        // The video call paints its own background edge-to-edge, so the
+        // `Scaffold`'s system-bar insets must not be applied to the
+        // `NavHost` for that route — otherwise the call's coral backdrop
+        // stops short of the status bar and the navigation bar and the
+        // window background shows through as two white strips. The call
+        // screen insets its own chrome (`statusBarsPadding` /
+        // `navigationBarsPadding`) instead, which is what iOS does with
+        // its safe-area insets.
+        val navHostModifier = if (currentRoute?.startsWith(VideocallRoute.ROUTE_PREFIX) == true) {
+            val layoutDirection = LocalLayoutDirection.current
+            Modifier.padding(
+                start = padding.calculateStartPadding(layoutDirection),
+                end = padding.calculateEndPadding(layoutDirection),
+            )
+        } else {
+            Modifier.padding(padding)
+        }
         NavHost(
             navController = navController,
             startDestination = ShellTab.Home.route,
-            modifier = Modifier.padding(padding),
+            modifier = navHostModifier,
         ) {
             homeTabGraph(
                 onNavigateToKornerDetail = { id ->
@@ -385,8 +405,10 @@ fun AppShell(
                         restoreState = true
                     }
                 },
-                onJoinVideoCall = { sessionId ->
-                    navController.navigate(VideocallRoute.Call.build(sessionId))
+                onJoinVideoCall = { sessionId, communityName, communityId ->
+                    navController.navigate(
+                        VideocallRoute.Call.build(sessionId, communityName, communityId),
+                    )
                 },
             )
             loopsTabGraph(
@@ -951,7 +973,7 @@ internal fun androidx.navigation.NavGraphBuilder.kornerzTabGraph(
 internal fun androidx.navigation.NavGraphBuilder.nooksTabGraph(
     onProfileTap: () -> Unit = {},
     onKornerDetail: (String) -> Unit = {},
-    onJoinVideoCall: (String) -> Unit = {},
+    onJoinVideoCall: (String, String, String) -> Unit = { _, _, _ -> },
 ) {
     composable(ShellTab.Nooks.route) {
         val nested = rememberNavController()
@@ -987,7 +1009,7 @@ internal fun androidx.navigation.NavGraphBuilder.nooksTabGraph(
                                 // reached from any tab, and so the
                                 // shell can hide the bottom bar for
                                 // the duration of the call.
-                                onJoinVideoCall(event.sessionId)
+                                onJoinVideoCall(event.sessionId, event.communityName, event.communityId)
                             }
                         }
                     },

@@ -22,16 +22,19 @@ fun PublisherContainer(
     AndroidView(
         factory = { ctx ->
             val parent = ctx.publisherParent()
-            if (publisher != null) {
-                val view = publisher.view
-                parent.removeAllViews()
-                parent.addView(view)
-            }
+            publisher?.view?.let { parent.addView(it) }
             parent
         },
         update = { parent ->
-            parent.removeAllViews()
-            publisher?.view?.let { parent.addView(it) }
+            // Only re-attach when the rendered view actually changed —
+            // detaching and re-adding the SDK's surface on every
+            // recomposition restarts the video renderer.
+            val desired = publisher?.view
+            val current = parent.getChildAt(0)
+            if (current !== desired) {
+                parent.removeAllViews()
+                if (desired != null) parent.addView(desired)
+            }
         },
         modifier = modifier,
     )
@@ -63,12 +66,16 @@ fun SubscriberContainer(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                 )
             }
-            if (subscriber != null) parent.addView(subscriber.view)
+            subscriber?.view?.let { parent.addView(it) }
             parent
         },
         update = { parent ->
-            parent.removeAllViews()
-            subscriber?.view?.let { parent.addView(it) }
+            val desired = subscriber?.view
+            val current = parent.getChildAt(0)
+            if (current !== desired) {
+                parent.removeAllViews()
+                if (desired != null) parent.addView(desired)
+            }
         },
         modifier = modifier,
     )
