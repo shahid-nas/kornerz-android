@@ -226,6 +226,7 @@ fun AppShell(
      */
     var homeLoopDetailHidesBottomBar by remember { mutableStateOf(false) }
     var loopsLoopDetailHidesBottomBar by remember { mutableStateOf(false) }
+    var kornerDetailHidesBottomBar by remember { mutableStateOf(false) }
 
     /**
      * Executes a resolved deep-link target.
@@ -317,7 +318,7 @@ fun AppShell(
                     currentRoute = currentRoute,
                     homeHides = homeLoopDetailHidesBottomBar,
                     loopsHides = loopsLoopDetailHidesBottomBar,
-                ),
+                ) || (currentRoute == ShellTab.Kornerz.route && kornerDetailHidesBottomBar),
             )
             if (showBottomBar) {
                 KornerzBottomBar(
@@ -369,6 +370,7 @@ fun AppShell(
                 pendingKornerId = pendingKornerId,
                 onPendingConsumed = { pendingKornerId.value = null },
                 snackbarHostState = comingSoonSnackbar,
+                onHideBottomBarChanged = { hides -> kornerDetailHidesBottomBar = hides },
             )
             nooksTabGraph(
                 onProfileTap = {
@@ -831,10 +833,16 @@ internal fun androidx.navigation.NavGraphBuilder.kornerzTabGraph(
     onLoopDetail: (loopId: String, accentColorHex: String) -> Unit = { _, _ -> },
     pendingKornerId: MutableStateFlow<String?>,
     onPendingConsumed: () -> Unit = {},
+    onHideBottomBarChanged: (Boolean) -> Unit = {},
 ) {
     composable(ShellTab.Kornerz.route) {
         val nested = rememberNavController()
         val scope = rememberCoroutineScope()
+        val nestedEntry by nested.currentBackStackEntryAsState()
+        val nestedRoute = nestedEntry?.destination?.route
+        val hidesBottomBar = nestedRoute == KornerzRoute.Detail.PATTERN ||
+            nestedRoute?.startsWith("kornerz/") == true
+        LaunchedEffect(hidesBottomBar) { onHideBottomBarChanged(hidesBottomBar) }
         // The pending id is consumed as a **flow**, not as a captured
         // value: the `NavHost` builder is remembered, so the parameter
         // would otherwise stay frozen at the graph's creation value and

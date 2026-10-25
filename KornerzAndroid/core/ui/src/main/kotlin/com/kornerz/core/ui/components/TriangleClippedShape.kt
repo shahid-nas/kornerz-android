@@ -97,17 +97,41 @@ private fun Path.topRightTriangle(w: Float, h: Float, r: Float) {
     close()
 }
 
+/**
+ * The mirrored variants of the path.
+ *
+ * Compose's [Matrix] is a **4×4** matrix, not the 3×3 affine one: it is
+ * stored row-major (`values[row * 4 + column]`) and its translation
+ * components live in **row 3** — `matrix[3, 0]` is `translateX` and
+ * `matrix[3, 1]` is `translateY` (see `Matrix.map`/`Matrix.translate`).
+ * Writing the offset to `[0, 2]` / `[1, 2]` instead lands it in the
+ * perspective column, which `android.graphics.Matrix.setFrom` forces
+ * back to zero — so the mirror would flip the shape about the origin
+ * with **no translation**, moving the triangle to negative coordinates
+ * where the clip discards it and the avatar renders as nothing at all.
+ *
+ * The mirror has to be about the shape's centre, so the offset is the
+ * shape's own width/height.
+ */
 private fun Path.mirrorX(w: Float) {
-    transform(Matrix().apply { this[0, 0] = -1f; this[0, 2] = w })
+    transform(Matrix().apply {
+        this[0, 0] = -1f
+        this[3, 0] = w
+    })
 }
 
 private fun Path.mirrorY(h: Float) {
-    transform(Matrix().apply { this[1, 1] = -1f; this[1, 2] = h })
+    transform(Matrix().apply {
+        this[1, 1] = -1f
+        this[3, 1] = h
+    })
 }
 
 private fun Path.mirrorXY(w: Float, h: Float) {
     transform(Matrix().apply {
-        this[0, 0] = -1f; this[0, 2] = w
-        this[1, 1] = -1f; this[1, 2] = h
+        this[0, 0] = -1f
+        this[1, 1] = -1f
+        this[3, 0] = w
+        this[3, 1] = h
     })
 }

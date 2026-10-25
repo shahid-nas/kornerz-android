@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -50,7 +51,15 @@ import com.kornerz.core.ui.theme.Spacing
  *
  * The underline spans the width of the tab label, which is what the
  * iOS `Rectangle()` does inside a `VStack` whose only other child is
- * the label.
+ * the label. Reproducing that on Compose needs the label's own width:
+ * a bare `fillMaxWidth()` inside the tab's `Column` resolves against
+ * the *row's* remaining width, not the label's, so the underline would
+ * stretch to the screen edge and push the remaining tabs off-screen
+ * (their labels are then measured at zero width and wrap into a tall
+ * stack, which in turn drags the section title out of alignment).
+ * `width(IntrinsicSize.Min)` sizes the tab column to the label's
+ * intrinsic width, so `fillMaxWidth()` inside it fills exactly the
+ * label — iOS behaviour, and the tabs stay on screen.
  *
  * Modifier is the last parameter (architecture §4).
  */
@@ -96,7 +105,12 @@ fun KornerzSectionTabHeader(
         ) {
             tabs.forEachIndexed { index, tab ->
                 Column(
-                    modifier = Modifier.clickable { onTabSelected(index) },
+                    modifier = Modifier
+                        // The tab is only as wide as its label, so the
+                        // underline below it matches the label and the
+                        // strip never overflows the header row.
+                        .width(IntrinsicSize.Min)
+                        .clickable { onTabSelected(index) },
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(

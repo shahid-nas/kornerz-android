@@ -1,7 +1,9 @@
 package com.kornerz.feature.kornerz.detail
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -15,6 +17,7 @@ import com.kornerz.core.model.KornerDetail
 import com.kornerz.core.model.Nook
 import com.kornerz.core.model.User
 import com.kornerz.core.ui.theme.KornerzTheme
+import com.kornerz.core.ui.theme.Spacing
 import com.kornerz.feature.loops.data.toCardData
 import kotlinx.datetime.Instant
 
@@ -36,6 +39,10 @@ import kotlinx.datetime.Instant
  * affordance presents it as a modal sheet (`KornerAboutView`), so the
  * Android port presents [KornerAboutSheet] from the screen instead of
  * rendering it between the header and the Nooks section.
+ *
+ * iOS separates the blocks with the `LazyVStack`'s default 8-pt
+ * spacing; a plain Compose `Column` has no such default, so the
+ * [SectionGap] spacers reproduce it.
  */
 @Composable
 fun KornerDetailContent(
@@ -80,6 +87,7 @@ fun KornerDetailContent(
             onFollowClick = { onEvent(KornerDetailEvent.FollowClicked) },
             onAboutClick = { onEvent(KornerDetailEvent.AboutClicked) },
         )
+        SectionGap()
         KornerDetailNooksSection(
             nooks = detail.nooks,
             selectedTab = state.selectedNookTab,
@@ -88,6 +96,7 @@ fun KornerDetailContent(
             onNookClick = { onEvent(KornerDetailEvent.NookTileClicked(it)) },
             onJoinClick = { onEvent(KornerDetailEvent.JoinCtaClicked(it)) },
         )
+        SectionGap()
         KornerDetailUsersSection(
             kornerstones = state.kornerstones,
             klouders = detail.members,
@@ -95,6 +104,7 @@ fun KornerDetailContent(
             onTabSelected = { onEvent(KornerDetailEvent.UserTabSelected(it)) },
             onUserClick = { onEvent(KornerDetailEvent.MemberTileClicked(it)) },
         )
+        SectionGap()
         KornerDetailRecentSection(
             communityName = korner.name,
             cards = recentCards,
@@ -103,6 +113,22 @@ fun KornerDetailContent(
             },
         )
     }
+}
+
+/**
+ * The vertical gap between the screen's blocks.
+ *
+ * iOS stacks the hero, the Nooks section, the users section and the
+ * "Recently in" block in a `LazyVStack` with no explicit spacing, so
+ * the platform's default 8-pt gap separates them. The Android port
+ * stacks the blocks in a plain `Column`, which has no such default,
+ * so the gap is added explicitly here — the same 8 dp the Home tab
+ * uses between its sections (`HomeContent`'s
+ * `Arrangement.spacedBy(Spacing.space4)`).
+ */
+@Composable
+private fun SectionGap() {
+    Spacer(modifier = Modifier.height(Spacing.space4))
 }
 
 @Preview(showBackground = true)
