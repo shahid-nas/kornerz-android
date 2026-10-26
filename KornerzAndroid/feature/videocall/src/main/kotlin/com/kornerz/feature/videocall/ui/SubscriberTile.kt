@@ -48,6 +48,9 @@ internal fun SubscriberTile(
     participant: VideoCallParticipant,
     modifier: Modifier = Modifier,
 ) {
+    val subscriber = participant.subscriber
+    val showsVideo = participant.hasVideo && participant.isConnected && subscriber != null
+
     Box(
         modifier = modifier
             // The backdrop is painted with a rounded shape rather than
@@ -58,13 +61,22 @@ internal fun SubscriberTile(
             // the video. The video is rounded by the platform instead
             // (see `SubscriberContainer`), so the backdrop only has to
             // *look* rounded.
+            //
+            // The black backdrop is only painted while the video is on:
+            // iOS puts `bgView` (the black `Color`) inside the
+            // `isVideoEnabled` branch of the `ZStack`, so a participant
+            // with the camera off leaves the tile transparent and the
+            // call screen's own background shows through.
             .background(
-                color = VideoCallPalette.VideoBackdrop,
+                color = if (showsVideo) {
+                    VideoCallPalette.VideoBackdrop
+                } else {
+                    Color.Transparent
+                },
                 shape = RoundedCornerShape(SubscriberTileMetrics.CornerRadius),
             ),
     ) {
-        val subscriber = participant.subscriber
-        if (participant.hasVideo && participant.isConnected && subscriber != null) {
+        if (showsVideo) {
             SubscriberContainer(
                 subscriber = subscriber,
                 modifier = Modifier.fillMaxSize(),
@@ -90,6 +102,10 @@ internal fun SubscriberTile(
                 size = SubscriberTileMetrics.ThumbnailSize,
                 cornerRadius = SubscriberTileMetrics.ThumbnailCornerRadius,
                 modifier = Modifier.align(Alignment.Center),
+                // iOS leaves the placeholder diamond transparent — the
+                // call screen's own background shows through it, the
+                // same as the rest of the tile.
+                background = Color.Transparent,
             )
         }
 

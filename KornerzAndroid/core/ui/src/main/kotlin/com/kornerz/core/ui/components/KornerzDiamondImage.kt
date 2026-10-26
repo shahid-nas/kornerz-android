@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
@@ -51,6 +52,16 @@ fun KornerzDiamondImage(
     size: Dp,
     cornerRadius: Dp,
     modifier: Modifier = Modifier,
+    /**
+     * The fill painted behind the artwork, inside the diamond.
+     *
+     * `null` keeps the default (the theme's `surfaceVariant`). iOS
+     * `DiamondImageView` paints its background only for the *remote
+     * image* case (`webImage`), while the local/system image case is
+     * transparent — so a caller that mirrors iOS can pass
+     * `Color.Transparent` for a placeholder.
+     */
+    background: Color? = null,
 ) {
     // Pythagoras: a `size × size` square rotated 45° has a diagonal of
     // `size * √2`. Scaling the rotated layer by `1/√2` brings the diagonal
@@ -70,7 +81,7 @@ fun KornerzDiamondImage(
                 .rotate(45f)
                 .scale(diamondScale)
                 .clip(RoundedCornerShape(cornerRadius))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
+                .background(background ?: MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center,
         ) {
             // Undo the layer transform once, for every piece of content
