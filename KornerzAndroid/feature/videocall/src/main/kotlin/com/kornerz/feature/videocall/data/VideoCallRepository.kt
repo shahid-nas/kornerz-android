@@ -1,9 +1,11 @@
 package com.kornerz.feature.videocall.data
 
+import android.util.Log
 import com.kornerz.core.model.CallSession
 import com.kornerz.core.model.SubscriberSnapshot
 import com.kornerz.core.network.videocall.SessionTokenService
 import com.kornerz.core.network.videocall.VonageSessionController
+import com.kornerz.core.network.videocall.VonageTokenClaims
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flow
@@ -33,19 +35,37 @@ class VideoCallRepository @Inject constructor(
 ) {
 
     fun connect(sessionId: String): Flow<CallSession> = flow {
+        Log.i(TAG, "connect() requested for sessionId=$sessionId")
+        // Tear down any previous session *before* the token is
+        // fetched. The teardown must not happen after the new session
+        // has been opened: `VonageSessionController.cleanup()` nulls
+        // the session field, and the stale-session guards compare
+        // against it — a teardown that lands after the new session is
+        // connected makes every callback of the new session look
+        // stale, so the peers' streams are dropped and the grid stays
+        // empty.
         disconnect()
         emit(CallSession(sessionId = sessionId, status = CallSession.STATUS_AUTHENTICATING))
         val tokenResult = sessionTokenService.fetchToken(sessionId)
         val tokenValue = tokenResult.getOrElse { t ->
             vonageSessionController.disconnect()
+            Log.e(TAG, "Token fetch failed for sessionId=$sessionId: ${t.message}")
             throw t
         }
+        // The token's `session_id` claim is the room the client was
+        // actually granted — compare it with what we asked for.
+        VonageTokenClaims.log(tokenValue, sessionId)
+        vonageSessionController.setTokenDiagnostics(
+            VonageTokenClaims.summary(tokenValue, sessionId),
+        )
         emit(CallSession(sessionId = sessionId, status = CallSession.STATUS_CONNECTING))
         val connectResult = vonageSessionController.connect(tokenValue, sessionId)
         if (connectResult.isFailure) {
+            Log.e(TAG, "Vonage connect failed for sessionId=$sessionId")
             throw connectResult.exceptionOrNull()
                 ?: IllegalStateException("Vonage connect failed")
         }
+        Log.i(TAG, "Vonage connect requested — waiting for onConnected (sessionId=$sessionId)")
         combine(
             vonageSessionController.publishers,
             vonageSessionController.subscribers,
@@ -64,8 +84,20 @@ class VideoCallRepository @Inject constructor(
                     )
                 },
             )
-        }.collect { snapshot -> emit(snapshot) }
+        }.collect { snapshot ->
+            Log.i(
+                TAG,
+                "session snapshot: status=${snapshot.status} localPublisher=${snapshot.localPublisherId} " +
+                    "remoteSubscribers=${snapshot.remoteSubscribers.size} " +
+                    "streamIds=${snapshot.remoteSubscribers.map { it.streamId }}",
+            )
+            emit(snapshot)
+        }
     }
 
     fun disconnect(): Result<Unit> = vonageSessionController.disconnect()
+
+    private companion object {
+        const val TAG = "VideoCallRepo"
+    }
 }

@@ -1,5 +1,7 @@
 package com.kornerz.core.network.videocall
 
+import android.util.Log
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
@@ -61,6 +63,13 @@ class SessionTokenService @Inject constructor(
         } catch (_: TimeoutCancellationException) {
             webSocket.close(1000, "timeout")
             Result.failure(VideoCallError.SocketTimeout)
+        } catch (e: CancellationException) {
+            // The caller went away (a retry superseded this attempt, or
+            // the screen was dismissed). Swallowing the cancellation
+            // would let the caller treat it as a token failure and tear
+            // down the *live* session that replaced it.
+            webSocket.close(1000, "cancelled")
+            throw e
         } catch (t: Throwable) {
             Result.failure(VideoCallError.Error(t))
         }
@@ -73,12 +82,18 @@ class SessionTokenService @Inject constructor(
         var webSocket: WebSocket? = null
 
         override fun onOpen(webSocket: WebSocket, response: Response) {
+            Log.i(TAG, "Token socket open — sending sessionId='$sessionId'")
             webSocket.send(sessionId.toByteArray().toByteString(0, sessionId.toByteArray().size))
         }
 
         override fun onMessage(webSocket: WebSocket, text: String) {
             webSocket.close(1000, "ok")
             val token = parseToken(text)
+            Log.i(
+                TAG,
+                "Token received for sessionId='$sessionId' (length=${token?.length ?: 0}, " +
+                    "present=${token != null})",
+            )
             deferred.complete(
                 if (token != null) Result.success(token)
                 else Result.failure(VideoCallError.FailedToGetToken),
@@ -90,12 +105,14 @@ class SessionTokenService @Inject constructor(
         }
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+            Log.e(TAG, "Token socket failure for sessionId='$sessionId': ${t.message}")
             if (!deferred.isCompleted) {
                 deferred.complete(Result.failure(VideoCallError.SocketFailedToConnect))
             }
         }
 
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+            Log.i(TAG, "Token socket closed code=$code reason=$reason (sessionId='$sessionId')")
             if (!deferred.isCompleted) {
                 deferred.complete(Result.failure(VideoCallError.SocketFailedToConnect))
             }
@@ -111,5 +128,6 @@ class SessionTokenService @Inject constructor(
     companion object {
         private const val WS_URL = "ws://ws.kornerz.com:80/"
         private const val DEFAULT_TIMEOUT_MS = 10_000L
+        private const val TAG = "VideoCallToken"
     }
 }

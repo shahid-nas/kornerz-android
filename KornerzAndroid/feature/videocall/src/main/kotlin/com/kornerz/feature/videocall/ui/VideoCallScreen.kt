@@ -84,6 +84,16 @@ fun VideoCallScreen(
         }
     }
 
+    // The SDK builds its `Publisher` / `Subscriber` with a `Context`,
+    // and the renderer is a `SurfaceView` — it resolves its display and
+    // its window from that context. The **Activity** context is what
+    // makes the video land on the call screen's own window; with the
+    // application context the surface is bound to the default display
+    // and the video is drawn in the wrong place, at the wrong size.
+    LaunchedEffect(activity) {
+        activity?.let { viewModel.setCallContext(it) }
+    }
+
     VideoCallContent(
         state = state,
         onEvent = viewModel::onEvent,
@@ -98,6 +108,7 @@ fun VideoCallScreen(
                 launcher.launch(requiredPermissions())
             }
         },
+        onReconnect = viewModel::reconnectSession,
         modifier = modifier,
     )
 }

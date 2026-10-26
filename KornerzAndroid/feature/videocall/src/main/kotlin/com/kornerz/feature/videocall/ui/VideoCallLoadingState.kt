@@ -51,6 +51,16 @@ internal fun CallStatusOverlay(
     modifier: Modifier = Modifier,
 ) {
     val status = (state.callStatus as? AsyncValue.Success)?.data?.status
+
+    // The session is up and somebody is in the room — the overlay must
+    // stay off so the subscriber grid is visible. This has to be an
+    // explicit early return: the overlay is drawn on top of the whole
+    // screen, so any branch that renders a spinner here hides the
+    // subscriber tiles.
+    if (status == CallSession.STATUS_CONNECTED && state.participants.isNotEmpty()) {
+        return
+    }
+
     when {
         state.callStatus is AsyncValue.Error -> VideoCallErrorState(
             message = stringResource(R.string.video_call_error_title),
@@ -81,6 +91,15 @@ internal fun CallStatusOverlay(
                 emphasis = true,
                 modifier = modifier,
             )
+
+        // Any other status (a session the repository has not classified
+        // yet) still needs feedback — without this branch the overlay
+        // rendered nothing and the user was left staring at an empty
+        // call screen.
+        else -> VideoCallLoadingState(
+            message = stringResource(R.string.video_call_connecting),
+            modifier = modifier,
+        )
     }
 }
 

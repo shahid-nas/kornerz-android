@@ -41,7 +41,7 @@ The call screen SHALL broadcast the local participant's raise-hand state to the 
 `VideoCallContent` `@Composable` SHALL render three vertical regions in this order — separated by 16dp, matching the iOS `VStack(spacing: 16)` — on the brand coral background (`AppColor.CE27D5A` → `VideoCallPalette.Background`):
 
 1. **Top toolbar** — a 48dp×48dp self-view on the leading edge (`PublisherContainer` clipped to a 5dp rounded rectangle while the camera is on, otherwise a `VideoCallPalette.Tile` rectangle carrying the user's 45dp diamond avatar), an 8dp gap, the community name in Satoshi Bold Italic 18sp, and a `Spacer`.
-2. **Content area** — fills the remaining height with 16dp horizontal padding and renders the subscriber **grid** (not a list) using the iOS row arithmetic: 4dp spacing between tiles and rows, a row of two tiles unless the row holds a single participant (which spans the full width), a two-participant room laid out as two full-width rows, and a row height that divides the available height by the row count minus the inter-row spacing.
+2. **Content area** — fills the remaining height with 16dp horizontal padding and 8dp vertical padding (so the tiles never butt up against the toolbars) and renders the subscriber **grid** (not a list) using the iOS row arithmetic: 4dp spacing between tiles and rows, a row of two tiles unless the row holds a single participant (which spans the full width), a two-participant room laid out as two full-width rows, and a row height that divides the available height by the row count minus the inter-row spacing.
 3. **Bottom toolbar** — five 50dp circular controls with a 26dp glyph, laid out with `SpaceBetween` in the iOS order: End call (`CircleButtonStyleConfig.light` — solid pale disc, dark glyph), Flip camera (ringed), Toggle video (ringed, filled when the camera is off), Toggle audio (ringed, filled when muted), Hand raised (ringed, filled when raised).
 
 The loading overlay SHALL be rendered **on top of the whole screen** (not only the content area) while the call is connecting. Mirrors iOS `SwiftUI/VideoCall/VideoCallView.swift`.
@@ -59,6 +59,11 @@ The call SHALL paint edge-to-edge: the shell SHALL NOT apply the `Scaffold`'s sy
 - **WHEN** two remote subscribers are present
 - **THEN** the grid renders two rows of one tile each (the iOS `subscriberGridRows()` behaviour for a count of two)
 - **AND** each tile spans the full content width and half the content height
+
+#### Scenario: A remote participant's subscription drops
+- **WHEN** a remote participant is still in the room but the SDK reported its subscription as dropped (`isConnected = false`)
+- **THEN** the tile stays in the grid
+- **AND** the tile renders the participant's diamond avatar instead of the video surface
 
 #### Scenario: User toggles video off
 - **WHEN** the user taps the Toggle video button while `state.isVideoOn = true`

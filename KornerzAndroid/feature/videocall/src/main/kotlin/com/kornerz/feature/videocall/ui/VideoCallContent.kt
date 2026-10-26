@@ -1,6 +1,7 @@
 package com.kornerz.feature.videocall.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -28,22 +30,28 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.util.Log
 import com.kornerz.core.model.AsyncValue
 import com.kornerz.core.model.CallSession
+import com.kornerz.core.network.videocall.VideoCallDiagnostics
 import com.kornerz.core.ui.components.KornerzDiamondImage
 import com.kornerz.core.ui.theme.KornerzTheme
 import com.kornerz.core.ui.theme.Satoshi
 import com.kornerz.feature.videocall.R
+import com.kornerz.feature.videocall.BuildConfig
 import com.kornerz.feature.videocall.VideoCallEvent
 import com.kornerz.feature.videocall.VideoCallParticipant
 import com.kornerz.feature.videocall.VideoCallState
@@ -73,6 +81,7 @@ fun VideoCallContent(
     permissionsGranted: Boolean?,
     onGrantPermissions: () -> Unit,
     modifier: Modifier = Modifier,
+    onReconnect: () -> Unit = {},
 ) {
     Box(
         modifier = modifier
@@ -103,6 +112,89 @@ fun VideoCallContent(
         CallStatusOverlay(
             state = state,
             onRetry = { onEvent(VideoCallEvent.Retry) },
+        )
+
+        if (BuildConfig.DEBUG) {
+            CallDiagnosticsPanel(
+                diagnostics = state.diagnostics,
+                onReconnect = onReconnect,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .statusBarsPadding()
+                    .padding(top = 56.dp, end = 8.dp),
+            )
+        }
+    }
+}
+
+/**
+ * Debug-only panel with the live session internals.
+ *
+ * "Connected but no subscribers" has three very different causes —
+ * a different room, a token that cannot receive streams, or a failed
+ * peer connection — and each one is visible here without logcat.
+ */
+@Composable
+private fun CallDiagnosticsPanel(
+    diagnostics: VideoCallDiagnostics,
+    onReconnect: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .widthIn(max = 260.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(Color(0xCC101014))
+            .padding(6.dp),
+        verticalArrangement = Arrangement.spacedBy(1.dp),
+    ) {
+        Text(
+            text = "room: ${diagnostics.requestedRoom}",
+            color = Color(0xFF9BE59B),
+            style = TextStyle(fontSize = 8.sp, fontFamily = FontFamily.Monospace),
+            maxLines = 2,
+        )
+        Text(
+            text = "token: ${diagnostics.token}",
+            color = Color(0xFFFFD98A),
+            style = TextStyle(fontSize = 8.sp, fontFamily = FontFamily.Monospace),
+            maxLines = 3,
+        )
+        Text(
+            text = "conn: ${diagnostics.connection}",
+            color = Color(0xFF9BD3FF),
+            style = TextStyle(fontSize = 8.sp, fontFamily = FontFamily.Monospace),
+            maxLines = 2,
+        )
+        Text(
+            text = "caps: ${diagnostics.capabilities}",
+            color = Color(0xFF9BD3FF),
+            style = TextStyle(fontSize = 8.sp, fontFamily = FontFamily.Monospace),
+            maxLines = 2,
+        )
+        Text(
+            text = "pub: ${diagnostics.publisher}",
+            color = Color.White,
+            style = TextStyle(fontSize = 8.sp, fontFamily = FontFamily.Monospace),
+            maxLines = 2,
+        )
+        Text(
+            text = "subs: ${diagnostics.subscribers}",
+            color = Color.White,
+            style = TextStyle(fontSize = 8.sp, fontFamily = FontFamily.Monospace),
+            maxLines = 3,
+        )
+        Text(
+            text = "last: ${diagnostics.lastCallback}",
+            color = Color(0xFFFF9B9B),
+            style = TextStyle(fontSize = 8.sp, fontFamily = FontFamily.Monospace),
+            maxLines = 2,
+        )
+        Text(
+            text = "reconnect",
+            color = Color(0xFF9BE59B),
+            style = TextStyle(fontSize = 8.sp, fontFamily = FontFamily.Monospace),
+            modifier = Modifier.clickable { onReconnect() },
         )
     }
 }
@@ -185,11 +277,51 @@ private fun SubscriberGrid(state: VideoCallState) {
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = VideoCallLayout.HorizontalPadding),
+            .padding(
+                horizontal = VideoCallLayout.HorizontalPadding,
+                vertical = VideoCallLayout.ContentVerticalPadding,
+            ),
     ) {
-        val containerWidth = constraints.maxWidth.toFloat()
-        val containerHeight = constraints.maxHeight.toFloat()
+        // The constraints are in **pixels**, but the tile sizes are
+        // applied with `Modifier.size(… .dp)`, which converts the
+        // value back to pixels. Feeding the raw pixel count in as a dp
+        // value multiplied the size by the display density — on a
+        // 2.625x device a 1933px container became 5074px, i.e. a tile
+        // 2.6x taller than the screen and cut off by the bottom
+        // toolbar. The container is therefore taken in dp.
+        val containerWidth = maxWidth
+        val containerHeight = maxHeight
         val rows = subscriberGridRows(state.participants)
+
+        LaunchedEffect(state.participants) {
+            Log.i(
+                TAG,
+                "SubscriberGrid render: participants=${state.participants.size} " +
+                    "rows=${rows.size} names=${state.participants.map { it.userName }} " +
+                    "hasVideo=${state.participants.map { it.hasVideo }} " +
+                    "withSubscriber=${state.participants.map { it.subscriber != null }}",
+            )
+        }
+
+        // The tile geometry is the whole layout contract with iOS, so
+        // the container and the computed tile sizes are worth having in
+        // the log when a tile looks mis-sized or clipped.
+        LaunchedEffect(containerWidth, containerHeight, rows.size) {
+            val tiles = rows.map { row ->
+                val size = subscriberGridTileSize(
+                    rowItemCount = row.size,
+                    containerWidth = containerWidth.value,
+                    containerHeight = containerHeight.value,
+                    totalRows = rows.size,
+                )
+                "${size.width.toInt()}x${size.height.toInt()}"
+            }
+            Log.i(
+                TAG,
+                "SubscriberGrid geometry: container=${containerWidth.value.toInt()}x${containerHeight.value.toInt()}dp " +
+                    "rows=${rows.size} tiles=$tiles",
+            )
+        }
 
         Column(
             modifier = Modifier
@@ -200,8 +332,8 @@ private fun SubscriberGrid(state: VideoCallState) {
             rows.forEach { row ->
                 val tileSize = subscriberGridTileSize(
                     rowItemCount = row.size,
-                    containerWidth = containerWidth,
-                    containerHeight = containerHeight,
+                    containerWidth = containerWidth.value,
+                    containerHeight = containerHeight.value,
                     totalRows = rows.size,
                 )
                 Row(
@@ -316,6 +448,19 @@ private fun PermissionDeniedCard(onGrant: () -> Unit) {
 internal object VideoCallLayout {
     val SectionSpacing = 16.dp
     val HorizontalPadding = 16.dp
+
+    /**
+     * Vertical breathing room above and below the subscriber grid.
+     *
+     * iOS's `contentView` only pads **horizontally**
+     * (`kornerz/Kornerz/SwiftUI/VideoCall/VideoCallView.swift`:
+     * `.padding(.horizontal, 16)`) — there is no vertical padding on
+     * iOS. The grid area therefore has to be the full height that is
+     * left between the two toolbars, otherwise a single subscriber's
+     * tile is 16pt shorter than on iOS and its bottom edge is cut off
+     * by the bottom toolbar.
+     */
+    val ContentVerticalPadding = 0.dp
     val BodySize = 16.sp
 }
 
@@ -374,3 +519,5 @@ private fun VideoCallContentWaitingPreview() {
         )
     }
 }
+
+private const val TAG = "VideoCallUI"

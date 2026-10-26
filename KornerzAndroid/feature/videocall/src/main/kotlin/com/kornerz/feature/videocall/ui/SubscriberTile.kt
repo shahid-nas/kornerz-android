@@ -1,5 +1,6 @@
 package com.kornerz.feature.videocall.ui
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,6 +15,7 @@ import androidx.compose.material.icons.filled.PanTool
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,11 +52,25 @@ internal fun SubscriberTile(
             .background(VideoCallPalette.VideoBackdrop),
     ) {
         val subscriber = participant.subscriber
-        if (participant.hasVideo && subscriber != null) {
+        if (participant.hasVideo && participant.isConnected && subscriber != null) {
             SubscriberContainer(
                 subscriber = subscriber,
                 modifier = Modifier.fillMaxSize(),
             )
+            // The SDK draws the video through a `GLSurfaceView`, which
+            // only renders once it has been resumed — the resume is
+            // driven by `VonageSessionController.resumeRenderers`. If
+            // the surface is attached but the renderer was never
+            // resumed, the tile stays black, so the state of the
+            // surface is worth having in the log.
+            LaunchedEffect(participant.streamId) {
+                Log.i(
+                    TAG,
+                    "SubscriberTile video surface: streamId=${participant.streamId} " +
+                        "hasView=${subscriber.view != null} " +
+                        "hasRenderer=${subscriber.renderer != null}",
+                )
+            }
         } else {
             KornerzDiamondImage(
                 imageUrl = participant.thumbnailUrl,
@@ -108,6 +124,8 @@ internal object SubscriberTileMetrics {
     val OverlayShadowRadius = 5.dp
     val NameSize = 14.sp
 }
+
+private const val TAG = "VideoCallUI"
 
 @Preview(showBackground = true, name = "Subscriber tile — avatar")
 @Composable

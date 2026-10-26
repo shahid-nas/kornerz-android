@@ -25,4 +25,18 @@ sealed class VideoCallError : RuntimeException() {
     data class Error(val throwable: Throwable) : VideoCallError() {
         override val message: String = throwable.message ?: throwable::class.simpleName.orEmpty()
     }
+
+    /**
+     * The local publisher failed — the camera could not be opened, the
+     * media server rejected the stream, … Mirrors iOS
+     * `publisher(_:didFailWithError:)`, which iOS additionally turns
+     * into `loadingState = .failed` plus an alert.
+     */
+    data class PublisherFailed(override val message: String) : VideoCallError()
+
+    /**
+     * The Vonage session itself failed. Mirrors iOS
+     * `session(_:didFailWithError:)`.
+     */
+    data class SessionFailed(override val message: String) : VideoCallError()
 }

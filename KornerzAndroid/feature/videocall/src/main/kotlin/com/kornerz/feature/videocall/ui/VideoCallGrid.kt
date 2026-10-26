@@ -51,6 +51,10 @@ internal fun <T> subscriberGridRows(items: List<T>): List<List<T>> {
  * the inter-row spacing), and a row with a single tile spans the full
  * container width while a row with two tiles splits it in half (minus
  * the inter-tile spacing).
+ *
+ * The container is given in **dp** — iOS works in points, and the
+ * result is applied with `Modifier.size(… .dp)`. Passing the raw
+ * pixel count instead multiplied every tile by the display density.
  */
 internal fun subscriberGridTileSize(
     rowItemCount: Int,

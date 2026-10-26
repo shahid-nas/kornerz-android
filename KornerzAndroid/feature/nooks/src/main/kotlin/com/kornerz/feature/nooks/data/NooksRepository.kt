@@ -1,5 +1,6 @@
 package com.kornerz.feature.nooks.data
 
+import android.util.Log
 import com.google.firebase.firestore.DocumentSnapshot
 import com.kornerz.core.model.Korner
 import com.kornerz.core.model.NookDetail
@@ -28,11 +29,18 @@ class NooksRepository @Inject constructor(
 
     /**
      * Fetches one page of approved Korners ordered by `viewsCount`
-     * descending, then enriches each Korner with the matching live
-     * Nook's `sessionId` (if any). The join tries two key forms
-     * because the Firestore Communities schema varies between the
-     * earlier "doc-id = communityId" deployments and the current
-     * "doc-id ≠ communityId" deployments:
+     * descending, then enriches each Korner with the session id the
+     * "Join" button has to open.
+     *
+     * The room is resolved **community first**, matching iOS: the live
+     * Nooks card joins `community.sessionID` (the `communitySessionId`
+     * field). The live event's `sessionId` is only used when the
+     * community has no `communitySessionId` of its own.
+     *
+     * The event lookup tries two key forms because the Firestore
+     * Communities schema varies between the earlier "doc-id =
+     * communityId" deployments and the current "doc-id ≠ communityId"
+     * deployments:
      *   1. `nook.communityId == korner.communityId` (the iOS-spec
      *      relationship; `nook.communityId` reads from the
      *      `eventCommunityId` field on the Event doc)
@@ -66,10 +74,38 @@ class NooksRepository @Inject constructor(
                         korner.communityId?.trim()?.takeIf { it.isNotEmpty() }?.let(::add)
                         add(korner.id)
                     }
-                    val sessionId = candidateKeys
+                    // iOS parity — the live Nooks card joins the
+                    // COMMUNITY room, not the live event's room:
+                    //   iOS `NooksTabView.kornerNooks` →
+                    //   `NooksTabCoordinator.joinVideoCall(nook.community)` →
+                    //   `UIViewController.joinCall(sessionId: nil, community:)` →
+                    //   `sessionId ?? community.sessionID`
+                    // and `community.sessionID` is the `communitySessionId`
+                    // field (iOS `Community.CodingKeys`).
+                    //
+                    // Preferring the live *event's* `sessionId` here put
+                    // the Android client in a different Vonage room than
+                    // the iOS client joining from the same screen, so the
+                    // two never saw each other's subscribers — the
+                    // Android call just kept showing "Waiting for others
+                    // to join". The event's session id stays as the
+                    // fallback for communities that have no
+                    // `communitySessionId` yet (and it keeps the "Join"
+                    // button visible for them).
+                    val eventSessionId = candidateKeys
                         .mapNotNull { sessionIdByCommunityId[it] }
                         .firstOrNull()
-                        ?: korner.sessionId
+                    val sessionId = korner.sessionId?.takeIf { it.isNotBlank() } ?: eventSessionId
+                    val source = if (!korner.sessionId.isNullOrBlank()) {
+                        "community"
+                    } else {
+                        "event"
+                    }
+                    Log.i(
+                        TAG,
+                        "session for korner '${korner.name}' (id=${korner.id}) → '$sessionId' (source=$source, " +
+                            "communitySessionId=${korner.sessionId}, eventSessionId=$eventSessionId)",
+                    )
                     if (sessionId != null) korner.copy(sessionId = sessionId) else korner
                 }
 
@@ -137,3 +173,5 @@ data class NooksUpcomingPage(
     val lastSnapshot: DocumentSnapshot?,
     val hasMore: Boolean,
 )
+
+private const val TAG = "VideoCallNooks"

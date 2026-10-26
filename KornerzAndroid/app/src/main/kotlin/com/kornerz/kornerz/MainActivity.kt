@@ -8,6 +8,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationManagerCompat
 import com.kornerz.core.model.DeepLink
+import com.kornerz.core.network.videocall.VonageSessionController
 import com.kornerz.core.storage.country.CountryCodesRepository
 import com.kornerz.core.storage.interests.KornerInterestRepository
 import com.kornerz.core.ui.theme.KornerzTheme
@@ -52,6 +53,29 @@ class MainActivity : ComponentActivity() {
     }
 
     private lateinit var deepLinkManager: DeepLinkManager
+
+    /**
+     * The Vonage session controller.
+     *
+     * The SDK requires the host activity to forward its lifecycle to
+     * the session (the Vonage tutorial's step 5): without
+     * `session.onPause()` / `session.onResume()` the SDK keeps its
+     * media devices and sockets alive across a backgrounding, and the
+     * session comes back connected but no longer receiving the peers'
+     * stream events.
+     */
+    @Inject
+    lateinit var vonageSessionController: VonageSessionController
+
+    override fun onPause() {
+        super.onPause()
+        vonageSessionController.onPause()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        vonageSessionController.onResume()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()

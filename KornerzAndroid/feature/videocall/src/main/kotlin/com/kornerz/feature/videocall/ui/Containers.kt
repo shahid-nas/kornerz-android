@@ -1,12 +1,19 @@
 package com.kornerz.feature.videocall.ui
 
 import android.content.Context
+import android.util.Log
+import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
+import com.opentok.android.BaseVideoRenderer
 import com.opentok.android.Publisher
 import com.opentok.android.Subscriber
+
+private const val TAG = "VideoCallUI"
 
 /**
  * `AndroidView` wrapper around Vonage `Publisher.view` per arch §1
@@ -21,8 +28,11 @@ fun PublisherContainer(
 ) {
     AndroidView(
         factory = { ctx ->
-            val parent = ctx.publisherParent()
-            publisher?.view?.let { parent.addView(it) }
+            val parent = ctx.videoParent()
+            publisher?.view?.let {
+                it.fillTile(publisher.renderer)
+                parent.attach(it)
+            }
             parent
         },
         update = { parent ->
@@ -33,25 +43,60 @@ fun PublisherContainer(
             val current = parent.getChildAt(0)
             if (current !== desired) {
                 parent.removeAllViews()
-                if (desired != null) parent.addView(desired)
+                if (desired != null) {
+                    desired.fillTile(publisher.renderer)
+                    parent.attach(desired)
+                }
             }
         },
         modifier = modifier,
     )
 }
 
-private fun Context.publisherParent(): ViewGroup {
-    val parent = android.widget.FrameLayout(this)
-    parent.layoutParams = ViewGroup.LayoutParams(
+/**
+ * Attaches the SDK's video view to the container.
+ *
+ * The SDK hands out a single `View` instance that it keeps attached to
+ * its own internal parent. Adding it to our container while it still
+ * has that parent throws
+ * `IllegalStateException: The specified child already has a parent`.
+ * Detaching it first makes the attach safe no matter who owned it.
+ */
+private fun FrameLayout.attach(child: View) {
+    (child.parent as? ViewGroup)?.removeView(child)
+    addView(child)
+}
+
+/**
+ * The host of the SDK's video view.
+ *
+ * The SDK hands out its renderer as a plain `View`, and a `View` added
+ * to a `FrameLayout` without layout params inherits the group's default
+ * `WRAP_CONTENT` — so it measured to its natural size instead of
+ * filling the tile. The result was a black card with a thin strip of
+ * video along its bottom edge.
+ *
+ * The child therefore gets explicit `MATCH_PARENT` params, and the
+ * group is a `FrameLayout` so the video is positioned at the top left
+ * of the tile, exactly where it is drawn.
+ */
+private fun Context.videoParent(): FrameLayout = FrameLayout(this).apply {
+    layoutParams = ViewGroup.LayoutParams(
         ViewGroup.LayoutParams.MATCH_PARENT,
         ViewGroup.LayoutParams.MATCH_PARENT,
     )
-    return parent
 }
 
 /**
  * `AndroidView` wrapper around Vonage `Subscriber.view`. Mirrors
  * iOS `SubscriberContainer.swift`.
+ *
+ * The SDK renders the video through a `TextureView` (see
+ * `TextureViewSessionOptions`), which only draws frames once it has
+ * been resumed. The resume is driven by `VonageSessionController`
+ * (see `resumeRenderers`) rather than from here: the session's own
+ * pause/resume cycle has to stay authoritative, otherwise a
+ * backgrounded call would keep drawing.
  */
 @Composable
 fun SubscriberContainer(
@@ -60,13 +105,11 @@ fun SubscriberContainer(
 ) {
     AndroidView(
         factory = { ctx ->
-            val parent = android.widget.FrameLayout(ctx).apply {
-                layoutParams = ViewGroup.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                )
+            val parent = ctx.videoParent()
+            subscriber?.view?.let {
+                it.fillTile(subscriber.renderer)
+                parent.attach(it)
             }
-            subscriber?.view?.let { parent.addView(it) }
             parent
         },
         update = { parent ->
@@ -74,9 +117,59 @@ fun SubscriberContainer(
             val current = parent.getChildAt(0)
             if (current !== desired) {
                 parent.removeAllViews()
-                if (desired != null) parent.addView(desired)
+                if (desired != null) {
+                    desired.fillTile(subscriber.renderer)
+                    parent.attach(desired)
+                }
             }
         },
         modifier = modifier,
     )
 }
+
+/**
+ * Makes the SDK's video view fill the tile it is placed in.
+ *
+ * Two things are needed for the video to cover the whole tile:
+ *
+ *  1. **The view has to be laid out at the tile's size.** The SDK's
+ *     view is added to a `FrameLayout` without layout params, so it
+ *     inherited `WRAP_CONTENT` and measured to the video's own
+ *     resolution. The video was then drawn at that size and left the
+ *     rest of the tile black.
+ *
+ *  2. **The video has to be scaled to fill rather than to fit.**
+ *     The SDK renders pillar-boxed by default (`isPillarBoxEnabled`),
+ *     which letterboxes the video inside the surface. iOS asks for
+ *     the opposite — `OTSubscriber.viewScaleBehavior = .fill` — and
+ *     the Android equivalent is `STYLE_VIDEO_FILL`.
+ */
+private fun View.fillTile(renderer: BaseVideoRenderer?) {
+    layoutParams = FrameLayout.LayoutParams(
+        FrameLayout.LayoutParams.MATCH_PARENT,
+        FrameLayout.LayoutParams.MATCH_PARENT,
+        Gravity.TOP or Gravity.START,
+    )
+    if (renderer != null) {
+        renderer.setStyle(BaseVideoRenderer.STYLE_VIDEO_SCALE, BaseVideoRenderer.STYLE_VIDEO_FILL)
+    }
+    // The view has to end up at the tile's size and the video has to
+    // fill it. When either is wrong the tile shows a black card with
+    // the video squeezed into a strip, so the measured size of the
+    // view *and* of its parent are logged once the layout has settled.
+    if (loggedViews.add(this)) {
+        addOnLayoutChangeListener { view, left, top, right, bottom, _, _, _, _ ->
+            val parent = view.parent as? View
+            Log.i(
+                TAG,
+                "video view laid out: ${view.width}x${view.height} at ($left,$top)-($right,$bottom) " +
+                    "parent=${parent?.width}x${parent?.height} " +
+                    "layoutParams=${view.layoutParams?.width}x${view.layoutParams?.height}",
+            )
+        }
+    }
+}
+
+private val loggedViews = java.util.Collections.newSetFromMap(
+    java.util.WeakHashMap<View, Boolean>(),
+)
