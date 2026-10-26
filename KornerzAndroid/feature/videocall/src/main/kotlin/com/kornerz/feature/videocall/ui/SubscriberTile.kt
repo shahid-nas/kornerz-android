@@ -18,11 +18,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -48,14 +50,25 @@ internal fun SubscriberTile(
 ) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(VideoCallPalette.VideoBackdrop),
+            // The backdrop is painted with a rounded shape rather than
+            // clipped with one. A Compose `Modifier.clip` puts the
+            // children into a clipped layer, and the SDK's `TextureView`
+            // renders from its own surface, which such a clip does not
+            // shape — that left a thin translucent black fringe around
+            // the video. The video is rounded by the platform instead
+            // (see `SubscriberContainer`), so the backdrop only has to
+            // *look* rounded.
+            .background(
+                color = VideoCallPalette.VideoBackdrop,
+                shape = RoundedCornerShape(SubscriberTileMetrics.CornerRadius),
+            ),
     ) {
         val subscriber = participant.subscriber
         if (participant.hasVideo && participant.isConnected && subscriber != null) {
             SubscriberContainer(
                 subscriber = subscriber,
                 modifier = Modifier.fillMaxSize(),
+                cornerRadius = SubscriberTileMetrics.CornerRadius,
             )
             // The SDK draws the video through a `GLSurfaceView`, which
             // only renders once it has been resumed — the resume is
@@ -80,10 +93,21 @@ internal fun SubscriberTile(
             )
         }
 
+        // The drop shadow has to follow the label's glyphs only.
+        //
+        // iOS applies `.shadow(radius: 5)` to the overlay stack, and
+        // SwiftUI casts the shadow from the *rendered* content — only
+        // the text and the badge, not the transparent stack. The
+        // Android port had it as `Modifier.shadow` on a full-size
+        // overlay `Column`, which draws the shadow from the layer's
+        // outline, i.e. the whole tile. That showed up as a thin
+        // translucent black frame around the live video.
+        //
+        // A `TextStyle` shadow reproduces the iOS result: the shadow
+        // follows the drawn glyphs.
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .shadow(elevation = SubscriberTileMetrics.OverlayShadowRadius)
                 .padding(SubscriberTileMetrics.OverlayPadding),
         ) {
             Spacer(modifier = Modifier.weight(1f))
@@ -95,6 +119,13 @@ internal fun SubscriberTile(
                         fontFamily = Satoshi,
                         fontWeight = FontWeight.Normal,
                         fontSize = SubscriberTileMetrics.NameSize,
+                        shadow = Shadow(
+                            color = Color.Black.copy(alpha = 0.5f),
+                            offset = Offset(0f, 2f),
+                            blurRadius = with(LocalDensity.current) {
+                                SubscriberTileMetrics.OverlayShadowRadius.toPx()
+                            },
+                        ),
                     ),
                     maxLines = 1,
                 )
@@ -117,6 +148,7 @@ internal fun SubscriberTile(
  * overlay's own `.padding(8)` / `.font(.lato(14))`.
  */
 internal object SubscriberTileMetrics {
+    val CornerRadius = 10.dp
     val ThumbnailSize = 70.dp
     val ThumbnailCornerRadius = 10.dp
     val RaisedHandSize = 25.dp

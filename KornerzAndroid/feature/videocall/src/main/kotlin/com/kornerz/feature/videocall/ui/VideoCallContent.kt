@@ -242,13 +242,21 @@ private fun LocalPublisherTile(state: VideoCallState) {
     Box(
         modifier = Modifier
             .size(TopToolbarMetrics.TileSize)
-            .clip(RoundedCornerShape(TopToolbarMetrics.TileCornerRadius)),
+            // The backdrop is painted rounded rather than clipped: the
+            // SDK's video surface is not shaped by a Compose clip, so
+            // the clip left a thin dark fringe around the feed. The
+            // video itself is rounded by the platform.
+            .background(
+                color = VideoCallPalette.Tile,
+                shape = RoundedCornerShape(TopToolbarMetrics.TileCornerRadius),
+            ),
     ) {
         val publisher = state.publisher
         if (state.isVideoOn && publisher != null) {
             PublisherContainer(
                 publisher = publisher,
                 modifier = Modifier.fillMaxSize(),
+                cornerRadius = TopToolbarMetrics.TileCornerRadius,
             )
         } else {
             Box(

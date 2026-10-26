@@ -2,12 +2,17 @@ package com.kornerz.feature.videocall.ui
 
 import android.content.Context
 import android.util.Log
+import android.graphics.Outline
 import android.view.Gravity
+import android.view.TextureView
 import android.view.View
+import android.view.ViewOutlineProvider
 import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.opentok.android.BaseVideoRenderer
 import com.opentok.android.Publisher
@@ -25,10 +30,11 @@ private const val TAG = "VideoCallUI"
 fun PublisherContainer(
     publisher: Publisher?,
     modifier: Modifier = Modifier,
+    cornerRadius: Dp = 0.dp,
 ) {
     AndroidView(
         factory = { ctx ->
-            val parent = ctx.videoParent()
+            val parent = ctx.videoParent(cornerRadius)
             publisher?.view?.let {
                 it.fillTile(publisher.renderer)
                 parent.attach(it)
@@ -80,11 +86,29 @@ private fun FrameLayout.attach(child: View) {
  * group is a `FrameLayout` so the video is positioned at the top left
  * of the tile, exactly where it is drawn.
  */
-private fun Context.videoParent(): FrameLayout = FrameLayout(this).apply {
+private fun Context.videoParent(cornerRadius: Dp): FrameLayout = FrameLayout(this).apply {
     layoutParams = ViewGroup.LayoutParams(
         ViewGroup.LayoutParams.MATCH_PARENT,
         ViewGroup.LayoutParams.MATCH_PARENT,
     )
+    if (cornerRadius > 0.dp) {
+        // The video surface is clipped natively, by the platform, rather
+        // than by a Compose `Modifier.clip`.
+        //
+        // A `TextureView` renders its content from a `SurfaceTexture`,
+        // i.e. from a separate buffer that the Compose layer's clip
+        // does not shape. The Compose clip therefore left the corners
+        // of the surface uncut and a thin translucent black fringe
+        // around the video. `clipToOutline` with a rounded outline
+        // clips the surface itself.
+        val radiusPx = cornerRadius.value * resources.displayMetrics.density
+        clipToOutline = true
+        outlineProvider = object : ViewOutlineProvider() {
+            override fun getOutline(view: View, outline: Outline) {
+                outline.setRoundRect(0, 0, view.width, view.height, radiusPx)
+            }
+        }
+    }
 }
 
 /**
@@ -102,10 +126,11 @@ private fun Context.videoParent(): FrameLayout = FrameLayout(this).apply {
 fun SubscriberContainer(
     subscriber: Subscriber?,
     modifier: Modifier = Modifier,
+    cornerRadius: Dp = 0.dp,
 ) {
     AndroidView(
         factory = { ctx ->
-            val parent = ctx.videoParent()
+            val parent = ctx.videoParent(cornerRadius)
             subscriber?.view?.let {
                 it.fillTile(subscriber.renderer)
                 parent.attach(it)
@@ -166,8 +191,55 @@ private fun View.fillTile(renderer: BaseVideoRenderer?) {
                     "parent=${parent?.width}x${parent?.height} " +
                     "layoutParams=${view.layoutParams?.width}x${view.layoutParams?.height}",
             )
+            view.syncSurfaceSize()
         }
     }
+    startSurfaceSizeSync()
+}
+
+/**
+ * Keeps the `TextureView`'s surface buffer the same size as the view.
+ *
+ * The SDK draws each frame with the *surface* size as its GL viewport.
+ * A `TextureView` keeps whatever buffer size it was given, so when the
+ * tile is laid out at a different size than the surface, the frame is
+ * drawn into only a part of the buffer and the rest of the tile keeps
+ * the cleared (transparent) surface — the thin dark band that was
+ * visible around the subscriber's video.
+ *
+ * Setting the default buffer size to the view's size makes the
+ * surface and the viewport agree, so the video covers the tile edge to
+ * edge.
+ */
+private fun View.syncSurfaceSize() {
+    if (width <= 0 || height <= 0) return
+    val texture = this as? TextureView ?: return
+    val surface = texture.surfaceTexture ?: return
+    surface.setDefaultBufferSize(width, height)
+}
+
+/**
+ * Re-applies the surface size while the view settles.
+ *
+ * The SDK owns the `SurfaceTextureListener` of the `TextureView`, so
+ * the buffer size cannot be set from a listener of our own — the
+ * surface is only available once the SDK's own callback has run, and
+ * it is recreated every time the view is attached. The size is
+ * therefore re-applied for a short while after every attach.
+ */
+private fun View.startSurfaceSizeSync() {
+    val texture = this as? TextureView ?: return
+    var attempts = 0
+    val sync = object : Runnable {
+        override fun run() {
+            if (!isAttachedToWindow) return
+            syncSurfaceSize()
+            if (++attempts < 20) {
+                postDelayed(this, 100)
+            }
+        }
+    }
+    postDelayed(sync, 100)
 }
 
 private val loggedViews = java.util.Collections.newSetFromMap(
