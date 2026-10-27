@@ -33,5 +33,10 @@ fun PrivacyPolicyScreen(
         }
     }
 
-    PrivacyPolicyContent(state = state, onEvent = viewModel::onEvent, modifier = modifier)
+    PrivacyPolicyContent(
+        state = state,
+        onEvent = viewModel::onEvent,
+        modifier = modifier,
+        onBack = { navController.popBackStack() },
+    )
 }

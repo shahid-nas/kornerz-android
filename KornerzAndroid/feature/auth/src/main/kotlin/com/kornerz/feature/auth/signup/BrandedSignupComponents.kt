@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -37,14 +38,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Outline
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -55,9 +49,7 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kornerz.core.ui.theme.Satoshi
@@ -145,6 +137,7 @@ fun BrandedSignupScaffold(
             onClick = onBack,
             modifier = Modifier
                 .align(Alignment.TopStart)
+                .statusBarsPadding()
                 .padding(start = 4.dp, top = 4.dp),
         ) {
             Icon(
@@ -548,159 +541,9 @@ fun BottomSpacer() {
     Spacer(Modifier.height(8.dp))
 }
 
-// ─── Triangle-clipped image + Kornerz square card (iOS `KornerzSquareView`)
-//      ──────────────────────────────────────────────────────────────────────
-
-/** Corner which the [TriangleClippedShape] is *cut* toward. The opposing
- *  corner keeps a rounded [cornerRadius]. Mirrors the iOS
- *  `TriangleClippedShapeType` enum (`.topRight` / `.bottomLeft`). */
-enum class TriangleType { TopRight, BottomLeft }
-
 /**
- * Triangular clip — a square clipped to a right-triangle whose hypotenuse
- * runs from one corner of the square to the opposite one, with a
- * [cornerRadius] rounding the two included 90° corners. 1:1 port of iOS
- * `TriangleClippedShape` in `kornerz/.../TriangleClippedShape.swift`.
- */
-fun triangleClip(type: TriangleType, cornerRadius: Dp): Shape =
-    object : Shape {
-        override fun createOutline(
-            size: Size,
-            layoutDirection: LayoutDirection,
-            density: Density,
-        ): Outline {
-            val w = size.width
-            val h = size.height
-            val r = (cornerRadius.value * density.density)
-                .coerceAtMost(minOf(w, h) / 2f)
-            val path = Path().apply {
-                when (type) {
-                    TriangleType.TopRight -> {
-                        // Visible region = bottom-left right-triangle.
-                        // Right-angle vertex = bottom-left (sharp).
-                        // Rounded vertices = top-left and bottom-right.
-                        // Cut corner = top-right; hypotenuse (r, 0) → (w, h-r).
-                        moveTo(r, 0f)
-                        arcTo(
-                            rect = Rect(0f, 0f, 2f * r, 2f * r),
-                            startAngleDegrees = 270f,
-                            sweepAngleDegrees = 90f,
-                            forceMoveTo = false,
-                        )
-                        lineTo(0f, h)
-                        lineTo(w - r, h)
-                        arcTo(
-                            rect = Rect(w - 2f * r, h - 2f * r, w, h),
-                            startAngleDegrees = 90f,
-                            sweepAngleDegrees = 90f,
-                            forceMoveTo = false,
-                        )
-                        lineTo(w, r)
-                        lineTo(r, 0f)
-                        close()
-                    }
-                    TriangleType.BottomLeft -> {
-                        // Visible region = top-right right-triangle.
-                        // Right-angle vertex = top-right (sharp).
-                        // Rounded vertices = top-left and bottom-right.
-                        // Cut corner = bottom-left; hypotenuse (0, r) → (w-r, h).
-                        moveTo(r, 0f)
-                        lineTo(w, 0f)
-                        lineTo(w, h - r)
-                        arcTo(
-                            rect = Rect(w - 2f * r, h - 2f * r, w, h),
-                            startAngleDegrees = 180f,
-                            sweepAngleDegrees = 90f,
-                            forceMoveTo = false,
-                        )
-                        lineTo(w - r, h)
-                        lineTo(0f, r)
-                        arcTo(
-                            rect = Rect(0f, 0f, 2f * r, 2f * r),
-                            startAngleDegrees = 0f,
-                            sweepAngleDegrees = 90f,
-                            forceMoveTo = false,
-                        )
-                        close()
-                    }
-                }
-            }
-            return Outline.Generic(path)
-        }
-    }
-
-/**
- * Cyclic palette used by the iOS `RandomColorService` — `C68B6CC` (Aqua)
- * is intentionally included even though it matches the screen background
- * so the index math mirrors iOS 1:1. The `index % palette.size` rotation
- * matches `RandomColorService.color(for:)`.
- */
-internal val KornerzCardPalette: List<Color> = listOf(
-    Color(0xFFE27D5A), // CE27D5A
-    Color(0xFFAD598D), // CAD598D
-    Color(0xFF86BFA9), // C86BFA9
-    Color(0xFF68B6CC), // C68B6CC
-    Color(0xFFEBAA4A), // CEBAA4A
-)
-
-internal fun kornerzCardColor(index: Int): Color =
-    KornerzCardPalette[index.mod(KornerzCardPalette.size)]
-
-/**
- * One kornerz tile in the signup "Pick your Kornerz" grid. 1:1 port of
- * iOS `KornerzSquareView`:
- *  - 135dp square, 16dp corner radius, [background] fill
- *  - 5dp inner padding, then a top-right triangle image clipped with a
- *    13dp corner radius sitting flush against the top-right corner
- *  - bold white Satoshi title anchored to the bottom-leading edge,
- *    width = 2/3 of the tile
- *
- * The image is currently rendered as a neutral gray fill — the bundled
- * `korner_interests.json` catalog does not carry an image URL yet, so
- * this matches the iOS `TriangleImageView` `.background(.gray)` look
- * (and its `WebImage` `ProgressView` placeholder). When images land in
- * the catalog the gray box is a single replacement.
- */
-@Composable
-fun KornerzSquareCard(
-    title: String,
-    background: Color,
-    modifier: Modifier = Modifier,
-    size: Dp = 135.dp,
-    cornerRadius: Dp = 16.dp,
-    triangle: TriangleType = TriangleType.TopRight,
-) {
-    val titleWidth = size * 2 / 3
-    Box(
-        modifier = modifier
-            .size(size)
-            .clip(RoundedCornerShape(cornerRadius))
-            .background(background),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(5.dp)
-                .clip(triangleClip(triangle, cornerRadius = 13.dp))
-                .background(Color(0xFFB6B6B6)),
-        )
-        Text(
-            text = title,
-            color = Color.White,
-            fontFamily = Satoshi,
-            fontWeight = FontWeight.Bold,
-            fontSize = 12.sp,
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .width(titleWidth)
-                .padding(8.dp),
-        )
-    }
-}
-
-/**
- * Selection border overlay for [KornerzSquareCard] — a 4dp white
- * `RoundedRectangle` stroke matching the iOS overlay in
+ * Selection border overlay for the shared `KornerzSquareImageTile` — a
+ * 4dp white `RoundedRectangle` stroke matching the iOS overlay in
  * `SignupKornerzView.kornerzView`. Compose-side the stroke is rendered
  * by the caller wrapping the card, so this is just a thin convenience
  * that applies the stroke to the card's exact footprint.

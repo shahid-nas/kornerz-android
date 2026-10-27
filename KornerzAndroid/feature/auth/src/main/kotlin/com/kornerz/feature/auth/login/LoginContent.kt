@@ -54,6 +54,7 @@ import com.kornerz.core.network.AuthException
 import com.kornerz.core.network.auth.AuthError
 import com.kornerz.core.ui.theme.KornerzTheme
 import com.kornerz.core.ui.theme.Satoshi
+import com.kornerz.feature.auth.recovery.RecoveryBackChevronButton
 
 /**
  * Stateless renderer for the Login screen. Mirrors the iOS
@@ -72,6 +73,7 @@ fun LoginContent(
     state: LoginState,
     onEvent: (LoginEvent) -> Unit,
     modifier: Modifier = Modifier,
+    onBack: (() -> Unit)? = null,
 ) {
     Box(
         modifier = modifier
@@ -157,6 +159,13 @@ fun LoginContent(
                     )
                 }
             }
+        }
+
+        if (onBack != null) {
+            RecoveryBackChevronButton(
+                onClick = onBack,
+                modifier = Modifier.align(Alignment.TopStart),
+            )
         }
     }
 }

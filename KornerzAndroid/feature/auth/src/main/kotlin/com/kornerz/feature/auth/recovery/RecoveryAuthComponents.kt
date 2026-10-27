@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -65,14 +66,18 @@ internal val RecoveryPlaceholderGrey = Color(0xFF9E9EAE)
 
 /**
  * Mirrors iOS `ChevronBackButton` in the navigation bar's leading slot.
+ * [tint] matches the iOS `color:` argument — white on the Aqua screens,
+ * black on the Privacy Policy header.
  */
 @Composable
 internal fun RecoveryBackChevronButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    tint: Color = Color.White,
 ) {
     Box(
         modifier = modifier
+            .statusBarsPadding()
             .padding(start = 8.dp, top = 8.dp)
             .size(40.dp)
             .clickable(onClick = onClick),
@@ -81,7 +86,7 @@ internal fun RecoveryBackChevronButton(
         Icon(
             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
             contentDescription = "Back",
-            tint = Color.White,
+            tint = tint,
             modifier = Modifier.size(20.dp),
         )
     }

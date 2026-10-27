@@ -8,6 +8,8 @@ import com.kornerz.core.model.LoopsFilter
 import com.kornerz.core.network.community.CommunitiesRepository
 import com.kornerz.core.network.loops.LoopCursor
 import com.kornerz.core.network.user.UsersRepository
+import com.kornerz.core.storage.session.SessionRepository
+import com.kornerz.core.storage.session.SessionState
 import com.kornerz.core.ui.components.header.TabHeaderViewModel
 import com.kornerz.feature.loops.components.LoopCardData
 import com.kornerz.feature.loops.data.LoopMapper
@@ -26,6 +28,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.filterNot
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -47,6 +52,7 @@ class LoopsViewModel @Inject constructor(
     private val loopRepository: LoopRepository,
     private val usersRepository: UsersRepository,
     private val communitiesRepository: CommunitiesRepository,
+    private val sessionRepository: SessionRepository,
     private val headerVm: TabHeaderViewModel,
 ) : ViewModel() {
 
@@ -117,6 +123,7 @@ class LoopsViewModel @Inject constructor(
                     filter = _state.value.selectedFilter,
                     searchQuery = searchQuery.value,
                     cursor = null,
+                    currentUserCode = currentUserCode(),
                 )
                 .collect { result ->
                     result.fold(
@@ -155,6 +162,7 @@ class LoopsViewModel @Inject constructor(
                     filter = _state.value.selectedFilter,
                     searchQuery = searchQuery.value,
                     cursor = cursor,
+                    currentUserCode = currentUserCode(),
                 )
                 .collect { result ->
                     result.fold(
@@ -209,6 +217,32 @@ class LoopsViewModel @Inject constructor(
                 }
         return loops.toCardData(communities, users)
     }
+
+    /**
+     * The signed-in user's identity **as loop documents store it** —
+     * the `codeUser` value, mirrored from iOS `User.id`
+     * (`codeUser ?? userId`, `kornerz/Kornerz/Models/User.swift:57-59`).
+     *
+     * Loop documents write their author into `publisherId` from
+     * `AppHelper.shared.loggedInUser?.userCode` on iOS
+     * (`AddForumViewModel.swift:220-227`), so `publisherId` holds a
+     * user code — never the Firebase Auth uid (the app signs in
+     * anonymously) and never the `Users` document id.
+     *
+     * Returns `null` for an anonymous session, or for a session whose
+     * user carries no code — the "Your Loops" filter then fails with
+     * the sign-in error instead of silently listing somebody else's
+     * loops.
+     */
+    private suspend fun currentUserCode(): String? =
+        sessionRepository.data
+            .filterNot { it is SessionState.Loading }
+            .map { state ->
+                val user = (state as? SessionState.Authenticated)?.user ?: return@map null
+                user.userCode?.takeIf { it.isNotBlank() }
+                    ?: user.id.takeIf { it.isNotBlank() }
+            }
+            .first()
 
     private fun observeSearch() {
         viewModelScope.launch {

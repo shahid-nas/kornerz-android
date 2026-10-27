@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -30,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import com.kornerz.core.ui.theme.KornerzTheme
 import com.kornerz.core.ui.theme.Satoshi
 import com.kornerz.feature.auth.R
+import com.kornerz.feature.auth.recovery.RecoveryBackChevronButton
 
 /**
  * Stateless renderer for the standalone Privacy Policy screen. Mirrors
@@ -61,6 +63,7 @@ fun PrivacyPolicyContent(
     state: PrivacyPolicyState,
     onEvent: (PrivacyPolicyEvent) -> Unit,
     modifier: Modifier = Modifier,
+    onBack: (() -> Unit)? = null,
 ) {
     val pdfScrollState = rememberScrollState()
     val reachedEnd by remember {
@@ -77,7 +80,8 @@ fun PrivacyPolicyContent(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Aqua),
+            .background(Aqua)
+            .navigationBarsPadding(),
     ) {
         Box(
             modifier = Modifier
@@ -99,6 +103,14 @@ fun PrivacyPolicyContent(
                 fontSize = 24.sp,
                 modifier = Modifier.padding(bottom = 12.dp),
             )
+
+            if (onBack != null) {
+                RecoveryBackChevronButton(
+                    onClick = onBack,
+                    modifier = Modifier.align(Alignment.TopStart),
+                    tint = Color.Black,
+                )
+            }
         }
 
         PdfViewer(

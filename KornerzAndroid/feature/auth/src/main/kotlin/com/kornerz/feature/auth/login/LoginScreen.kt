@@ -47,5 +47,10 @@ fun LoginScreen(
         }
     }
 
-    LoginContent(state = state, onEvent = viewModel::onEvent, modifier = modifier)
+    LoginContent(
+        state = state,
+        onEvent = viewModel::onEvent,
+        modifier = modifier,
+        onBack = { navController.popBackStack() },
+    )
 }

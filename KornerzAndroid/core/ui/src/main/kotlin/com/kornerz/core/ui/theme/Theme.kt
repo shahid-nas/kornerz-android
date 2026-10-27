@@ -1,6 +1,5 @@
 package com.kornerz.core.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -86,10 +85,14 @@ private val DarkScheme = darkColorScheme(
  * Top-level theme entry point. Wrap any P1+ screen in `KornerzTheme`
  * to gain access to brand colors, Satoshi typography, and shape tokens
  * via `MaterialTheme`.
+ *
+ * The app is light-only for now: the default is [darkTheme] = `false`
+ * so the UI does not follow the system setting. Callers can still opt
+ * into the dark scheme explicitly by passing `darkTheme = true`.
  */
 @Composable
 fun KornerzTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    darkTheme: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val colorScheme = if (darkTheme) DarkScheme else LightScheme

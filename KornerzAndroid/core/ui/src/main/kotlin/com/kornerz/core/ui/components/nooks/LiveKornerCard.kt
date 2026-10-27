@@ -26,6 +26,7 @@ import com.kornerz.core.model.Korner
 import com.kornerz.core.model.Nook
 import com.kornerz.core.ui.components.TriangleClippedShape
 import com.kornerz.core.ui.components.TriangleCorner
+import com.kornerz.core.ui.theme.Satoshi
 
 /**
  * Live-tab row — 1:1 port of iOS `NookView.swift` (live card):
@@ -72,8 +73,9 @@ fun LiveKornerCard(
                 text = korner.name,
                 color = Color.White,
                 style = androidx.compose.ui.text.TextStyle(
-                    fontWeight = FontWeight.Normal,
-                    fontSize = 11.sp,
+                    fontFamily = Satoshi,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
                 ),
                 maxLines = 1,
             )
@@ -82,6 +84,7 @@ fun LiveKornerCard(
                     ?: "Live session in progress",
                 color = Color.White,
                 style = androidx.compose.ui.text.TextStyle(
+                    fontFamily = Satoshi,
                     fontWeight = FontWeight.Normal,
                     fontSize = 12.sp,
                 ),
@@ -99,6 +102,7 @@ fun LiveKornerCard(
                     text = "9 spots left",
                     color = Color.White,
                     style = androidx.compose.ui.text.TextStyle(
+                        fontFamily = Satoshi,
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp,
                     ),
@@ -128,6 +132,7 @@ private fun JoinLabel() {
             text = "Join",
             color = Color.White,
             style = androidx.compose.ui.text.TextStyle(
+                fontFamily = Satoshi,
                 fontWeight = FontWeight.Normal,
                 fontSize = 12.sp,
             ),
@@ -171,8 +176,8 @@ fun LiveKornerCard(
                 text = nook.title,
                 color = Color.White,
                 style = androidx.compose.ui.text.TextStyle(
-                    fontWeight = FontWeight.Normal,
-                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
                 ),
                 maxLines = 1,
             )

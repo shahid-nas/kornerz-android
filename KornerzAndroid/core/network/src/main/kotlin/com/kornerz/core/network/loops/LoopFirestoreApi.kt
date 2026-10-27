@@ -2,7 +2,6 @@ package com.kornerz.core.network.loops
 
 import android.util.Log
 import com.google.firebase.Timestamp
-import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
@@ -37,7 +36,6 @@ import javax.inject.Singleton
 @Singleton
 class LoopFirestoreApi @Inject constructor(
     private val firestore: FirebaseFirestore,
-    private val auth: FirebaseAuth,
 ) {
 
     val collection get() = firestore.collection(COLLECTION_LOOPS)
@@ -47,25 +45,32 @@ class LoopFirestoreApi @Inject constructor(
      * `fetchAllLoops` / `fetchUserLoops` calls. Cursor pagination
      * matches iOS `start(afterDocument:)`.
      *
-     * For `YOUR_LOOPS` the query is gated on a signed-in user — when
-     * no user is signed in the method emits a `Result.failure` to
-     * mirror the iOS `error = .tryAgain` behavior in
-     * `LoopsTabViewModel.fetchUserLoops()`.
+     * For `YOUR_LOOPS` the query is gated on [currentUserCode] — the
+     * signed-in user's **`codeUser`** value. iOS queries with
+     * `AppHelper.shared.loggedInUser?.id`, and `User.id` is
+     * `codeUser ?? userId` (`kornerz/Kornerz/Models/User.swift:57-59`);
+     * every loop document stores its author as the `codeUser` string
+     * (`AddForumViewModel.swift:220-227`), so `publisherId` holds a
+     * **user code**, never a Firebase Auth uid and never the `Users`
+     * document id. When no code is available the method emits a
+     * `Result.failure` so the ViewModel surfaces the error state
+     * instead of a misleading empty list.
      */
     fun observeLoops(
         filter: LoopsFilter,
         searchQuery: String,
         cursor: LoopCursor?,
+        currentUserCode: String? = null,
         pageSize: Int = DEFAULT_PAGE_SIZE,
     ): Flow<Result<PagingResult<Loop>>> = flow {
         // "Your Loops" is gated on a real signed-in user — matches
         // iOS `AppHelper.shared.loggedInUser?.id` in
-        // `LoopsTabViewModel.fetchUserLoops()`. We deliberately do
-        // NOT auto sign-in anonymously here: a fresh anonymous UID
-        // has no published loops, so the query would silently return
-        // an empty page instead of telling the user the real reason.
-        val currentUserId = currentUserIdOrNull()
-        if (filter == LoopsFilter.YOUR_LOOPS && currentUserId.isNullOrBlank()) {
+        // `LoopsTabViewModel.fetchUserLoops()`. The Firebase Auth uid
+        // is deliberately NOT used here: the app signs in anonymously,
+        // so that uid is a throwaway identity that never matches the
+        // `publisherId` of any loop document.
+        val publisherId = currentUserCode?.takeIf { it.isNotBlank() }
+        if (filter == LoopsFilter.YOUR_LOOPS && publisherId == null) {
             emit(Result.failure(LoopsRequireSignInException()))
             return@flow
         }
@@ -82,7 +87,7 @@ class LoopFirestoreApi @Inject constructor(
                     LoopsFilter.ALL -> collection
                         .orderBy(FIELD_CREATION_DATE, Query.Direction.DESCENDING)
                     LoopsFilter.YOUR_LOOPS -> collection
-                        .whereEqualTo(FIELD_PUBLISHER_ID, currentUserId)
+                        .whereEqualTo(FIELD_PUBLISHER_ID, publisherId)
                         .orderBy(FIELD_CREATION_DATE, Query.Direction.DESCENDING)
                 } to false
             }
@@ -180,19 +185,19 @@ class LoopFirestoreApi @Inject constructor(
         emptyList()
     }
 
-    /** Fetches the loops authored by [userId], newest first — iOS `fetchUserLoops`. */
+    /** Fetches the loops authored by [publisherId], newest first — iOS `fetchUserLoops`. */
     fun fetchLoopsByPublisher(
-        userId: String,
+        publisherId: String,
         cursor: LoopCursor?,
         pageSize: Int = DEFAULT_PAGE_SIZE,
     ): Flow<Result<PagingResult<Loop>>> = flow {
-        if (userId.isBlank()) {
-            emit(Result.failure(IllegalArgumentException("userId must not be blank")))
+        if (publisherId.isBlank()) {
+            emit(Result.failure(IllegalArgumentException("publisherId must not be blank")))
             return@flow
         }
         val result = runCatching {
             var q: Query = collection
-                .whereEqualTo(FIELD_PUBLISHER_ID, userId)
+                .whereEqualTo(FIELD_PUBLISHER_ID, publisherId)
                 .orderBy(FIELD_CREATION_DATE, Query.Direction.DESCENDING)
                 .limit(pageSize.toLong())
             if (cursor?.snapshot != null) q = q.startAfter(cursor.snapshot!!)
@@ -238,8 +243,6 @@ class LoopFirestoreApi @Inject constructor(
             .mapNotNull { it.data?.toLoop(it.id) }
     }.onFailure { Log.w(TAG, "fetchCommunityLoops: ${it.message}") }
         .recover { emptyList() }
-
-    private fun currentUserIdOrNull(): String? = auth.currentUser?.uid
 
     private fun Map<String, Any?>.toLoop(id: String): Loop? = Loop(
         id = id,

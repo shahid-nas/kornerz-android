@@ -11,10 +11,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -49,8 +48,11 @@ import com.kornerz.core.model.KornerInterest
 import com.kornerz.core.storage.country.CountryCodesRepository
 import com.kornerz.core.storage.interests.KornerInterestRepository
 import com.kornerz.core.ui.components.AsyncValueContent
+import com.kornerz.core.ui.components.KornerzSquareImageTile
+import com.kornerz.core.ui.components.KornerzSquareTileDefaults
 import com.kornerz.core.ui.components.rememberKornerzImagePicker
 import com.kornerz.core.ui.theme.Satoshi
+import com.kornerz.core.ui.theme.kornerzCardColor
 
 // ─── iOS-matching branded step content ────────────────────────────────────
 //
@@ -460,30 +462,34 @@ private fun KornerzCardGrid(
     onToggle: (KornerInterest) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        items.chunked(2).forEach { rowItems ->
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                rowItems.forEachIndexed { localIndex, item ->
-                    val globalIndex = items.indexOf(item)
-                    val selected = isSelected(item)
-                    KornerzSquareCard(
-                        title = item.title,
-                        background = kornerzCardColor(globalIndex),
-                        modifier = Modifier
-                            .weight(1f)
-                            .aspectRatio(1f)
-                            .kornerzSelectionStroke(selected)
-                            .clickable { onToggle(item) },
-                    )
-                }
-                if (rowItems.size < 2) {
-                    Spacer(modifier = Modifier.weight(1f))
+    val gap = 16.dp
+    BoxWithConstraints(modifier = modifier) {
+        // The shared tile is a fixed-size card (cover + accent frame), so
+        // the cover side is derived from the available width to keep two
+        // tiles per row filling the row exactly.
+        val coverSize = (maxWidth - gap) / 2 - KornerzSquareTileDefaults.CardPadding * 2
+
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(gap),
+        ) {
+            items.chunked(2).forEach { rowItems ->
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(gap),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    rowItems.forEach { item ->
+                        val globalIndex = items.indexOf(item)
+                        val selected = isSelected(item)
+                        KornerzSquareImageTile(
+                            name = item.title,
+                            coverUrl = null,
+                            accent = kornerzCardColor(globalIndex),
+                            onClick = { onToggle(item) },
+                            modifier = Modifier.kornerzSelectionStroke(selected),
+                            size = coverSize,
+                        )
+                    }
                 }
             }
         }

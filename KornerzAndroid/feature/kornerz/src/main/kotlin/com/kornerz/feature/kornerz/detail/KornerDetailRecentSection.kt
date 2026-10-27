@@ -1,5 +1,6 @@
 package com.kornerz.feature.kornerz.detail
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -56,7 +57,10 @@ fun KornerDetailRecentSection(
         if (cards.isEmpty()) {
             EmptyRecentLoops()
         } else {
-            Column(modifier = Modifier.padding(bottom = Spacing.space8)) {
+            Column(
+                modifier = Modifier.padding(bottom = Spacing.space8),
+                verticalArrangement = Arrangement.spacedBy(Spacing.space8),
+            ) {
                 cards.forEachIndexed { index, card ->
                     // iOS hands the **row's** colour to the loop detail
                     // (`navigateToLoopDetail(loopInfo)` carries

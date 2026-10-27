@@ -26,6 +26,7 @@ import coil.compose.AsyncImage
 import com.kornerz.core.model.Nook
 import com.kornerz.core.model.User
 import com.kornerz.core.ui.components.TriangleCorner
+import com.kornerz.core.ui.theme.Satoshi
 
 /**
  * Upcoming-tab row — 1:1 port of iOS `ScheduledNookView.swift`:
@@ -83,25 +84,41 @@ fun ScheduledNookCard(
             Text(
                 text = nook.startDate?.let { formatNookStartDate(it) }.orEmpty(),
                 color = Color.White,
-                style = TextStyle(fontWeight = FontWeight.Normal, fontSize = 11.sp),
+                style = TextStyle(
+                    fontFamily = Satoshi,
+                    fontWeight = FontWeight.Normal,
+                    fontSize = 11.sp,
+                ),
             )
             Text(
                 text = nook.title,
                 color = Color.White,
-                style = TextStyle(fontWeight = FontWeight.Medium, fontSize = 12.sp),
+                style = TextStyle(
+                    fontFamily = Satoshi,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                ),
                 maxLines = 2,
             )
             Text(
                 text = "in $parentKornerName",
                 color = Color.White,
-                style = TextStyle(fontWeight = FontWeight.Normal, fontSize = 12.sp),
+                style = TextStyle(
+                    fontFamily = Satoshi,
+                    fontWeight = FontWeight.Normal,
+                    fontSize = 12.sp,
+                ),
                 maxLines = 1,
             )
             Spacer(modifier = Modifier.size(4.dp))
             Text(
                 text = "9 spots left",
                 color = Color.White,
-                style = TextStyle(fontWeight = FontWeight.Bold, fontSize = 12.sp),
+                style = TextStyle(
+                    fontFamily = Satoshi,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                ),
             )
         }
         TriangleCover(
@@ -125,7 +142,11 @@ private fun AddButton() {
         Text(
             text = "Add",
             color = Color.White,
-            style = TextStyle(fontWeight = FontWeight.Normal, fontSize = 12.sp),
+            style = TextStyle(
+                fontFamily = Satoshi,
+                fontWeight = FontWeight.Normal,
+                fontSize = 12.sp,
+            ),
         )
     }
 }
