@@ -58,14 +58,6 @@ dependencies {
     implementation(libs.hilt.android)
     kapt(libs.hilt.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
-
-    // PDF viewer for the privacy policy screen (P6, arch §3 amendment)
-    implementation(libs.android.pdf.viewer) {
-        // The 3.1.0-beta.1 AAR still bundles the legacy `com.android.support`
-        // artifacts which collide with the project's AndroidX core / media
-        // libraries. Exclude the support classes so packaging succeeds.
-        exclude(group = "com.android.support")
-    }
 }
 
 kapt {
