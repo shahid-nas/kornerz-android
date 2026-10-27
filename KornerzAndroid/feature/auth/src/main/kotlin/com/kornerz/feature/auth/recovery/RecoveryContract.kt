@@ -24,7 +24,9 @@ sealed interface ForgotPasswordNavEvent {
 data class OtpConfirmState(
     val email: String = "",
     val code: String = "",
-    val submit: AsyncValue<Unit> = AsyncValue.Loading,
+    // Idle until the user submits; `Loading` is only set while the code
+    // verification request is in flight.
+    val submit: AsyncValue<Unit> = AsyncValue.Success(Unit),
     val resendCooldownSeconds: Int = 0,
 ) {
     val isFormValid: Boolean get() = code.length == 6
@@ -45,7 +47,9 @@ data class ChangePasswordState(
     val resetToken: String = "",
     val newPassword: String = "",
     val confirmPassword: String = "",
-    val submit: AsyncValue<Unit> = AsyncValue.Loading,
+    // Idle until the user submits; `Loading` is only set while the
+    // password change request is in flight.
+    val submit: AsyncValue<Unit> = AsyncValue.Success(Unit),
 ) {
     val isFormValid: Boolean
         get() = newPassword.length >= 6 && newPassword == confirmPassword

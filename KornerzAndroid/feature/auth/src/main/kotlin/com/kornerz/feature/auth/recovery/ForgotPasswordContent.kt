@@ -2,40 +2,26 @@ package com.kornerz.feature.auth.recovery
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -65,22 +51,14 @@ fun ForgotPasswordContent(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Aqua),
+            .background(RecoveryAqua),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState()),
         ) {
-            Image(
-                painter = painterResource(com.kornerz.feature.auth.R.drawable.bg_clouds_light),
-                contentDescription = null,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(250.dp)
-                    .offset(y = 60.dp),
-                contentScale = ContentScale.Fit,
-            )
+            RecoveryCloudHeader()
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -103,31 +81,21 @@ fun ForgotPasswordContent(
                     ?.message
                     ?.takeIf { it.isNotBlank() }
                 if (errorMessage != null) {
-                    ErrorBanner(message = errorMessage)
+                    RecoveryErrorBanner(message = errorMessage)
                 }
 
-                TransparentEmailField(
+                RecoveryTransparentTextField(
                     value = state.email,
                     onValueChange = { onEvent(ForgotPasswordEvent.EmailChanged(it)) },
                     placeholder = "Email",
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Email,
+                    imeAction = androidx.compose.ui.text.input.ImeAction.Done,
                 )
 
-                val isLoading = state.submit is AsyncValue.Loading
-                if (isLoading) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 16.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator(
-                            color = Color.White,
-                            strokeWidth = 2.dp,
-                            modifier = Modifier.size(24.dp),
-                        )
-                    }
+                if (state.submit is AsyncValue.Loading) {
+                    RecoveryLoadingIndicator()
                 } else {
-                    CapsuleWhiteOnBlackButton(
+                    RecoveryCapsuleWhiteOnBlackButton(
                         text = "Reset Password",
                         onClick = { onEvent(ForgotPasswordEvent.Submit) },
                         enabled = state.isFormValid,
@@ -137,7 +105,7 @@ fun ForgotPasswordContent(
         }
 
         if (onBack != null) {
-            BackChevronButton(
+            RecoveryBackChevronButton(
                 onClick = onBack,
                 modifier = Modifier.align(Alignment.TopStart),
             )
@@ -145,147 +113,41 @@ fun ForgotPasswordContent(
     }
 }
 
-// ─── Brand tokens (private — mirrors iOS `AppColor` / `Config.swift`) ────
-
-private val Aqua = Color(0xFF68B6CC)
-private val CoralRed = Color(0xFFF50041)
-
-// ─── Composables ──────────────────────────────────────────────────────────
-
 /**
- * Mirrors iOS `TransparentTextField` with the `.white` config: a clear
- * background, a 2dp white bar on the leading edge, and white text.
+ * Mirrors iOS `CloudHeaderView` — the `bg-clouds-light` artwork, 250pt
+ * tall, pushed 60pt below the top edge.
  */
 @Composable
-private fun TransparentEmailField(
-    value: String,
-    onValueChange: (String) -> Unit,
-    placeholder: String,
-) {
-    val textStyle = TextStyle(
-        fontFamily = Satoshi,
-        fontWeight = FontWeight.Bold,
-        fontSize = 24.sp,
-        color = Color.White,
-    )
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color.Transparent),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .width(2.dp)
-                .height(56.dp)
-                .background(Color.White),
-        )
-        Box(modifier = Modifier.weight(1f)) {
-            BasicTextField(
-                value = value,
-                onValueChange = onValueChange,
-                textStyle = textStyle,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Email,
-                    imeAction = ImeAction.Done,
-                ),
-                singleLine = true,
-                cursorBrush = SolidColor(Color.White),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                decorationBox = { innerTextField ->
-                    Box(contentAlignment = Alignment.CenterStart) {
-                        if (value.isEmpty()) {
-                            Text(
-                                text = placeholder,
-                                style = textStyle,
-                            )
-                        }
-                        innerTextField()
-                    }
-                },
-            )
-        }
-    }
-}
-
-/**
- * Mirrors iOS `KornerzButton.capsuleWhiteOnBlack(_:size:.large)` — a white
- * capsule with a black label, full width.
- */
-@Composable
-private fun CapsuleWhiteOnBlackButton(
-    text: String,
-    onClick: () -> Unit,
-    enabled: Boolean,
-) {
-    val bg = if (enabled) Color.White else Color(0xFFF2F4F6)
-    val fg = if (enabled) Color.Black else Color(0xFF9E9EAE)
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(48.dp)
-            .clickable(enabled = enabled, onClick = onClick),
-        shape = RoundedCornerShape(percent = 50),
-        color = bg,
-    ) {
-        Box(
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(
-                text = text,
-                color = fg,
-                fontFamily = Satoshi,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp,
-            )
-        }
-    }
-}
-
-/** Mirrors iOS `ChevronBackButton` in the navigation bar's leading slot. */
-@Composable
-private fun BackChevronButton(
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Box(
+internal fun RecoveryCloudHeader(modifier: Modifier = Modifier) {
+    Image(
+        painter = painterResource(com.kornerz.feature.auth.R.drawable.bg_clouds_light),
+        contentDescription = null,
         modifier = modifier
-            .padding(start = 8.dp, top = 8.dp)
-            .size(40.dp)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-            contentDescription = "Back",
-            tint = Color.White,
-            modifier = Modifier.size(20.dp),
-        )
-    }
+            .fillMaxWidth()
+            .height(250.dp)
+            .offset(y = 60.dp),
+        contentScale = ContentScale.Fit,
+    )
 }
 
+/** Inline error copy, styled like the iOS Login screen's error banner. */
 @Composable
-private fun ErrorBanner(message: String) {
+internal fun RecoveryErrorBanner(message: String) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
-        color = CoralRed.copy(alpha = 0.1f),
+        color = RecoveryCoralRed.copy(alpha = 0.1f),
     ) {
         Text(
             text = message,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            color = CoralRed,
+            color = RecoveryCoralRed,
             fontFamily = Satoshi,
             fontWeight = FontWeight.Medium,
             fontSize = 12.sp,
         )
     }
 }
-
-// ─── Previews ─────────────────────────────────────────────────────────────
 
 @Preview(showBackground = true)
 @Composable
