@@ -1,6 +1,8 @@
 package com.kornerz.core.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -62,6 +64,13 @@ fun KornerzDiamondImage(
      * `Color.Transparent` for a placeholder.
      */
     background: Color? = null,
+    /**
+     * The outline drawn along the diamond's edge.
+     *
+     * `null` (the default) draws no outline. The stroke follows the
+     * diamond's shape, so it is drawn on the rotated layer.
+     */
+    border: BorderStroke? = null,
 ) {
     // Pythagoras: a `size × size` square rotated 45° has a diagonal of
     // `size * √2`. Scaling the rotated layer by `1/√2` brings the diagonal
@@ -80,6 +89,25 @@ fun KornerzDiamondImage(
                 // square clip below into the diamond mask.
                 .rotate(45f)
                 .scale(diamondScale)
+                // The outline is drawn *before* the clip, so the stroke —
+                // which is centred on the shape's path — is not cut in
+                // half by it. Being on the rotated layer, it follows the
+                // diamond's edge.
+                //
+                // The layer is scaled by `1/√2`, which scales the stroke
+                // with it, so the width is divided back out to keep the
+                // outline the thickness the caller asked for.
+                .then(
+                    if (border == null) {
+                        Modifier
+                    } else {
+                        Modifier.border(
+                            width = border.width / diamondScale,
+                            brush = border.brush,
+                            shape = RoundedCornerShape(cornerRadius),
+                        )
+                    },
+                )
                 .clip(RoundedCornerShape(cornerRadius))
                 .background(background ?: MaterialTheme.colorScheme.surfaceVariant),
             contentAlignment = Alignment.Center,

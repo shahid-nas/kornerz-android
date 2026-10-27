@@ -4,7 +4,9 @@ import com.kornerz.core.model.AsyncValue
 
 data class ForgotPasswordState(
     val email: String = "",
-    val submit: AsyncValue<Unit> = AsyncValue.Loading,
+    // Idle until the user submits; `Loading` is only set while the
+    // reset request is in flight (iOS shows the spinner only then).
+    val submit: AsyncValue<Unit> = AsyncValue.Success(Unit),
 ) {
     val isFormValid: Boolean
         get() = email.matches(Regex("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\$"))

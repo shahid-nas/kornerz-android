@@ -22,7 +22,6 @@ import com.kornerz.core.model.AsyncValue
 import com.kornerz.core.ui.components.KornerzButton
 import com.kornerz.core.ui.components.KornerzOtpTextField
 import com.kornerz.core.ui.components.KornerzPasswordField
-import com.kornerz.core.ui.components.KornerzTextField
 import com.kornerz.core.ui.theme.Spacing
 
 @Composable
@@ -40,56 +39,12 @@ fun ForgotPasswordScreen(
             }
         }
     }
-    ForgotPasswordContent(state = state, onEvent = viewModel::onEvent, modifier = modifier)
-}
-
-@Composable
-fun ForgotPasswordContent(
-    state: ForgotPasswordState,
-    onEvent: (ForgotPasswordEvent) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = Spacing.space8, vertical = Spacing.space16),
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Text(
-                text = "Reset password",
-                style = MaterialTheme.typography.headlineSmall,
-            )
-            Spacer(Modifier.height(Spacing.space2))
-            Text(
-                text = "Enter your email and we'll send you a code.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Spacer(Modifier.height(Spacing.space12))
-            KornerzTextField(
-                value = state.email,
-                onValueChange = { onEvent(ForgotPasswordEvent.EmailChanged(it)) },
-                label = "Email",
-                keyboardType = androidx.compose.ui.text.input.KeyboardType.Email,
-            )
-            Spacer(Modifier.height(Spacing.space8))
-            val isLoading = state.submit is AsyncValue.Loading
-            KornerzButton(
-                text = if (isLoading) "Sending…" else "Send code",
-                onClick = { onEvent(ForgotPasswordEvent.Submit) },
-                enabled = state.isFormValid && !isLoading,
-            )
-            (state.submit as? AsyncValue.Error)?.let { error ->
-                Spacer(Modifier.height(Spacing.space4))
-                Text(
-                    text = error.throwable.message ?: "Unable to send code",
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-        }
-    }
+    ForgotPasswordContent(
+        state = state,
+        onEvent = viewModel::onEvent,
+        modifier = modifier,
+        onBack = { navController.popBackStack() },
+    )
 }
 
 @Composable
