@@ -108,7 +108,7 @@ fun PrivacyPolicyContent(
                 RecoveryBackChevronButton(
                     onClick = onBack,
                     modifier = Modifier.align(Alignment.TopStart),
-                    tint = Color.Black,
+                    tint = Color.White,
                 )
             }
         }

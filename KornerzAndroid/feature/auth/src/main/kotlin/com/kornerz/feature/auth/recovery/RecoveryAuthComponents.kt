@@ -66,8 +66,7 @@ internal val RecoveryPlaceholderGrey = Color(0xFF9E9EAE)
 
 /**
  * Mirrors iOS `ChevronBackButton` in the navigation bar's leading slot.
- * [tint] matches the iOS `color:` argument — white on the Aqua screens,
- * black on the Privacy Policy header.
+ * [tint] matches the iOS `color:` argument — white on the Aqua screens.
  */
 @Composable
 internal fun RecoveryBackChevronButton(
