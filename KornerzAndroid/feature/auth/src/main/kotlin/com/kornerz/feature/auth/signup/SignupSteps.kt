@@ -43,16 +43,16 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kornerz.core.model.AsyncValue
+import com.kornerz.core.model.Community
 import com.kornerz.core.model.Country
 import com.kornerz.core.model.KornerInterest
 import com.kornerz.core.storage.country.CountryCodesRepository
 import com.kornerz.core.storage.interests.KornerInterestRepository
 import com.kornerz.core.ui.components.AsyncValueContent
-import com.kornerz.core.ui.components.KornerzSquareImageTile
+import com.kornerz.core.ui.components.KornerzSquareTile
 import com.kornerz.core.ui.components.KornerzSquareTileDefaults
 import com.kornerz.core.ui.components.rememberKornerzImagePicker
 import com.kornerz.core.ui.theme.Satoshi
-import com.kornerz.core.ui.theme.kornerzCardColor
 
 // ─── iOS-matching branded step content ────────────────────────────────────
 //
@@ -481,10 +481,12 @@ private fun KornerzCardGrid(
                     rowItems.forEach { item ->
                         val globalIndex = items.indexOf(item)
                         val selected = isSelected(item)
-                        KornerzSquareImageTile(
-                            name = item.title,
-                            coverUrl = null,
-                            accent = kornerzCardColor(globalIndex),
+                        KornerzSquareTile(
+                            community = Community(
+                                id = item.slug,
+                                name = item.title,
+                            ),
+                            index = globalIndex,
                             onClick = { onToggle(item) },
                             modifier = Modifier.kornerzSelectionStroke(selected),
                             size = coverSize,

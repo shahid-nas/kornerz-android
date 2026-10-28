@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -28,6 +29,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
+import com.kornerz.core.model.Community
 import com.kornerz.core.model.Korner
 import com.kornerz.core.ui.theme.KornerzTheme
 import com.kornerz.core.ui.theme.KornerzCardPalette
@@ -174,6 +176,30 @@ fun KornerzSquareTile(
 }
 
 /**
+ * [KornerzSquareImageTile] bound to a [Community]. The accent colour
+ * is the community's own theme colour, falling back to the rotating
+ * [kornerzCardColor] palette (iOS `RandomColorService.color(for:)`).
+ */
+@Composable
+fun KornerzSquareTile(
+    community: Community,
+    index: Int,
+    onClick: (Community) -> Unit,
+    modifier: Modifier = Modifier,
+    size: Dp = KornerzSquareTileDefaults.ImageSize,
+) {
+    KornerzSquareImageTile(
+        name = community.name,
+        coverUrl = community.coverImageURL,
+        accent = KornerzCardPalette.colorFromHex(community.themeColor)
+            ?: kornerzCardColor(index),
+        onClick = { onClick(community) },
+        modifier = modifier,
+        size = size,
+    )
+}
+
+/**
  * Horizontal carousel of [KornerzSquareTile]s — the shared row used by
  * all three Kornerz tab sections. Mirrors iOS
  * `KornerzCarouselView.swift`.
@@ -195,6 +221,34 @@ fun KornerzCarousel(
                 index = index,
                 onClick = onItemClick,
             )
+        }
+    }
+}
+
+/**
+ * Loading placeholder for a Kornerz carousel — a row of grey square
+ * tiles matching [KornerzSquareTileDefaults.TileSize] and
+ * [KornerzSquareTileDefaults.CardRadius], swept by the shared shimmer
+ * gradient. Mirrors iOS's `.redacted(reason: .placeholder)` carousel.
+ */
+@Composable
+fun KornerzCarouselShimmer(
+    modifier: Modifier = Modifier,
+    itemCount: Int = 4,
+) {
+    HomeShimmerPlaceholder(modifier = modifier) {
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = Spacing.space8),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.space4),
+        ) {
+            items(itemCount) {
+                Box(
+                    modifier = Modifier
+                        .size(KornerzSquareTileDefaults.TileSize)
+                        .clip(RoundedCornerShape(KornerzSquareTileDefaults.CardRadius))
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                )
+            }
         }
     }
 }

@@ -1,18 +1,15 @@
 package com.kornerz.feature.home.your_kornerz
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import com.kornerz.core.model.Community
 import com.kornerz.core.ui.components.HomeSectionHeader
-import com.kornerz.core.ui.components.HomeShimmerPlaceholder
+import com.kornerz.core.ui.components.KornerzCarouselShimmer
 import com.kornerz.core.ui.components.KornerzErrorState
-import com.kornerz.core.ui.components.KornerzSquareTileDefaults
 import com.kornerz.core.ui.theme.KornerzTheme
 import com.kornerz.core.ui.theme.Spacing
 import com.kornerz.feature.home.components.KornerzCarousel
@@ -44,9 +41,7 @@ fun YourKornerzShimmerSection() {
             title = "Your Kornerz",
             modifier = Modifier.padding(horizontal = Spacing.space8, vertical = Spacing.space2),
         )
-        HomeShimmerPlaceholder(modifier = Modifier.padding(Spacing.space8)) {
-            Spacer(modifier = Modifier.height(KornerzSquareTileDefaults.TileSize))
-        }
+        KornerzCarouselShimmer()
     }
 }
 

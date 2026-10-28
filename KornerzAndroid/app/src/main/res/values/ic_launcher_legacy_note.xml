@@ -5,5 +5,11 @@
         minSdk = 26 means adaptive icons (mipmap-anydpi-v26) are used at
         runtime. Keep them in sync with the design team assets in
         design/android/ so the resource reference is always resolvable.
+
+        The whole set - adaptive foreground, monochrome layer, legacy square
+        and round fallbacks, the background drawable and the Play listing
+        icon - is produced by design/generate_android_icons.py from the
+        delivered artwork in design/output-onlinepngtools.png. Re-run that
+        script instead of editing any of these files by hand.
     -->
 </resources>

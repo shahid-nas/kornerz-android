@@ -2,10 +2,8 @@ package com.kornerz.feature.kornerz.list
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.MaterialTheme
@@ -15,11 +13,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import com.kornerz.core.model.AsyncValue
 import com.kornerz.core.model.Korner
-import com.kornerz.core.ui.components.HomeShimmerPlaceholder
 import com.kornerz.core.ui.components.KornerzCarousel
+import com.kornerz.core.ui.components.KornerzCarouselShimmer
 import com.kornerz.core.ui.components.KornerzErrorState
 import com.kornerz.core.ui.components.KornerzHeaderView
-import com.kornerz.core.ui.components.KornerzSquareTileDefaults
 import com.kornerz.core.ui.components.header.TabHeaderContent
 import com.kornerz.core.ui.theme.KornerzTheme
 import com.kornerz.core.ui.theme.Spacing
@@ -109,11 +106,7 @@ private fun SectionTitle(title: String) {
 
 @Composable
 private fun ShimmerRow() {
-    HomeShimmerPlaceholder(
-        modifier = Modifier.padding(horizontal = Spacing.space8),
-    ) {
-        Spacer(modifier = Modifier.height(KornerzSquareTileDefaults.TileSize))
-    }
+    KornerzCarouselShimmer()
 }
 
 @Preview(showBackground = true)
