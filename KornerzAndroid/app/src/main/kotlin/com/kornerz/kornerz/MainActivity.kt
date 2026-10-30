@@ -1,6 +1,7 @@
 package com.kornerz.kornerz
 
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -11,6 +12,7 @@ import com.kornerz.core.model.DeepLink
 import com.kornerz.core.network.videocall.VonageSessionController
 import com.kornerz.core.storage.country.CountryCodesRepository
 import com.kornerz.core.storage.interests.KornerInterestRepository
+import com.kornerz.core.ui.device.DeviceFormFactor
 import com.kornerz.core.ui.theme.KornerzTheme
 import com.kornerz.feature.shell.deeplink.DeepLinkManager
 import com.kornerz.kornerz.fcm.KornerzFcmService
@@ -80,6 +82,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        applyOrientationPolicy()
         // P6 (task 8.5) — register the Kornerz notification channel.
         val channel = NotificationChannelCompat.Builder(
             KornerzFcmService.CHANNEL_ID,
@@ -116,6 +119,31 @@ class MainActivity : ComponentActivity() {
                     interestsRepository = interestsRepository,
                 )
             }
+        }
+    }
+
+    /**
+     * Orientation policy: **phones are portrait-only**, tablets may
+     * rotate freely.
+     *
+     * The manifest cannot express this on its own — the
+     * `android:screenOrientation` attribute takes an enum, not a
+     * resource reference, so there is no way to keep portrait for
+     * `sw<600dp` devices and unrestricted orientation for tablets
+     * from a single `<activity>` tag. The form factor is therefore
+     * resolved from the `sw600dp` resource qualifier
+     * (`R.bool.is_tablet`) and applied here.
+     *
+     * Phones get `SCREEN_ORIENTATION_PORTRAIT`, which also stops the
+     * layout from being rebuilt for landscape. Tablets get
+     * `SCREEN_ORIENTATION_UNSPECIFIED`, i.e. the platform default
+     * (full sensor / user rotation setting).
+     */
+    private fun applyOrientationPolicy() {
+        requestedOrientation = if (DeviceFormFactor.isTablet(this)) {
+            ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         }
     }
 

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Phones are the default form factor. The `values-sw600dp`
+      overlay flips this to `true` for tablets (smallest width
+      >= 600dp), which is the same breakpoint the Android resource
+      system uses for the `sw600dp` qualifier.
+    -->
+    <bool name="is_tablet">false</bool>
+</resources>

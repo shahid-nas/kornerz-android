@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -128,11 +129,31 @@ fun KornerzSquareImageTile(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
                     loading = {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(16.dp),
-                            strokeWidth = 2.dp,
-                            color = Color.White,
-                        )
+                        // The cover is clipped to the top-right half of the
+                        // square, so the spinner is centred on that
+                        // triangle's centroid (2/3 of the width, 1/3 of the
+                        // height) and sized so the whole ring stays inside
+                        // the diagonal cut.
+                        //
+                        // Geometry: the diagonal runs from the top-left to
+                        // the bottom-right corner, so the distance from the
+                        // centroid to that line is
+                        // (size / 3) / sqrt(2) ~ 0.236 * size. The largest
+                        // circle that fits has a diameter of ~0.47 * size;
+                        // 0.4 keeps a comfortable margin.
+                        val indicatorSize = size * 0.4f
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier
+                                    .size(indicatorSize)
+                                    .offset(x = size / 6, y = -size / 6),
+                                strokeWidth = indicatorSize * 0.1f,
+                                color = Color.White,
+                            )
+                        }
                     },
                     error = {},
                 )
