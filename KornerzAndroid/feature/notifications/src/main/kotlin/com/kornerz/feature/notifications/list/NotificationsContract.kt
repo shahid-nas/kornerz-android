@@ -1,25 +1,21 @@
 package com.kornerz.feature.notifications.list
 
 import com.kornerz.core.model.AsyncValue
-import com.kornerz.core.model.Community
 import com.kornerz.core.model.DeepLink
 import com.kornerz.core.model.UserNotification
 
 /**
- * Composite row that pairs a [UserNotification] with the resolved
- * community + relative time (P6, task 6.2).
+ * A notification list row.
  */
 data class UserNotificationRow(
     val notification: UserNotification,
-    val community: Community? = null,
-    val relativeTime: String = "",
 )
 
 data class NotificationsState(
     val items: AsyncValue<List<UserNotificationRow>> = AsyncValue.Loading,
     val isLoadingMore: Boolean = false,
     val hasMoreData: Boolean = true,
-    val error: String? = null,
+    val paginationError: Throwable? = null,
 )
 
 sealed interface NotificationsEvent {

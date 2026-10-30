@@ -1,7 +1,9 @@
 package com.kornerz.feature.notifications.list
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,6 +22,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -40,8 +43,8 @@ import kotlinx.datetime.toLocalDateTime
  *   1-px `colorScheme.outlineVariant` stroke
  * - 16-pt padding
  * - 40-pt circular avatar (Coil + `R.drawable.ic_community_placeholder`
- *   fallback — `notification.thumbnailURL` is always `null` per
- *   the `user-notification-domain` spec)
+ *   fallback) over a black backing circle, so the avatar area stays
+ *   black while the image loads and if the image fails to load
  * - Header text source: `notification.content` (community name)
  *   in 14-pt `PurpleGreyLight`
  * - Date: formatted from `notification.date` (Instant) in 10-pt
@@ -72,23 +75,32 @@ fun NotificationItem(
             modifier = Modifier.padding(16.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                val cover = row.community?.coverUrl
-                if (!cover.isNullOrEmpty()) {
-                    AsyncImage(
-                        model = cover,
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape),
-                    )
-                } else {
-                    androidx.compose.foundation.Image(
-                        painter = painterResource(R.drawable.ic_community_placeholder),
-                        contentDescription = null,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape),
-                    )
+                val cover = notification.thumbnailURL
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(KornerzColors.PurpleGreyLight),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (!cover.isNullOrEmpty()) {
+                        AsyncImage(
+                            model = cover,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape),
+                            onError = { /* black background shows through */ },
+                        )
+                    } else {
+                        androidx.compose.foundation.Image(
+                            painter = painterResource(R.drawable.ic_community_placeholder),
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape),
+                        )
+                    }
                 }
                 Spacer(Modifier.width(12.dp))
                 Column {

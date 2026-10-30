@@ -44,4 +44,8 @@ class NotificationRepository @Inject constructor(
     fun pushDataMessage(notification: UserNotification) {
         _recentDataMessages.value = listOf(notification) + _recentDataMessages.value
     }
+
+    fun clearRecentDataMessages() {
+        _recentDataMessages.value = emptyList()
+    }
 }

@@ -59,11 +59,14 @@ fun NotificationsScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var isRefreshing by remember { mutableStateOf(false) }
+    LaunchedEffect(state.items) {
+        if (isRefreshing && state.items !is AsyncValue.Loading) {
+            isRefreshing = false
+        }
+    }
     LaunchedEffect(isRefreshing) {
         if (isRefreshing) {
             viewModel.onEvent(NotificationsEvent.Refresh)
-            // Clear the spinner once the first page emit lands.
-            isRefreshing = false
         }
     }
     LaunchedEffect(viewModel) {
@@ -94,6 +97,7 @@ fun NotificationsScreen(
                 viewModel.onEvent(NotificationsEvent.NotificationOpened(notification))
             },
             onLoadMore = viewModel::loadMore,
+            onRetry = viewModel::loadFirstPage,
             onRefresh = { isRefreshing = true },
             modifier = Modifier
                 .fillMaxSize()
@@ -108,6 +112,7 @@ fun NotificationsContent(
     state: NotificationsState,
     onNotificationClick: (com.kornerz.core.model.UserNotification) -> Unit,
     onLoadMore: () -> Unit,
+    onRetry: () -> Unit,
     onRefresh: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -120,7 +125,7 @@ fun NotificationsContent(
             AsyncValue.Loading -> KornerzLoadingView(modifier = Modifier.fillMaxSize())
             is AsyncValue.Error -> KornerzErrorState(
                 message = items.throwable.message ?: "Failed to load notifications",
-                onRetry = onLoadMore,
+                onRetry = onRetry,
                 modifier = Modifier.fillMaxSize(),
             )
             is AsyncValue.Success -> {
@@ -151,6 +156,15 @@ fun NotificationsContent(
                         if (state.isLoadingMore) {
                             item("footer-spinner") {
                                 KornerzLoadingMoreView(modifier = Modifier.fillMaxWidth())
+                            }
+                        } else if (state.paginationError != null) {
+                            item("footer-error") {
+                                KornerzErrorState(
+                                    message = state.paginationError.message
+                                        ?: "Failed to load notifications",
+                                    onRetry = onRetry,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
                             }
                         }
                     }

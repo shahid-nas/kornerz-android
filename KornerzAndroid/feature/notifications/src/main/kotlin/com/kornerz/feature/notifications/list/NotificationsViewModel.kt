@@ -39,13 +39,27 @@ class NotificationsViewModel @Inject constructor(
 
     fun loadFirstPage() {
         viewModelScope.launch {
-            _state.update { it.copy(items = com.kornerz.core.model.AsyncValue.Loading) }
-            val userCode = sessionUserCode() ?: return@launch
+            _state.update {
+                it.copy(
+                    items = com.kornerz.core.model.AsyncValue.Loading,
+                    isLoadingMore = false,
+                    paginationError = null,
+                )
+            }
+            val userCode = sessionUserCode()
+            if (userCode == null) {
+                _state.update {
+                    it.copy(items = com.kornerz.core.model.AsyncValue.Error(MissingUserCodeException()))
+                }
+                return@launch
+            }
             notificationRepository.reset()
             val result = notificationRepository.fetchNextPage(userCode)
             result.fold(
                 onSuccess = { (page, hasMore) ->
-                    val rows = page.map { it.toRow() }
+                    val cached = notificationRepository.recentDataMessages.value
+                    val rows = (cached + page).distinctBy { it.id }.map { it.toRow() }
+                    notificationRepository.clearRecentDataMessages()
                     _state.update {
                         it.copy(
                             items = com.kornerz.core.model.AsyncValue.Success(rows),
@@ -66,8 +80,17 @@ class NotificationsViewModel @Inject constructor(
         val current = _state.value
         if (current.isLoadingMore || !current.hasMoreData) return
         viewModelScope.launch {
-            _state.update { it.copy(isLoadingMore = true) }
-            val userCode = sessionUserCode() ?: return@launch
+            _state.update { it.copy(isLoadingMore = true, paginationError = null) }
+            val userCode = sessionUserCode()
+            if (userCode == null) {
+                _state.update {
+                    it.copy(
+                        isLoadingMore = false,
+                        paginationError = MissingUserCodeException(),
+                    )
+                }
+                return@launch
+            }
             val result = notificationRepository.fetchNextPage(userCode)
             result.fold(
                 onSuccess = { (page, hasMore) ->
@@ -81,8 +104,10 @@ class NotificationsViewModel @Inject constructor(
                         )
                     }
                 },
-                onFailure = {
-                    _state.update { it.copy(isLoadingMore = false) }
+                onFailure = { t ->
+                    _state.update {
+                        it.copy(isLoadingMore = false, paginationError = t)
+                    }
                 },
             )
         }
@@ -142,6 +167,9 @@ class NotificationsViewModel @Inject constructor(
     private suspend fun sessionUserCode(): String? {
         val state = sessionRepository.data.first()
         val user = (state as? SessionState.Authenticated)?.user ?: return null
-        return user.id.takeIf { it.isNotEmpty() }
+        return user.userCode?.takeIf { it.isNotBlank() }
+            ?: user.id.takeIf { it.isNotBlank() }
     }
 }
+
+private class MissingUserCodeException : IllegalStateException("Unable to resolve the signed-in user code")
