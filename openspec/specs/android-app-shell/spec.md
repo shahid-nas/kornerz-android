@@ -3,22 +3,24 @@
 ## Purpose
 TBD - created by archiving change p0-android-foundation. Update Purpose after archive.
 ## Requirements
-### Requirement: App launches into splash screen
-The app SHALL display a branded splash screen as the first screen when launched from a cold start. The splash SHALL render the Kornerz brand mark on a brand background color. After `SessionRepository.data()` emits a non-`Loading` value AND `FirebaseRemoteConfig.fetchAndActivate()` completes, the splash SHALL route to the Login screen if the session is `Anonymous` or to the 5-tab shell if the session is `Authenticated`. The splash SHALL be dismissed within 2 seconds of session state being available.
+### Requirement: App launches into the auth or shell graph without a splash screen
+The app SHALL NOT render a custom splash screen. On a cold start the platform splash (the launcher icon on the white window background) SHALL carry the branding, and the root `NavHost` SHALL NOT be composed until the cold-start session gate has resolved. The gate SHALL read `SessionRepository.data()` and select the root `NavHost`'s start destination: the auth graph when the session is `Anonymous` and the 5-tab shell when the session is `Authenticated`. The root `NavHost` SHALL be composed within 2 seconds of session state being available.
+
+The force-update check SHALL NOT block or delay this routing. `FirebaseRemoteConfig.fetchAndActivate()` SHALL be observed independently of the session gate, and the non-dismissible force-update sheet SHALL overlay whichever graph is showing.
 
 #### Scenario: Cold launch, signed out
 - **WHEN** user launches the app from the device home screen with no prior process running and no persisted session
-- **THEN** the splash screen displays the Kornerz brand
-- **AND** the splash routes to the Login screen once session state resolves to `Anonymous`
+- **THEN** the root NavHost starts on the auth graph
+- **AND** the Login screen is shown once session state resolves to `Anonymous`
 
 #### Scenario: Cold launch, signed in
 - **WHEN** user launches the app from the device home screen with a valid persisted session
-- **THEN** the splash screen displays the Kornerz brand
-- **AND** the splash routes directly to the Home tab of the 5-tab shell
+- **THEN** the root NavHost starts on the 5-tab shell
+- **AND** the Home tab is shown directly, without the Login screen appearing first
 
 #### Scenario: Warm launch
 - **WHEN** user resumes the app from the device recents
-- **THEN** the splash is not shown
+- **THEN** no splash is shown
 - **AND** the app resumes directly to the last selected tab
 
 ### Requirement: Auth and shell graphs are mutually exclusive

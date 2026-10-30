@@ -8,6 +8,7 @@ import com.kornerz.core.model.Korner
 import com.kornerz.core.model.KornerDetail
 import com.kornerz.core.model.Nook
 import com.kornerz.core.model.User
+import com.kornerz.core.network.fellow.FellowRepository
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.tasks.await
@@ -49,6 +50,7 @@ import javax.inject.Singleton
 @Singleton
 class KornerFirestoreApi @Inject constructor(
     private val firestore: FirebaseFirestore,
+    private val fellowRepository: FellowRepository,
 ) {
 
     /**
@@ -164,9 +166,21 @@ class KornerFirestoreApi @Inject constructor(
         val lookupKeys = doc.data?.communityLookupKeys().orEmpty()
         coroutineScope {
             val nooksDeferred = async { fetchCommunityNooks(lookupKeys) }
-            val membersDeferred = async { fetchCommunityMembers(lookupKeys, currentUserCode) }
+            val membersDeferred = async { fetchCommunityMembers(lookupKeys) }
+            // iOS `KornerDetailViewModel.fetchData` runs
+            // `checkIfFellowExists` as its own query alongside the
+            // follower fetch — the follow state is NOT derived from the
+            // member list, which iOS caps at 50 entries and which
+            // therefore may not contain the signed-in user's own
+            // record.
+            val followingDeferred = async {
+                currentUserCode?.takeIf { it.isNotBlank() }?.let { code ->
+                    fellowRepository.fellowExists(code, lookupKeys).getOrDefault(false)
+                } ?: false
+            }
             val nooks = nooksDeferred.await()
-            val (members, isJoined) = membersDeferred.await()
+            val members = membersDeferred.await()
+            val isJoined = followingDeferred.await()
             val live = nooks.any { it.isLive }
             val korner = baseKorner.copy(
                 isLive = live,
@@ -177,6 +191,54 @@ class KornerFirestoreApi @Inject constructor(
             )
             KornerDetail(korner = korner, nooks = nooks, members = members)
         }
+    }
+
+    /**
+     * Follows the Korner addressed by [kornerId] on behalf of
+     * [userCode].
+     *
+     * Mirrors iOS `KornerDetailViewModel.followKorner()`
+     * (`kornerz/Kornerz/SwiftUI/Dashboard/Korner/KornerDetail/KornerDetailViewModel.swift:340`),
+     * which calls `FellowRepository.followCommunity(userId:community:)`
+     * — the `Fellow` document write is reproduced verbatim in
+     * [FellowRepository.followCommunity].
+     *
+     * The value written to `fellowCommunity` is the community's
+     * `communityName` — the key both platforms resolve a followed
+     * community by (iOS `CommunitiesRepository.fetchFollowingCommunities`
+     * queries `Communities.whereField("communityName", in: fellows'
+     * fellowCommunity)`).
+     */
+    suspend fun followCommunity(kornerId: String, userCode: String): Result<Unit> = runCatching {
+        if (kornerId.isBlank()) error("kornerId must not be blank")
+        if (userCode.isBlank()) error("userCode must not be blank")
+        val doc = resolveCommunityDocument(kornerId)
+        val communityName = doc.data?.get(FIELD_COMMUNITY_NAME) as? String
+            ?: doc.data?.get(FIELD_COMMUNITY_NAME_EN) as? String
+            ?: error("Korner document $kornerId has no community name")
+        fellowRepository.followCommunity(userCode, communityName)
+    }
+
+    /**
+     * Unfollows the Korner addressed by [kornerId] on behalf of
+     * [userCode].
+     *
+     * Mirrors iOS `KornerDetailViewModel.unfollowKorner()`
+     * (`KornerDetailViewModel.swift:352`), which calls
+     * `FellowRepository.unfollowCommunity(userId:community:)`.
+     *
+     * The community is matched by **every** key it is known by
+     * (`communityId`, `communityName`, `communityNameEn`) so a follow
+     * written by either iOS path — the SwiftUI Korner detail screen
+     * writes `communityNameEn`, the legacy community screen writes
+     * `communityName` — is removed.
+     */
+    suspend fun unfollowCommunity(kornerId: String, userCode: String): Result<Unit> = runCatching {
+        if (kornerId.isBlank()) error("kornerId must not be blank")
+        if (userCode.isBlank()) error("userCode must not be blank")
+        val doc = resolveCommunityDocument(kornerId)
+        val lookupKeys = doc.data?.communityLookupKeys().orEmpty()
+        fellowRepository.unfollowCommunity(userCode, lookupKeys)
     }
 
     /**
@@ -286,27 +348,15 @@ class KornerFirestoreApi @Inject constructor(
      * The community's members — the `Fellow` records that follow this
      * community, joined against the `Users` collection. Mirrors iOS
      * `FellowRepository.fetchCommunityFellows` + `UsersRepository.fetchUsers`.
-     *
-     * Also reports whether [currentUserCode] follows the community
-     * (iOS `checkIfFellowExists`), which drives the `isJoined` flag.
      */
     private suspend fun fetchCommunityMembers(
         lookupKeys: List<String>,
-        currentUserCode: String?,
-    ): Pair<List<User>, Boolean> {
-        if (lookupKeys.isEmpty()) return emptyList<User>() to false
+    ): List<User> {
+        if (lookupKeys.isEmpty()) return emptyList()
         return try {
-            val fellows = firestore.collection(COLLECTION_FELLOW)
-                .whereIn(FIELD_FELLOW_COMMUNITY, lookupKeys.take(MAX_WHERE_IN))
-                .limit(MEMBERS_LIMIT)
-                .get()
-                .await()
-            val fellowUserNames = fellows.documents
-                .mapNotNull { it.data?.get(FIELD_FELLOW_USER_NAME) as? String }
-                .filter { it.isNotBlank() }
-            val isJoined = currentUserCode?.takeIf { it.isNotBlank() }?.let { code ->
-                fellowUserNames.any { it == code }
-            } ?: false
+            val fellowUserNames = fellowRepository
+                .fetchCommunityFollowerCodes(lookupKeys, MEMBERS_LIMIT.toLong())
+                .getOrDefault(emptyList())
             val userCodes = fellowUserNames.distinct().take(MAX_WHERE_IN)
             val members = if (userCodes.isEmpty()) {
                 emptyList()
@@ -319,10 +369,10 @@ class KornerFirestoreApi @Inject constructor(
                     .documents
                     .mapNotNull { it.data?.toUser(it.id) }
             }
-            members to isJoined
+            members
         } catch (t: Throwable) {
             Log.w(TAG, "fetchCommunityMembers failed for $lookupKeys: ${t.message}")
-            emptyList<User>() to false
+            emptyList()
         }
     }
 
@@ -433,7 +483,6 @@ class KornerFirestoreApi @Inject constructor(
         // Top-level `Events` collection (iOS `EventsRepository`). The
         // old `Communities/{id}/events` subcollection does not exist.
         const val COLLECTION_EVENTS = "Events"
-        const val COLLECTION_FELLOW = "Fellow"
         const val COLLECTION_USERS = "Users"
         // iOS `CommunityAdm` collection (iOS `AdminCommunitiesRepository`).
         const val COLLECTION_COMMUNITY_ADM = "CommunityAdm"
@@ -474,10 +523,6 @@ class KornerFirestoreApi @Inject constructor(
         const val FIELD_PUBLISHER_ID = "publisherId"
         const val FIELD_FIREBASE_GUEST_IMAGE_URL = "firebaseGuestImageUrl"
         const val FIELD_GUEST_IMAGE = "guestImage"
-
-        // Fellow fields (iOS `FollowMember.CodingKeys`).
-        const val FIELD_FELLOW_COMMUNITY = "fellowCommunity"
-        const val FIELD_FELLOW_USER_NAME = "fellowUserName"
 
         // CommunityAdm fields (iOS `CommunityAdmin`).
         const val FIELD_ADMIN_COMMUNITY_ID = "communityId"

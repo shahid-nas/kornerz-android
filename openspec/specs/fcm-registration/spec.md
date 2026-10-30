@@ -68,7 +68,7 @@ The app SHALL request `android.permission.POST_NOTIFICATIONS` at first sign-in (
 - **THEN** sign-in completes, the user lands on the home tab, and FCM messages are silently dropped at the system level (no in-app error)
 
 ### Requirement: KornerzFcmService displays notification messages via the kornerz_notifications channel
-The app SHALL register `KornerzFcmService` (a `FirebaseMessagingService` subclass) in `AndroidManifest.xml` with the canonical FCM service intent-filter. The service SHALL handle `onMessageReceived(remoteMessage: RemoteMessage)` by displaying a system tray notification via `NotificationManagerCompat.notify` when `remoteMessage.notification != null`, using the `kornerz_notifications` channel (created at app startup with `IMPORTANCE_HIGH`, lights, sound, vibration). Tapping a tray notification SHALL open the splash activity; tap-to-deep-link routing is P10.
+The app SHALL register `KornerzFcmService` (a `FirebaseMessagingService` subclass) in `AndroidManifest.xml` with the canonical FCM service intent-filter. The service SHALL handle `onMessageReceived(remoteMessage: RemoteMessage)` by displaying a system tray notification via `NotificationManagerCompat.notify` when `remoteMessage.notification != null`, using the `kornerz_notifications` channel (created at app startup with `IMPORTANCE_HIGH`, lights, sound, vibration). Tapping a tray notification SHALL open the main activity; tap-to-deep-link routing is P10.
 
 (new requirement added in P6, `notifications-push-display` capability)
 

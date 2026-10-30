@@ -57,6 +57,13 @@ class KornerDetailViewModel @Inject constructor(
     private val _navEvents = Channel<KornerDetailNavEvent>(Channel.BUFFERED)
     val navEvents: Flow<KornerDetailNavEvent> = _navEvents.receiveAsFlow()
 
+    /**
+     * Whether a follow / unfollow write is in flight. iOS guards the
+     * same way with its progress HUD — a second tap while the write
+     * runs would create a duplicate `Fellow` document.
+     */
+    private var followInFlight = false
+
     init {
         if (kornerId.isNotBlank()) fetchData() else {
             _state.update { it.copy(detail = AsyncValue.Error(IllegalArgumentException("Missing kornerId"))) }
@@ -74,12 +81,7 @@ class KornerDetailViewModel @Inject constructor(
                 fetchData(showLoading = false)
             }
             KornerDetailEvent.BackClicked -> emit(KornerDetailNavEvent.NavigateBack)
-            // The follow / unfollow write is not implemented on Android
-            // yet — the `Fellow` collection is only read. The button
-            // carries the iOS affordance, the action reports back.
-            KornerDetailEvent.FollowClicked -> emit(
-                KornerDetailNavEvent.ShowMessage("Following a Korner is coming soon"),
-            )
+            KornerDetailEvent.FollowClicked -> toggleFollow()
             KornerDetailEvent.AboutClicked -> _state.update { it.copy(isAboutSheetVisible = true) }
             KornerDetailEvent.AboutDismissed -> _state.update { it.copy(isAboutSheetVisible = false) }
             is KornerDetailEvent.NookTabSelected ->
@@ -136,6 +138,58 @@ class KornerDetailViewModel @Inject constructor(
             repository.fetchKornerRecentLoops(korner).collect { result ->
                 _state.update { it.copy(recentLoops = result.getOrDefault(emptyList())) }
             }
+        }
+    }
+
+    /**
+     * Follows the Korner when the user is not following it yet, and
+     * unfollows it when they are — the toggle iOS
+     * `KornerDetailViewModel.followTapped()` performs.
+     *
+     * The write is the `Fellow` document iOS writes
+     * (`FellowRepository.followCommunity` / `unfollowCommunity`); on
+     * success the capsule flips to the new state, the way iOS sets
+     * `isFollowing` from the write's own result.
+     *
+     * A failed write leaves the state untouched and reports back, the
+     * way iOS dismisses its progress HUD on the failure branch.
+     */
+    private fun toggleFollow() {
+        val detail = (_state.value.detail as? AsyncValue.Success)?.data ?: return
+        if (followInFlight) return
+        followInFlight = true
+        viewModelScope.launch {
+            val following = detail.korner.isJoined
+            val result = if (following) {
+                repository.unfollowKorner(kornerId)
+            } else {
+                repository.followKorner(kornerId)
+            }
+            result
+                .onSuccess { setJoined(!following) }
+                .onFailure {
+                    emit(
+                        KornerDetailNavEvent.ShowMessage(
+                            "We couldn't update your follow. Please try again.",
+                        ),
+                    )
+                }
+            followInFlight = false
+        }
+    }
+
+    /**
+     * Flips the follow state on the loaded Korner — iOS's
+     * `isFollowing = true` / `isFollowing = false` after the write.
+     */
+    private fun setJoined(joined: Boolean) {
+        _state.update { state ->
+            val detail = (state.detail as? AsyncValue.Success)?.data ?: return@update state
+            state.copy(
+                detail = AsyncValue.Success(
+                    detail.copy(korner = detail.korner.copy(isJoined = joined)),
+                ),
+            )
         }
     }
 

@@ -54,7 +54,6 @@ App installs and launches. Splash screen fades into a 5-tab bottom navigation sh
 - `core/model/`: empty placeholder
 - `core/network/`: Firebase init
 - `core/storage/`: empty placeholders
-- `feature/splash/`: branded splash screen
 - `feature/shell/`: `MainActivity` + 5-tab `NavHost` with empty placeholders
 - Build flavors: dev + prod (mirrors `KornerzDev` vs `Kornerz`)
 - CI runs `assembleDevDebug` on PR

@@ -32,8 +32,8 @@ sealed interface KornerDetailNavEvent {
 
     /**
      * A transient message for the shell's shared snackbar — used for
-     * the actions that are not wired to the backend yet (Follow,
-     * Unfollow, joining a live session).
+     * the actions that are not wired to the backend yet (joining a live
+     * session) and for failed follow / unfollow writes.
      */
     data class ShowMessage(val message: String) : KornerDetailNavEvent
 }

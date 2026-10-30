@@ -14,7 +14,7 @@ Legend: **[Phase]** = which delivery phase from `docs/phases.md` the screen ship
 
 | # | Screen | iOS reference | Phase |
 |---|---|---|---|
-| 1.1 | Splash | `SwiftUI/OnBoarding/Splash/SplashScreen.swift` | P1 |
+| 1.1 | Splash — Android: `WelcomeScreen` (the iOS "Splash" is the welcome/onboarding screen; Android has no separate splash screen) | `SwiftUI/OnBoarding/Splash/SplashScreen.swift` | P1 |
 | 1.2 | Login | `SwiftUI/OnBoarding/Login/LoginView.swift` | P1 |
 | 1.3 | Signup — full name | `SwiftUI/OnBoarding/Signup/Views/SignupFullNameView.swift` | P1 |
 | 1.4 | Signup — nickname | `SwiftUI/OnBoarding/Signup/Views/SignupNicknameView.swift` | P1 |

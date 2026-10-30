@@ -43,7 +43,7 @@ When `onMessageReceived` is called with `remoteMessage.notification != null`, th
 - contentTitle = `remoteMessage.notification.title`
 - contentText = `remoteMessage.notification.body`
 - autoCancel = true
-- contentIntent = PendingIntent to launch the splash activity
+- contentIntent = PendingIntent to launch the main activity
 
 And SHALL call `NotificationManagerCompat.notify(notificationId.hashCode(), builder.build())`. Mirrors iOS `UNUserNotificationCenter` tray notification display.
 

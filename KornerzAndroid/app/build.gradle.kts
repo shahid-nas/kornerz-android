@@ -146,7 +146,6 @@ dependencies {
     implementation(project(":core:network"))
     implementation(project(":core:storage"))
     implementation(project(":core:ui"))
-    implementation(project(":feature:splash"))
     implementation(project(":feature:shell"))
     implementation(project(":feature:auth"))
     implementation(project(":feature:home"))

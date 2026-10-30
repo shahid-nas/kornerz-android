@@ -47,16 +47,16 @@ The app SHALL provide a logout action that emits `NavEvent.Logout` over a `Chann
 - **AND** the root NavHost swaps to the auth graph with no back-stack history
 
 ### Requirement: Session persists across launches
-The app SHALL restore the user's session on cold start. When a non-empty session exists in DataStore, the splash Composable SHALL route the app directly into the tab shell without showing Login.
+The app SHALL restore the user's session on cold start. When a non-empty session exists in DataStore, the cold-start session gate SHALL select the tab shell as the root `NavHost`'s start destination, without the Login screen being shown.
 
 #### Scenario: Cold start with valid session
 - **WHEN** the app is launched and `SessionRepository` contains a non-expired token
-- **THEN** the splash composable routes into the tab shell
+- **THEN** the root NavHost starts on the tab shell
 - **AND** the Login screen is not displayed
 
 #### Scenario: Cold start with no session
 - **WHEN** the app is launched and `SessionRepository` is empty
-- **THEN** the splash composable routes into the Login screen
+- **THEN** the root NavHost starts on the auth graph and the Login screen is shown
 
 #### Scenario: Expired session
 - **WHEN** the app launches with a token whose `expiresAt` is in the past

@@ -18,11 +18,12 @@ import com.kornerz.core.network.forceupdate.ForceUpdateRepository
 import com.kornerz.core.network.forceupdate.ForceUpdateState
 import com.kornerz.core.storage.country.CountryCodesRepository
 import com.kornerz.core.storage.interests.KornerInterestRepository
+import com.kornerz.core.storage.session.SessionRepository
+import com.kornerz.core.storage.session.SessionState
 import com.kornerz.core.ui.components.ForceUpdateSheet
 import com.kornerz.feature.auth.AUTH_GRAPH_ROUTE
 import com.kornerz.feature.auth.authGraph
 import com.kornerz.feature.shell.AppShell
-import com.kornerz.feature.splash.SplashScreen
 import com.kornerz.feature.subscription.navigation.SubscriptionRoute
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
@@ -32,13 +33,20 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * Hosts the splash, the auth graph, and the shell graph. The root
- * NavHost swaps between `auth_graph` and `shell_graph` based on session
- * state — every transition pops the back-stack (architecture §10.2).
+ * Hosts the auth graph and the shell graph. The root NavHost swaps
+ * between `auth_graph` and `shell_graph` based on session state — every
+ * transition pops the back-stack (architecture §10.2).
+ *
+ * There is no splash screen: the platform splash (the launcher icon on
+ * the white window background) carries the branding, and the cold-start
+ * session check happens in [SessionGateViewModel]. The NavHost is not
+ * composed until the gate has resolved, so a returning user goes
+ * straight to the shell without the welcome screen flashing first.
  *
  * On top of the NavHost, the non-dismissible [ForceUpdateSheet] is
  * rendered whenever Remote Config reports a Required state.
@@ -49,8 +57,10 @@ fun AppRoot(
     countryRepository: CountryCodesRepository,
     interestsRepository: KornerInterestRepository,
     forceUpdateViewModel: ForceUpdateOverlayViewModel = hiltViewModel(),
+    sessionGateViewModel: SessionGateViewModel = hiltViewModel(),
 ) {
     val forceUpdateState by forceUpdateViewModel.state.collectAsStateWithLifecycle()
+    val sessionRoute by sessionGateViewModel.route.collectAsStateWithLifecycle()
     val applicationId = LocalContext.current.packageName
 
     val applicationContext = LocalContext.current.applicationContext
@@ -72,36 +82,39 @@ fun AppRoot(
         }
     }
 
-    NavHost(
-        navController = navController,
-        startDestination = Routes.SPLASH,
-    ) {
-        composable(Routes.SPLASH) {
-            SplashScreen(
+    // Nothing is composed until the cold-start gate has resolved, so the
+    // auth graph never flashes on the way to the shell for a returning
+    // user. `null` means the session is still being read.
+    val startDestination = when (sessionRoute) {
+        SessionRoute.ShellGraph -> Routes.SHELL_GRAPH
+        SessionRoute.AuthGraph -> AUTH_GRAPH_ROUTE
+        null -> null
+    }
+    if (startDestination != null) {
+        NavHost(
+            navController = navController,
+            startDestination = startDestination,
+        ) {
+            authGraph(
                 navController = navController,
-                onNavigateToAuthGraph = navigateToAuthGraph,
+                countryRepository = countryRepository,
+                interestsRepository = interestsRepository,
                 onNavigateToShellGraph = navigateToShellGraph,
             )
-        }
-        authGraph(
-            navController = navController,
-            countryRepository = countryRepository,
-            interestsRepository = interestsRepository,
-            onNavigateToShellGraph = navigateToShellGraph,
-        )
-        composable(Routes.SHELL_GRAPH) {
-            // P8 — the composition root supplies the concrete subscription
-            // routes, because only `app` may import both `feature/shell`
-            // and `feature/subscription`.
-            AppShell(
-                onLogout = navigateToAuthGraph,
-                extraRoutes = rememberSubscriptionRoutes(premiumGate),
-                onNavigateToPremium = {
-                    navController.navigate(SubscriptionRoute.Plans.route) {
-                        launchSingleTop = true
-                    }
-                },
-            )
+            composable(Routes.SHELL_GRAPH) {
+                // P8 — the composition root supplies the concrete subscription
+                // routes, because only `app` may import both `feature/shell`
+                // and `feature/subscription`.
+                AppShell(
+                    onLogout = navigateToAuthGraph,
+                    extraRoutes = rememberSubscriptionRoutes(premiumGate),
+                    onNavigateToPremium = {
+                        navController.navigate(SubscriptionRoute.Plans.route) {
+                            launchSingleTop = true
+                        }
+                    },
+                )
+            }
         }
     }
 
@@ -113,6 +126,43 @@ fun AppRoot(
             modifier = Modifier.fillMaxSize(),
         )
     }
+}
+
+/**
+ * Cold-start session gate. Replaces the splash router that used to own
+ * this decision: it reads the persisted session and reports where the
+ * app should open.
+ *
+ * `SessionRepository.data` is backed by DataStore, so the first emission
+ * arrives after one disk read and is already `Authenticated` or
+ * `Anonymous` — there is no meaningful `Loading` window to wait out.
+ */
+@HiltViewModel
+class SessionGateViewModel @Inject constructor(
+    private val sessionRepository: SessionRepository,
+) : ViewModel() {
+
+    private val _route = MutableStateFlow<SessionRoute?>(null)
+    val route: StateFlow<SessionRoute?> = _route.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            val session = sessionRepository.data.first()
+            _route.value = when (session) {
+                is SessionState.Authenticated -> SessionRoute.ShellGraph
+                SessionState.Anonymous, SessionState.Loading -> SessionRoute.AuthGraph
+            }
+        }
+    }
+}
+
+/**
+ * Where the app opens. [AuthGraph] is the fallback; a persisted session
+ * upgrades the start destination to [ShellGraph].
+ */
+enum class SessionRoute {
+    AuthGraph,
+    ShellGraph,
 }
 
 @HiltViewModel
@@ -131,6 +181,5 @@ class ForceUpdateOverlayViewModel @Inject constructor(
 }
 
 private object Routes {
-    const val SPLASH = "splash"
     const val SHELL_GRAPH = "shell_graph"
 }

@@ -10,7 +10,6 @@ order: the hero header, the tabbed "Nooks" section, the tabbed users
 section, and the "Recently in &lt;community&gt;" section. The About text is
 **not** inline — the header's "About ⌄" affordance presents it as a modal
 bottom sheet, mirroring iOS `KornerDetailCoordinator.openAbout`.
-
 ## Requirements
 ### Requirement: Korner detail screen is reachable from the Kornerz tab and from Home
 The Korner detail destination `kornerz/{kornerId}` SHALL be reachable from (a) tapping a row in the Kornerz tab list, (b) tapping a tile in the Home tab's "Your Kornerz" carousel, and (c) tapping a tile in the shared `KornerzCarousel` composable. The destination SHALL receive `kornerId` as a nav-arg via `SavedStateHandle`. The destination SHALL be hosted inside the Kornerz tab's nested `NavHost` and SHALL preserve the bottom navigation bar visibility rule from `android-app-shell`.
@@ -47,10 +46,21 @@ The Korner detail screen SHALL render a `KornerDetailHeader` composable at the t
 - **THEN** the header's capsule reads "Unfollow"
 - **AND** it reads "Follow" otherwise
 
-#### Scenario: Tapping Follow reports back
+#### Scenario: Tapping Follow writes the Fellow record
 - **WHEN** the user taps the Follow / Unfollow capsule
+- **THEN** the screen writes the follow record to the `Fellow` collection, mirroring iOS `FellowRepository.followCommunity` — a document whose id is a random 8-character code, carrying `fellowId` (the same code), `fellowCommunity` (the community), `fellowUserName` (the signed-in user's `codeUser`) and `fellowAtive` (`true`), written with a plain `set` (no merge, no server timestamp)
+- **AND** the header's capsule reads "Unfollow" once the write succeeds
+- **AND** the About sheet's Follow / Unfollow capsule reflects the same state
+
+#### Scenario: Tapping Unfollow removes the Fellow record
+- **WHEN** the signed-in user follows the Korner and taps the Follow / Unfollow capsule
+- **THEN** the screen deletes the signed-in user's `Fellow` record for that community, mirroring iOS `FellowRepository.unfollowCommunity`
+- **AND** the header's capsule reads "Follow" once the delete succeeds
+
+#### Scenario: A failed follow write reports back
+- **WHEN** the follow or unfollow write fails
 - **THEN** the screen emits a `ShowMessage` navigation event
-- **AND** no network call is made (the `Fellow` write is not implemented on Android)
+- **AND** the capsule keeps its previous Follow / Unfollow state
 
 #### Scenario: Tapping the back chevron pops the screen
 - **WHEN** the user taps the header's back chevron
@@ -145,3 +155,25 @@ The Korner detail screen SHALL wrap its content in a Material 3 `PullToRefreshBo
 - **WHEN** `fetchKornerDetail("abc")` resolves to an error
 - **THEN** `state` transitions to `AsyncValue.Error`
 - **AND** the screen renders a retry view with a "Try again" button that invokes `KornerDetailViewModel.refresh()`
+
+### Requirement: Korner detail derives the follow state from the Fellow collection
+The Korner detail read SHALL derive `korner.isJoined` from the signed-in
+user's own `Fellow` record for the Korner, mirroring iOS
+`KornerDetailViewModel.checkIfFellowExists`. The check SHALL be a dedicated
+existence query against the `Fellow` collection, NOT a scan of the
+Korner's member list — that list is capped at 50 entries and therefore may
+not contain the signed-in user's own record. The community SHALL be matched
+by every key it is known by (`communityId`, `communityName`,
+`communityNameEn`) so that a follow written by either iOS path is
+recognised.
+
+#### Scenario: The follow state comes from a dedicated existence query
+- **WHEN** the Korner detail is read for the signed-in user
+- **THEN** the follow state is resolved by querying the `Fellow` collection for a record whose `fellowUserName` is the signed-in user's `codeUser` and whose `fellowCommunity` matches one of the Korner's community keys
+- **AND** the query runs alongside the Korner's nook and member reads
+
+#### Scenario: A follow written on iOS is recognised
+- **WHEN** the signed-in user follows the Korner on the iOS app and then opens the Korner detail on Android
+- **THEN** `korner.isJoined` is `true`
+- **AND** the header's capsule reads "Unfollow"
+

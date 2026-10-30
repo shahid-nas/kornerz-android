@@ -11,7 +11,6 @@ The Android project SHALL be structured as a multi-module Gradle project. The to
 - `core/network/` (Kotlin library)
 - `core/storage/` (Kotlin library)
 - `core/ui/` (Android library, depends on Compose)
-- `feature/splash/` (Android library)
 - `feature/shell/` (Android library)
 - `feature/ranking/` (Android library, introduced in P10 — the Klouders leaderboard)
 
@@ -25,7 +24,7 @@ In P0, `feature/*` modules contain only placeholder composables. `core/network/`
 
 #### Scenario: Each module builds independently
 - **WHEN** `./gradlew :feature:shell:assembleDebug` is run from the project root
-- **THEN** the command succeeds without referencing `feature/splash` or other unneeded modules
+- **THEN** the command succeeds without referencing `feature/auth` or other unneeded modules
 
 #### Scenario: The ranking module builds independently
 - **WHEN** `./gradlew :feature:ranking:assembleDevDebug` is run from the project root

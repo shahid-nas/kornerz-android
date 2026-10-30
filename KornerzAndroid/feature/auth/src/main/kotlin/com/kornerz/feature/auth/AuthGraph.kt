@@ -25,7 +25,7 @@ import com.kornerz.feature.auth.welcome.WelcomeScreen
  * [onNavigateToShellGraph] is invoked by the Login screen after a
  * successful sign-in; the root NavHost implements it by clearing the
  * back-stack and navigating to the shell graph (mirrors the
- * `SplashScreen` callback pattern).
+ * `SessionGateViewModel` callback pattern).
  *
  * `WelcomeScreen` is the entry destination for unauthenticated users
  * (mirrors the iOS `SplashScreen` in `kornerz/Kornerz/SwiftUI/OnBoarding/Splash/`).

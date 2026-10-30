@@ -167,7 +167,6 @@ core/ui        ← imported by feature/*, app
 core/network   ← imported by feature/*, app
 core/storage   ← imported by feature/*, app
 core/model     ← imported by feature/*, app
-feature/splash ← imported by app ONLY
 feature/shell  ← imported by app ONLY
 feature/*      ← imported by app ONLY
 app            ← root module
@@ -175,7 +174,7 @@ app            ← root module
 
 - Enforced by Gradle `implementation`/`api` declarations.
 - The rules are enforced by the dependency graph itself plus code review — the project carries **no automated test suite**, so a boundary violation shows up as a compile error in `core/*` (it cannot see `feature/*`) rather than as a failing test.
-- **No circular dependencies.** A new engineer cannot accidentally create a `feature/splash` → `feature/loops` import.
+- **No circular dependencies.** A new engineer cannot accidentally create a `feature/shell` → `feature/loops` import.
 
 ### 2.6 Hilt scopes
 

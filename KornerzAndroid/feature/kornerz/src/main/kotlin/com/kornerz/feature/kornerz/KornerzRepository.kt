@@ -118,4 +118,43 @@ class KornerzRepository @Inject constructor(
         val communityId = korner.communityId?.takeIf { it.isNotBlank() } ?: korner.id
         emit(loopApi.fetchCommunityLoops(communityId))
     }
+
+    /**
+     * Follows the Korner for the signed-in user.
+     *
+     * Mirrors iOS `KornerDetailViewModel.followKorner()`
+     * (`kornerz/Kornerz/SwiftUI/Dashboard/Korner/KornerDetail/KornerDetailViewModel.swift:340`),
+     * which calls `FellowRepository.followCommunity(userId:community:)`.
+     *
+     * Fails when no user is signed in — iOS guards the same way
+     * (`guard let userId = AppHelper.shared.loggedInUser?.userCode`).
+     */
+    suspend fun followKorner(kornerId: String): Result<Unit> {
+        val userCode = signedInUserCode()
+            ?: return Result.failure(IllegalStateException("No signed-in user to follow with"))
+        return api.followCommunity(kornerId, userCode)
+    }
+
+    /**
+     * Unfollows the Korner for the signed-in user.
+     *
+     * Mirrors iOS `KornerDetailViewModel.unfollowKorner()`
+     * (`KornerDetailViewModel.swift:352`), which calls
+     * `FellowRepository.unfollowCommunity(userId:community:)`.
+     */
+    suspend fun unfollowKorner(kornerId: String): Result<Unit> {
+        val userCode = signedInUserCode()
+            ?: return Result.failure(IllegalStateException("No signed-in user to unfollow with"))
+        return api.unfollowCommunity(kornerId, userCode)
+    }
+
+    /**
+     * The signed-in user's `codeUser` — the identifier the `Fellow`
+     * records are keyed by (iOS `AppHelper.shared.loggedInUser?.userCode`).
+     */
+    private suspend fun signedInUserCode(): String? = sessionRepository.data.first()
+        .let { it as? SessionState.Authenticated }
+        ?.user
+        ?.userCode
+        ?.takeIf { it.isNotBlank() }
 }

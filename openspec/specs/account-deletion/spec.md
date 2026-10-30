@@ -21,7 +21,7 @@ On `Result.Success(Unit)` from `deleteUserAccount`, `AccountDeletionViewModel` S
 3. Emit `userDeletedHisAccount` on a shared event bus (mirrors iOS `NotificationCenter.default.post(name: .userDeletedHisAccount, object: nil)`).
 4. Emit `AccountDeletionNavEvent.NavigateToAuth`.
 
-The shell SHALL listen for `userDeletedHisAccount` and route the root NavHost back to the splash/auth flow exactly as it does on logout. Mirrors iOS lines 166–175.
+The shell SHALL listen for `userDeletedHisAccount` and route the root NavHost back to the auth flow exactly as it does on logout. Mirrors iOS lines 166–175.
 
 #### Scenario: Successful deletion routes to auth
 - **WHEN** `deleteUserAccount` returns `Success`
