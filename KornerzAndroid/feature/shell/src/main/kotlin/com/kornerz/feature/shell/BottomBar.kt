@@ -1,12 +1,6 @@
 package com.kornerz.feature.shell
 
 import androidx.annotation.DrawableRes
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Forum
-import androidx.compose.material.icons.filled.GroupWork
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.PlayCircle
-import androidx.compose.material.icons.filled.Subscriptions
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -14,13 +8,16 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import com.kornerz.feature.ranking.navigation.RankingRoute
 
 /**
- * One row in the bottom navigation bar. P0 uses Material Icons as
- * placeholders; designer-supplied brand icons land in a follow-up.
+ * One row in the bottom navigation bar. Every tab carries the iOS
+ * brand glyph as an Android VectorDrawable, ported from the matching
+ * asset in `kornerz/Kornerz/Resources/Assets.xcassets/Images/Home/`
+ * (`tab_home`, `tab_kornerz`, `tab_nooks`, `tab_loops`,
+ * `tab_klouders`). The Material icons the bar shipped with since P0
+ * were placeholders.
  *
  * Profile is **not** a tab — it is pushed onto the root NavHost with
  * the bottom bar hidden, mirroring the iOS `UserProfileVC` push from
@@ -30,25 +27,21 @@ import com.kornerz.feature.ranking.navigation.RankingRoute
  */
 internal enum class ShellTab(
     val label: String,
-    val icon: ImageVector,
-    val route: String,
     /**
-     * An optional drawable-backed icon, used by the Klouders tab to
-     * carry the iOS `tab_klouders` asset (P10 task 6.5). When it is
-     * `null` the tab renders [icon].
+     * The tab's brand glyph, ported from the iOS tab-bar asset of the
+     * same name. `Icon` tints the painter with the bottom bar's
+     * ambient content colour, so the selected and unselected states
+     * follow the bar's own palette — the same behaviour the iOS
+     * template-rendered assets get from `UITabBarItem`.
      */
-    @DrawableRes val iconRes: Int? = null,
+    @DrawableRes val iconRes: Int,
+    val route: String,
 ) {
-    Home(label = "Home", icon = Icons.Filled.Home, route = "tab/home"),
-    Kornerz(label = "Kornerz", icon = Icons.Filled.GroupWork, route = "tab/kornerz"),
-    Nooks(label = "Nooks", icon = Icons.Filled.Forum, route = "tab/nooks"),
-    Loops(label = "Loops", icon = Icons.Filled.PlayCircle, route = "tab/loops"),
-    Klouders(
-        label = "Klouders",
-        icon = Icons.Filled.Subscriptions,
-        route = RankingRoute.LIST,
-        iconRes = R.drawable.ic_tab_klouders,
-    );
+    Home(label = "Home", iconRes = R.drawable.ic_tab_home, route = "tab/home"),
+    Kornerz(label = "Kornerz", iconRes = R.drawable.ic_tab_kornerz, route = "tab/kornerz"),
+    Nooks(label = "Nooks", iconRes = R.drawable.ic_tab_nooks, route = "tab/nooks"),
+    Loops(label = "Loops", iconRes = R.drawable.ic_tab_loops, route = "tab/loops"),
+    Klouders(label = "Klouders", iconRes = R.drawable.ic_tab_klouders, route = RankingRoute.LIST);
 
     companion object {
         val ordered: List<ShellTab> = listOf(Home, Kornerz, Nooks, Loops, Klouders)
@@ -70,15 +63,10 @@ internal fun KornerzBottomBar(
                 selected = selected,
                 onClick = { onSelect(tab) },
                 icon = {
-                    val drawable = tab.iconRes
-                    if (drawable != null) {
-                        Icon(
-                            painter = painterResource(drawable),
-                            contentDescription = tab.label,
-                        )
-                    } else {
-                        Icon(imageVector = tab.icon, contentDescription = tab.label)
-                    }
+                    Icon(
+                        painter = painterResource(tab.iconRes),
+                        contentDescription = tab.label,
+                    )
                 },
                 label = { Text(text = tab.label) },
             )

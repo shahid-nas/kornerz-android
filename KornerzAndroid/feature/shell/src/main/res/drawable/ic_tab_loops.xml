@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Loops tab's bottom-bar icon.
+
+  Ported from the iOS asset
+  `kornerz/Kornerz/Resources/Assets.xcassets/Images/Home/tab_loops.imageset/
+  tab_loops.svg` — the stroked opposing loop arrows that replace the
+  `Icons.Filled.PlayCircle` placeholder.
+
+  The stroke colour is the iOS asset's own `#2E2F3E` (the Kornerz
+  `CharcoalLight` token). `Icon` tints a painter with the ambient
+  content colour, so the selected / unselected states follow the
+  bottom bar's own palette.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="25dp"
+    android:height="24dp"
+    android:viewportWidth="25"
+    android:viewportHeight="24">
+
+    <!-- Upper-left loop -->
+    <path
+        android:pathData="M12.0193 12.0192H2.11397C0.659717 12.0192 -0.0674102 10.2616 0.963088 9.23591L9.23596 0.963038C10.2616 -0.062644 12.0193 0.664483 12.0193 2.11392V9.39482"
+        android:strokeColor="#2E2F3E"
+        android:strokeWidth="1" />
+
+    <!-- Lower-right loop -->
+    <path
+        android:pathData="M12.0578 11.9856H21.9583C23.4125 11.9856 24.1397 13.7432 23.1092 14.7689L14.8363 23.0418C13.8106 24.0675 12.053 23.3403 12.053 21.8909V14.8652"
+        android:strokeColor="#2E2F3E"
+        android:strokeWidth="1" />
+
+</vector>

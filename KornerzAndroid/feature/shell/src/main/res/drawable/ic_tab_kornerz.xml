@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Kornerz tab's bottom-bar icon.
+
+  Ported from the iOS asset
+  `kornerz/Kornerz/Resources/Assets.xcassets/Images/Home/tab_kornerz.imageset/
+  tab_kornerz.svg` — the stroked four-way sparkle that replaces the
+  `Icons.Filled.GroupWork` placeholder.
+
+  The stroke colour is the iOS asset's own `#2E2F3E` (the Kornerz
+  `CharcoalLight` token). `Icon` tints a painter with the ambient
+  content colour, so the selected / unselected states follow the
+  bottom bar's own palette.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- Bottom-left arm -->
+    <path
+        android:pathData="M9.9504 13.2288H1.3008C0.5712 13.2288 0.2064 14.112 0.72 14.6256L9.3696 23.2752C9.888 23.7936 10.7664 23.424 10.7664 22.6944V14.0448C10.7664 13.5936 10.4016 13.224 9.9456 13.224L9.9504 13.2288Z"
+        android:strokeColor="#2E2F3E"
+        android:strokeWidth="1" />
+
+    <!-- Top-left arm -->
+    <path
+        android:pathData="M9.3696 0.719917L0.720004 9.37432C0.201604 9.89272 0.571204 10.7711 1.3008 10.7711H9.9504C10.4016 10.7711 10.7712 10.4063 10.7712 9.95032V1.30072C10.7712 0.571117 9.888 0.206317 9.3744 0.719917H9.3696Z"
+        android:strokeColor="#2E2F3E"
+        android:strokeWidth="1" />
+
+    <!-- Top-right arm -->
+    <path
+        android:pathData="M14.0496 10.7712H22.6992C23.4288 10.7712 23.7936 9.88797 23.28 9.37437L14.6256 0.719973C14.1072 0.201573 13.2288 0.571173 13.2288 1.30077V9.95037C13.2288 10.4016 13.5936 10.7712 14.0496 10.7712Z"
+        android:strokeColor="#2E2F3E"
+        android:strokeWidth="1" />
+
+    <!-- Bottom-right arm -->
+    <path
+        android:pathData="M13.2288 14.0495V22.6991C13.2288 23.4287 14.112 23.7935 14.6256 23.2799L23.2752 14.6303C23.7936 14.1119 23.424 13.2335 22.6944 13.2335H14.0448C13.5936 13.2335 13.224 13.5983 13.224 14.0543L13.2288 14.0495Z"
+        android:strokeColor="#2E2F3E"
+        android:strokeWidth="1" />
+
+</vector>

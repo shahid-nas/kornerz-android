@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Home tab's bottom-bar icon.
+
+  Ported from the iOS asset
+  `kornerz/Kornerz/Resources/Assets.xcassets/Images/Home/tab_home.imageset/
+  tab_home.svg` — a stroked "house" outline that replaces the
+  `Icons.Filled.Home` placeholder.
+
+  The stroke colour is the iOS asset's own `#2E2F3E` (the Kornerz
+  `CharcoalLight` token). `Icon` tints a painter with the ambient
+  content colour, so the selected / unselected states follow the
+  bottom bar's own palette.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- Body -->
+    <path
+        android:pathData="M18.4813 15.3071H5.52377C4.81037 15.3071 4.23204 15.8594 4.23204 16.5407V22.2863C4.23204 22.9676 4.81037 23.5199 5.52377 23.5199H18.4813C19.1947 23.5199 19.773 22.9676 19.773 22.2863V16.5407C19.773 15.8594 19.1947 15.3071 18.4813 15.3071Z"
+        android:strokeColor="#2E2F3E"
+        android:strokeWidth="1" />
+
+    <!-- Roof -->
+    <path
+        android:pathData="M23.1154 10.584L12.9123 0.83998C12.4096 0.35998 11.5904 0.35998 11.0877 0.83998L0.884608 10.584C0.0703674 11.3616 0.648378 12.6912 1.79937 12.6912H22.2057C23.3567 12.6912 23.9347 11.3616 23.1204 10.584H23.1154Z"
+        android:strokeColor="#2E2F3E"
+        android:strokeWidth="1" />
+
+</vector>
