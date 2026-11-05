@@ -1,5 +1,6 @@
 package com.kornerz.feature.profile.view
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kornerz.core.model.AsyncValue
@@ -10,6 +11,7 @@ import com.kornerz.feature.profile.data.UserProfileRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -70,10 +72,29 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Reads the "Communities" count and keeps it in sync.
+     *
+     * Everything in here runs inside [viewModelScope], whose
+     * coroutines are **not** exception-safe: an unhandled throwable
+     * escapes to the default uncaught-exception handler and kills the
+     * process. The count is read over the network, so it is wrapped in
+     * a guard that logs the failure and keeps the screen alive with the
+     * last known value.
+     */
     private suspend fun observeAdminCommunitiesCount(userCode: String) {
-        communitiesRepository.refreshAdminCount(userCode)
-        communitiesRepository.fetchUserCommunitiesCount(userCode).collect { count ->
-            _state.update { it.copy(adminCommunitiesCount = count) }
+        try {
+            communitiesRepository.refreshAdminCount(userCode)
+                .onFailure { error ->
+                    Log.w(TAG, "refreshAdminCount: ${error.message}")
+                }
+            communitiesRepository.fetchUserCommunitiesCount(userCode).collect { count ->
+                _state.update { it.copy(adminCommunitiesCount = count) }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "observeAdminCommunitiesCount: ${e.message}")
         }
     }
 
@@ -149,6 +170,7 @@ class ProfileViewModel @Inject constructor(
     fun currentUser(): User? = (_state.value.user as? AsyncValue.Success)?.data
 
     private companion object {
+        const val TAG = "ProfileViewModel"
         const val PREMIUM_LABEL = "Premium"
         const val PLAN_LABEL_MONTHLY = "Monthly"
         const val PLAN_LABEL_YEARLY = "Yearly"

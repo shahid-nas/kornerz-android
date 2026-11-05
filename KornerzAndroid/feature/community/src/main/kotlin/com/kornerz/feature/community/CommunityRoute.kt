@@ -36,4 +36,18 @@ sealed class CommunityRoute {
 
         fun build(code: String): String = "community/admin/detail/$code"
     }
+
+    /**
+     * The create-forum (create loop) wizard pushed from the admin detail
+     * screen's "forums" pill (iOS `CommunityDetailAsAdminVC.createForum`
+     * → `AddForumTitleScreen`). Carries the owned community's `communityId`
+     * so the new loop is written to the right community.
+     */
+    data object CreateForum : CommunityRoute() {
+        const val route: String = "community/create-forum/{communityId}"
+
+        const val ARG_COMMUNITY_ID: String = "communityId"
+
+        fun build(communityId: String): String = "community/create-forum/$communityId"
+    }
 }

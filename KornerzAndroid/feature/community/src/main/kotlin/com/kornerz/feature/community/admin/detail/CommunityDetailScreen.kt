@@ -101,6 +101,7 @@ import com.kornerz.feature.community.admin.detail.components.StatTile
 fun CommunityDetailScreen(
     onBack: () -> Unit,
     onShowError: (String) -> Unit,
+    onOpenCreateForum: (String) -> Unit,
     viewModel: CommunityDetailViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -147,6 +148,7 @@ fun CommunityDetailScreen(
             onRefresh = { viewModel.onEvent(CommunityDetailEvent.Refresh) },
             onRetry = { viewModel.onEvent(CommunityDetailEvent.Retry) },
             onSurfaceTap = onShowError,
+            onOpenCreateForum = onOpenCreateForum,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
@@ -161,6 +163,7 @@ private fun CommunityDetailContent(
     onRefresh: () -> Unit,
     onRetry: () -> Unit,
     onSurfaceTap: (String) -> Unit,
+    onOpenCreateForum: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     PullToRefreshBox(
@@ -179,6 +182,7 @@ private fun CommunityDetailContent(
                 stats = stats.data,
                 adminUser = state.adminUser,
                 onSurfaceTap = onSurfaceTap,
+                onOpenCreateForum = onOpenCreateForum,
             )
         }
     }
@@ -189,7 +193,9 @@ private fun LoadedBody(
     stats: CommunityStats,
     adminUser: User?,
     onSurfaceTap: (String) -> Unit,
+    onOpenCreateForum: (String) -> Unit,
 ) {
+    val communityId = stats.community.communityId.orEmpty()
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -219,7 +225,7 @@ private fun LoadedBody(
         }
         item { HorizontalDivider() }
         item {
-            AddRow(onAddForumTap = { onSurfaceTap("Coming soon") })
+            AddRow(onAddForumTap = { onOpenCreateForum(communityId) })
         }
     }
 }

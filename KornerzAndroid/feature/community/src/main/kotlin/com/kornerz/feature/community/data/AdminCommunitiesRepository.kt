@@ -42,11 +42,11 @@ class AdminCommunitiesRepository @Inject constructor(
         coreCommunitiesRepository.fetchUserCommunitiesCount(userCode)
 
     /**
-     * Re-reads the admin count and emits the new value.
+     * Re-reads the admin count and emits the new value. Never throws —
+     * a failed read is reported through the returned [Result].
      */
-    suspend fun refreshAdminCount(userCode: String) {
+    suspend fun refreshAdminCount(userCode: String): Result<Int> =
         coreCommunitiesRepository.refreshAdminCount(userCode)
-    }
 
     /**
      * Returns the list of communities [userCode] administers, fetched

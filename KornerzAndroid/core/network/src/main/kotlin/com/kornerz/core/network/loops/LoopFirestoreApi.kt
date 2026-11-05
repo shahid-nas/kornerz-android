@@ -6,11 +6,13 @@ import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.SetOptions
 import com.kornerz.core.model.Loop
 import com.kornerz.core.model.LoopsFilter
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.tasks.await
+import kotlinx.datetime.toJavaInstant
 import kotlinx.datetime.toKotlinInstant
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -244,6 +246,25 @@ class LoopFirestoreApi @Inject constructor(
     }.onFailure { Log.w(TAG, "fetchCommunityLoops: ${it.message}") }
         .recover { emptyList() }
 
+    /**
+     * Creates a new loop document in the `Loop` collection — mirrors iOS
+     * `LoopRepository.createLoop(_:)` (`LoopRepository.swift:282-294`),
+     * which writes `collection.document(loop.id).setData(from: loop)`.
+     *
+     * The document id is [Loop.id] (the 20-char forum/loop code generated
+     * by the caller, mirroring iOS `AddForumViewModel.forumId`). All
+     * fields (`title`, `description`, `imageHash`/``firebaseImageUrl``,
+     * `videoHash`/`firebaseVideoUrl`, `creationDate` as a Firestore
+     * `Timestamp`, etc.) are written so both platforms decode the same
+     * document shape.
+     */
+    suspend fun createLoop(loop: Loop): Result<Unit> = runCatching {
+        val loopId = loop.id ?: error("loop id must not be blank")
+        require(loopId.isNotBlank()) { "loop id must not be blank" }
+        collection.document(loopId).set(loopToMap(loop)).await()
+        Unit
+    }.onFailure { Log.w(TAG, "createLoop: ${it.message}") }
+
     private fun Map<String, Any?>.toLoop(id: String): Loop? = Loop(
         id = id,
         communityId = this[FIELD_COMMUNITY_ID] as? String,
@@ -274,6 +295,34 @@ class LoopFirestoreApi @Inject constructor(
         publisherName = null,
         publisherAvatarUrl = null,
         communityName = null,
+    )
+
+    /**
+     * Converts a [Loop] into the Firestore field map used for writes.
+     * Field names mirror the iOS `Loop` CodingKeys so both platforms
+     * read/write the same document shape.
+     */
+    private fun loopToMap(loop: Loop): Map<String, Any?> = mapOf(
+        FIELD_ID to loop.id,
+        FIELD_COMMUNITY_ID to loop.communityId,
+        FIELD_PUBLISHER_ID to loop.publisherId,
+        FIELD_ACTIVE to loop.active,
+        FIELD_TITLE to loop.title,
+        FIELD_DESCRIPTION to loop.description,
+        FIELD_DESCRIPTION_HTML to loop.descriptionHtml,
+        FIELD_IMAGE_HASH to loop.imageHash,
+        FIELD_THUMBNAIL_HASH to loop.thumbnailHash,
+        FIELD_VIDEO_HASH to loop.videoHash,
+        FIELD_FIREBASE_IMAGE_URL to loop.firebaseImageUrl,
+        FIELD_FIREBASE_THUMBNAIL_URL to loop.firebaseThumbnailUrl,
+        FIELD_FIREBASE_VIDEO_URL to loop.firebaseVideoUrl,
+        FIELD_VIEW_COUNTS to loop.viewCounts,
+        FIELD_COMMENTS_COUNT to loop.commentsCount,
+        FIELD_LIKES_COUNT to loop.likesCount,
+        FIELD_THEME to loop.theme,
+        FIELD_CREATION_DATE to loop.creationDate?.let {
+            com.google.firebase.Timestamp(it.toJavaInstant())
+        },
     )
 
     companion object {

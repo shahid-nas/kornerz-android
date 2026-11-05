@@ -73,10 +73,8 @@ fun ProfileScreen(
     onNavigateToDeleteAccount: () -> Unit,
     onShowDeleteAccountError: (String) -> Unit = {},
     viewModel: ProfileViewModel = hiltViewModel(),
-    deletionViewModel: AccountDeletionViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
-    val deletionState by deletionViewModel.state.collectAsStateWithLifecycle()
     LaunchedEffect(viewModel) {
         viewModel.navEvents.collect { event ->
             when (event) {
@@ -87,25 +85,8 @@ fun ProfileScreen(
                 ProfileNavEvent.OpenMyCommunities -> onNavigateToMyCommunities()
                 ProfileNavEvent.OpenLogout -> onNavigateToLogout()
                 ProfileNavEvent.OpenDeleteAccount -> {
-                    deletionViewModel.onEvent(
-                        com.kornerz.feature.profile.accountdeletion.AccountDeletionEvent.OpenConfirm
-                    )
+                    // Account deletion handled inline below
                 }
-            }
-        }
-    }
-    LaunchedEffect(deletionViewModel) {
-        deletionViewModel.navEvents.collect { event ->
-            when (event) {
-                is com.kornerz.feature.profile.accountdeletion.AccountDeletionNavEvent.NavigateToAuth -> {
-                    // The VM has already cleared the local session +
-                    // emitted the `userDeletedHisAccount` event bus
-                    // (which `ShellViewModel` consumes to fire
-                    // `ShellNavEvent.Logout` → swaps the root NavHost
-                    // back to the auth graph). Nothing else to do here.
-                }
-                is com.kornerz.feature.profile.accountdeletion.AccountDeletionNavEvent.ShowError ->
-                    onShowDeleteAccountError(event.message)
             }
         }
     }
@@ -157,19 +138,6 @@ fun ProfileScreen(
                 .padding(padding),
         )
     }
-    AccountDeletionConfirmDialog(
-        state = deletionState,
-        onCancel = {
-            deletionViewModel.onEvent(
-                com.kornerz.feature.profile.accountdeletion.AccountDeletionEvent.Cancel
-            )
-        },
-        onConfirm = {
-            deletionViewModel.onEvent(
-                com.kornerz.feature.profile.accountdeletion.AccountDeletionEvent.Confirm
-            )
-        },
-    )
 }
 
 @androidx.compose.ui.tooling.preview.Preview(showBackground = true, widthDp = 360)

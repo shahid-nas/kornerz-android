@@ -66,6 +66,10 @@ fun LoopDetailScreen(
             LoopAddCommentBar(
                 avatarUrl = state.currentUserAvatarUrl,
                 onClick = { viewModel.onEvent(LoopDetailEvent.AddCommentTapped(viewModel.loopId)) },
+                // The comment sheet posts against the resolved loop, so
+                // the bar stays untappable while the screen is still
+                // shimmering.
+                enabled = !state.isLoading,
             )
         },
         modifier = modifier,

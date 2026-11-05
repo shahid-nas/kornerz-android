@@ -62,6 +62,20 @@ data class LoopDetailState(
     val loop: Loop?
         get() = (detail as? AsyncValue.Success<LoopDetailInfo>)?.data?.loop
 
+    /**
+     * Whether the screen is still loading its first payload.
+     *
+     * `true` while the detail is loading **or** has failed — in both
+     * cases the loop is unresolved, so the add-comment bar stays
+     * disabled: the create-comment sheet needs the resolved loop to
+     * post against it.
+     *
+     * A pull-to-refresh does **not** flip it: the refresh keeps the
+     * loaded content on screen, so the bar stays tappable.
+     */
+    val isLoading: Boolean
+        get() = detail is AsyncValue.Loading || detail is AsyncValue.Error
+
     /** The resolved owner (the loop's publisher), or `null`. */
     val owner: User?
         get() = (detail as? AsyncValue.Success<LoopDetailInfo>)?.data?.owner

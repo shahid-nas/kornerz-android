@@ -71,6 +71,7 @@ import com.kornerz.feature.shell.deeplink.DeepLinkTarget
 import com.kornerz.feature.community.admin.AdminCommunitiesListScreen
 import com.kornerz.feature.community.admin.detail.CommunityDetailScreen
 import com.kornerz.feature.community.admin.detail.CommunityDetailViewModel
+import com.kornerz.feature.community.admin.createforum.CreateForumScreen
 import com.kornerz.feature.videocall.VideoCallNavEvent
 import com.kornerz.feature.videocall.VideocallRoute
 import com.kornerz.feature.videocall.videocallGraph
@@ -466,6 +467,24 @@ fun AppShell(
                 CommunityDetailScreen(
                     onBack = { navController.popBackStack() },
                     onShowError = { msg -> scope.launch { comingSoonSnackbar.showSnackbar(msg) } },
+                    onOpenCreateForum = { communityId ->
+                        navController.navigate(CommunityRoute.CreateForum.build(communityId))
+                    },
+                )
+            }
+            // P7+ — create-forum (create loop) wizard pushed from the admin
+            // detail screen's "forums" pill. Mirrors iOS
+            // `CommunityDetailAsAdminVC.createForum` → `AddForumTitleScreen`.
+            composable(
+                route = CommunityRoute.CreateForum.route,
+                arguments = listOf(
+                    navArgument(CommunityRoute.CreateForum.ARG_COMMUNITY_ID) { type = NavType.StringType },
+                ),
+            ) {
+                val communityId = it.arguments?.getString(CommunityRoute.CreateForum.ARG_COMMUNITY_ID) ?: ""
+                CreateForumScreen(
+                    communityId = communityId,
+                    onFinished = { navController.popBackStack() },
                 )
             }
             // P6 (task 9.1) — Notifications feed (top-level so the

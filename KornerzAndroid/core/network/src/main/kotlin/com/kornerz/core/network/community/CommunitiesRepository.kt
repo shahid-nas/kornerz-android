@@ -1,9 +1,11 @@
 package com.kornerz.core.network.community
 
+import android.util.Log
 import com.google.firebase.firestore.AggregateSource
 import com.google.firebase.firestore.FirebaseFirestore
 import com.kornerz.core.model.Community
 import com.kornerz.core.model.FollowMember
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -48,19 +50,38 @@ class CommunitiesRepository @Inject constructor(
      * Firestore's server-side aggregation
      * (`count().get(AggregateSource.SERVER)`), so only the integer is
      * transferred.
+     *
+     * **Never throws.** The count is read from a `viewModelScope`
+     * coroutine (see `ProfileViewModel.observeAdminCommunitiesCount`),
+     * and an unhandled `FirebaseFirestoreException` there — an offline
+     * emulator, a dropped connection, a permission error — propagates
+     * out of the scope and kills the process. The failure is therefore
+     * captured: the last known count is kept and the error is returned
+     * to the caller.
      */
-    suspend fun refreshAdminCount(userCode: String) {
+    suspend fun refreshAdminCount(userCode: String): Result<Int> {
         if (userCode.isBlank()) {
             adminCount.value = 0
-            return
+            return Result.success(0)
         }
-        adminCount.value = firestore.collection(FIELD_COMMUNITY_ADM_COLLECTION)
-            .whereEqualTo(FIELD_ADMIN_USER_ID, userCode)
-            .count()
-            .get(AggregateSource.SERVER)
-            .await()
-            .count
-            .toInt()
+        return try {
+            val count = firestore.collection(FIELD_COMMUNITY_ADM_COLLECTION)
+                .whereEqualTo(FIELD_ADMIN_USER_ID, userCode)
+                .count()
+                .get(AggregateSource.SERVER)
+                .await()
+                .count
+                .toInt()
+            adminCount.value = count
+            Result.success(count)
+        } catch (e: CancellationException) {
+            // Never swallow cancellation — the caller may be tearing the
+            // scope down while the request is in flight.
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "refreshAdminCount($userCode): ${e.message}")
+            Result.failure(e)
+        }
     }
 
     suspend fun fetchCommunityNamesByIds(communityIds: List<String>): Map<String, String> {
@@ -234,6 +255,7 @@ class CommunitiesRepository @Inject constructor(
     }
 
     private companion object {
+        const val TAG = "CommunitiesRepository"
         const val FIELD_COMMUNITY_COLLECTION = "Communities"
         const val FIELD_COMMUNITY_ADM_COLLECTION = "CommunityAdm"
         const val FIELD_COMMUNITY_ID = "communityId"

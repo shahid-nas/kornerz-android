@@ -16,6 +16,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -38,12 +39,18 @@ import com.kornerz.core.ui.theme.Spacing
  * `addCommentView`), and in both the bar opens the create-comment sheet
  * — as a top-level comment on the detail screen, as a reply to the
  * thread's parent comment in the reply thread.
+ *
+ * The bar can be **disabled** ([enabled] = `false`): the tap is
+ * swallowed and the whole bar is dimmed. The loop detail screen uses it
+ * while the loop is still loading — the comment sheet needs the
+ * resolved loop, so a tap during the shimmer would open an empty sheet.
  */
 @Composable
 fun LoopAddCommentBar(
     avatarUrl: String?,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    enabled: Boolean = true,
 ) {
     Column(
         modifier = modifier
@@ -54,7 +61,8 @@ fun LoopAddCommentBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable(onClick = onClick)
+                .clickable(enabled = enabled, onClick = onClick)
+                .alpha(if (enabled) 1f else DISABLED_ALPHA)
                 .padding(horizontal = Spacing.space8, vertical = Spacing.space4),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -83,3 +91,6 @@ fun LoopAddCommentBar(
         }
     }
 }
+
+/** The dimming applied to a disabled bar — the capsule keeps its shape. */
+private const val DISABLED_ALPHA = 0.4f

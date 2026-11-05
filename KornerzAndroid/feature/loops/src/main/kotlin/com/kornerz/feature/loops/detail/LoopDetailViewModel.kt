@@ -111,13 +111,19 @@ class LoopDetailViewModel @Inject constructor(
             is LoopDetailEvent.MediaTapped -> openVideoPlayer()
             is LoopDetailEvent.KornerTapped -> navigateToKornerDetail(event.communityId)
             LoopDetailEvent.LikeToggled -> toggleLike()
-            is LoopDetailEvent.AddCommentTapped ->
+            is LoopDetailEvent.AddCommentTapped -> {
+                // The comment sheet posts against the resolved loop, so
+                // a tap that arrives while the screen is still loading
+                // is swallowed — the bar is disabled in the UI, and the
+                // event is guarded here too.
+                if (_state.value.isLoading) return
                 emit(
                     LoopDetailNavEvent.OpenCreateComment(
                         loopId = event.loopId,
                         accentColorHex = _state.value.resolvedAccentColorHex,
                     ),
                 )
+            }
             is LoopDetailEvent.CommentAvatarTapped -> { /* future */ }
             is LoopDetailEvent.CommentLikeToggled -> toggleCommentLike(event.commentInfo)
             is LoopDetailEvent.CommentDeleteConfirmed -> deleteComment(event.commentId)
