@@ -51,7 +51,25 @@ class KornerDetailViewModel @Inject constructor(
 
     private val kornerId: String = savedStateHandle.get<String>(ARG_KORNER_ID).orEmpty()
 
-    private val _state = MutableStateFlow(KornerDetailState())
+    /**
+     * The accent colour the opening screen handed over, read off the
+     * `themeColorHex` nav argument.
+     *
+     * The route carries the six hex digits **without** the `#` — a
+     * navigation route is URI-shaped and a `#` would be read as the
+     * fragment separator — so the value is canonicalised back to the
+     * `#RRGGBB` form the UI resolves.
+     *
+     * Empty when the destination was opened without one (a deep link,
+     * a nook detail), and the screen falls back to the Korner
+     * document's own theme colour.
+     */
+    private val handoverThemeColorHex: String? =
+        savedStateHandle.get<String>(ARG_THEME_COLOR_HEX)
+            ?.takeIf { it.isNotBlank() }
+            ?.let { "#${it.trim().removePrefix("#")}" }
+
+    private val _state = MutableStateFlow(KornerDetailState(handoverThemeColorHex = handoverThemeColorHex))
     val state: StateFlow<KornerDetailState> = _state.asStateFlow()
 
     private val _navEvents = Channel<KornerDetailNavEvent>(Channel.BUFFERED)
@@ -229,5 +247,13 @@ class KornerDetailViewModel @Inject constructor(
 
     companion object {
         const val ARG_KORNER_ID = "kornerId"
+
+        /**
+         * The nav argument carrying the accent colour the opening
+         * screen handed over. Mirrors
+         * [com.kornerz.feature.kornerz.KornerzRoute.Detail.ARG_THEME_COLOR_HEX];
+         * the value is the six hex digits **without** the `#`.
+         */
+        const val ARG_THEME_COLOR_HEX = "themeColorHex"
     }
 }

@@ -34,7 +34,7 @@ import com.kornerz.core.ui.theme.KornerzTheme
 fun HomeScreen(
     modifier: Modifier = Modifier,
     viewModel: HomeViewModel = hiltViewModel(),
-    onNavigateToKornerDetail: (String) -> Unit = {},
+    onNavigateToKornerDetail: (String, String) -> Unit = { _, _ -> },
     onNavigateToLoopDetail: (String, String) -> Unit = { _, _ -> },
     onNavigateToProfile: () -> Unit = {},
 ) {

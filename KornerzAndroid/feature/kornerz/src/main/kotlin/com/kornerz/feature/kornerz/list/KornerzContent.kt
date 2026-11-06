@@ -85,7 +85,12 @@ private fun androidx.compose.foundation.lazy.LazyListScope.section(
                     SectionTitle(title)
                     KornerzCarousel(
                         items = value.data,
-                        onItemClick = { korner -> onEvent(KornerzEvent.RowClicked(korner.id)) },
+                        // The tile's accent hex travels with the tap, so
+                        // the Korner detail opens in the very colour
+                        // the tile was painted with.
+                        onItemClick = { korner, themeColorHex ->
+                            onEvent(KornerzEvent.RowClicked(korner.id, themeColorHex))
+                        },
                     )
                 }
             }

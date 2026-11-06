@@ -52,7 +52,10 @@ fun KornerDetailContent(
 ) {
     val detail = (state.detail as? AsyncValue.Success)?.data ?: return
     val korner = detail.korner
-    val themeColor = parseKornerThemeColor(korner.themeColor)
+    // The colour the screen paints itself with: the one the opening
+    // screen handed over (the tile's colour), falling back to the
+    // Korner document's own theme colour.
+    val themeColor = parseKornerThemeColor(state.resolvedThemeColorHex)
 
     // The "Recently in" rows reuse the Loops tab's row chrome, so the
     // cards are projected through the shared `LoopMapper`.
@@ -82,6 +85,7 @@ fun KornerDetailContent(
     ) {
         KornerDetailHeader(
             korner = korner,
+            themeColor = themeColor,
             isFollowing = korner.isJoined,
             onBackClick = { onEvent(KornerDetailEvent.BackClicked) },
             onFollowClick = { onEvent(KornerDetailEvent.FollowClicked) },

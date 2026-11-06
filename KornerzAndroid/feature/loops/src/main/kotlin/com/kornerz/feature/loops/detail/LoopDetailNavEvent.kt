@@ -15,8 +15,18 @@ sealed interface LoopDetailNavEvent {
      * The id is the community's **Firestore document id** — the one the
      * `kornerz/{kornerId}` destination reads — not the loop's raw
      * `communityId` field.
+     *
+     * @param accentColorHex the colour the loop detail is painted with,
+     * as a `#RRGGBB` hex string. It travels with the hand-off so the
+     * Korner detail opens in the very colour the loop was painted with
+     * (iOS hands `loopInfo.color` across the same boundary). It is
+     * empty when the loop carries no colour — the Korner detail then
+     * falls back to the Korner document's own theme colour.
      */
-    data class NavigateToKornerDetail(val communityId: String) : LoopDetailNavEvent
+    data class NavigateToKornerDetail(
+        val communityId: String,
+        val accentColorHex: String = "",
+    ) : LoopDetailNavEvent
 
     /**
      * Opens the create-comment sheet.

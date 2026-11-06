@@ -74,7 +74,12 @@ class HomeViewModel @Inject constructor(
                     ),
                 )
             is HomeEvent.NookClicked -> emit(HomeNavEvent.NavigateToEventDetail(event.nookId))
-            is HomeEvent.KornerClicked -> emit(HomeNavEvent.NavigateToKornerDetail(event.kornerId))
+            is HomeEvent.KornerClicked -> emit(
+                HomeNavEvent.NavigateToKornerDetail(
+                    kornerId = event.kornerId,
+                    themeColorHex = event.themeColorHex,
+                ),
+            )
         }
     }
 

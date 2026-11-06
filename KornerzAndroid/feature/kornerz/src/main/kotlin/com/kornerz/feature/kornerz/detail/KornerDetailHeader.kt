@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -60,10 +61,17 @@ import com.kornerz.core.ui.theme.Spacing
  * the chevron, the Korner name, the two actions and the
  * triangle-clipped cover — **not** as a 16:9 image banner with a
  * scrim, which is what the screen used to show.
+ *
+ * The colour band runs **under the status bar**, the way the loop
+ * detail's media area does: the shell drops the status-bar inset for
+ * this destination, so the hero's background reaches the top edge of
+ * the screen while the header's own content keeps clear of the bar
+ * (the `statusBarsPadding` on the row).
  */
 @Composable
 fun KornerDetailHeader(
     korner: Korner,
+    themeColor: Color,
     isFollowing: Boolean,
     onBackClick: () -> Unit,
     onFollowClick: () -> Unit,
@@ -74,11 +82,16 @@ fun KornerDetailHeader(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .background(parseKornerThemeColor(korner.themeColor)),
+            .background(themeColor),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                // The colour band runs under the status bar, so the
+                // header's content insets itself — the Android
+                // counterpart of iOS's transparent navigation bar
+                // whose content sits below the status bar.
+                .statusBarsPadding()
                 .padding(Spacing.space8),
             verticalAlignment = Alignment.Top,
         ) {
@@ -167,6 +180,9 @@ private fun AboutButton(onClick: () -> Unit) {
  * Loading placeholder for the hero. Mirrors the real header's shape —
  * a wide colour block with a triangle-sized hole on the trailing edge —
  * so the screen does not jump when the data lands.
+ *
+ * The block runs under the status bar like the real header's colour
+ * band, and its content keeps clear of the bar the same way.
  */
 @Composable
 fun KornerDetailHeaderShimmer(modifier: Modifier = Modifier) {
@@ -180,6 +196,7 @@ fun KornerDetailHeaderShimmer(modifier: Modifier = Modifier) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .statusBarsPadding()
                 .padding(Spacing.space8),
             verticalAlignment = Alignment.Top,
         ) {
@@ -244,6 +261,7 @@ private fun KornerDetailHeaderLightPreview() {
                 themeColor = "#E27D5A",
                 coverUrl = null,
             ),
+            themeColor = Color(0xFFE27D5A),
             isFollowing = false,
             onBackClick = {},
             onFollowClick = {},
@@ -263,6 +281,7 @@ private fun KornerDetailHeaderDarkPreview() {
                 themeColor = "#5D47ED",
                 coverUrl = null,
             ),
+            themeColor = Color(0xFF5D47ED),
             isFollowing = true,
             onBackClick = {},
             onFollowClick = {},

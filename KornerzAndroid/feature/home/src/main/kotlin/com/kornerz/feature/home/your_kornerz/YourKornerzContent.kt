@@ -22,7 +22,7 @@ import com.kornerz.feature.home.components.KornerzCarousel
 @Composable
 fun YourKornerzContent(
     items: List<Community>,
-    onItemClick: (String) -> Unit,
+    onItemClick: (String, String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
@@ -30,7 +30,12 @@ fun YourKornerzContent(
             title = "Your Kornerz",
             modifier = Modifier.padding(horizontal = Spacing.space8, vertical = Spacing.space2),
         )
-        KornerzCarousel(items = items, onItemClick = { onItemClick(it.id) })
+        KornerzCarousel(
+            items = items,
+            // The tile's accent hex travels with the tap, so the Korner
+            // detail opens in the very colour the tile was painted with.
+            onItemClick = { community, themeColorHex -> onItemClick(community.id, themeColorHex) },
+        )
     }
 }
 
@@ -65,7 +70,7 @@ private fun YourKornerzPreview() {
                 Community(id = "c1", name = "Design", themeColor = "#E27D5A"),
                 Community(id = "c2", name = "Engineering", themeColor = ""),
             ),
-            onItemClick = {},
+            onItemClick = { _, _ -> },
         )
     }
 }

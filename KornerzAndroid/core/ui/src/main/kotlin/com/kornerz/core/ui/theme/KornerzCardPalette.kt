@@ -53,6 +53,28 @@ object KornerzCardPalette {
         return runCatching { Color(android.graphics.Color.parseColor("#$cleaned")) }.getOrNull()
     }
 
+    /**
+     * The accent **hex** a Korner / community tile is painted with —
+     * the entity's own theme colour when it is a readable `#RRGGBB`
+     * value, and the palette entry for [index] otherwise.
+     *
+     * The tile and the screen it opens must agree on the colour, so
+     * both derive it from this one function: the tile paints itself
+     * with the returned hex and hands the very same hex to the detail
+     * screen, which then paints itself in that colour (iOS parity —
+     * the Koordinator hands the tile's colour to the detail screen).
+     */
+    fun hexForAccent(themeColor: String?, index: Int): String {
+        val cleaned = themeColor?.trim()?.removePrefix("#")
+        return if (cleaned != null && cleaned.length == 6 &&
+            cleaned.all { it.digitToIntOrNull(16) != null }
+        ) {
+            "#${cleaned.uppercase()}"
+        } else {
+            hexForIndex(index)
+        }
+    }
+
     val size: Int get() = swatches.size
 
     private fun wrap(index: Int): Int = ((index % swatches.size) + swatches.size) % swatches.size

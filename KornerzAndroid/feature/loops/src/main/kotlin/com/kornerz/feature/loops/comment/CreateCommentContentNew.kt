@@ -41,6 +41,7 @@ import com.kornerz.core.model.LoopDetailInfo
 import com.kornerz.core.model.User
 import com.kornerz.core.ui.components.KornerzDiamondImage
 import com.kornerz.core.ui.components.KornerzTriangleImage
+import com.kornerz.core.ui.components.descriptionPlainText
 import com.kornerz.core.ui.components.timeAgoSinceDate
 import com.kornerz.core.ui.theme.KornerzCardPalette
 import com.kornerz.core.ui.theme.KornerzColors
@@ -234,7 +235,7 @@ private fun LoopInfoView(detail: LoopDetailInfo, accent: Color) {
                 }
             }
             Text(
-                text = detail.loop.description ?: "",
+                text = detail.loop.descriptionPlainText(),
                 fontSize = 12.sp,
                 color = Color.Black,
                 maxLines = 2,

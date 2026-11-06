@@ -49,12 +49,14 @@ import com.kornerz.core.model.Loop
 import com.kornerz.core.model.LoopCommentInfo
 import com.kornerz.core.model.LoopDetailInfo
 import com.kornerz.core.model.User
+import com.kornerz.core.ui.components.DescriptionContent
 import com.kornerz.core.ui.components.HomeShimmerPlaceholder
 import com.kornerz.core.ui.components.KornerzErrorState
 import com.kornerz.core.ui.components.KornerzExpandableText
 import com.kornerz.core.ui.components.KornerzHtmlText
 import com.kornerz.core.ui.components.KornerzTriangleImage
 import com.kornerz.core.ui.components.TriangleCorner
+import com.kornerz.core.ui.components.resolveDescriptionContent
 import com.kornerz.core.ui.components.timeAgoSinceDate
 import com.kornerz.core.ui.theme.KornerzCardPalette
 import com.kornerz.core.ui.theme.KornerzTheme
@@ -455,30 +457,38 @@ private fun TitleRow(
 }
 
 /**
- * The description — the HTML branch when `descriptionHtml` is
- * non-empty, the expandable plain-text branch otherwise, and nothing
- * at all when both are empty.
+ * Number of description lines shown before the user expands it.
+ */
+private const val DESCRIPTION_LINE_LIMIT = 3
+
+/**
+ * The description — the HTML branch when the loop carries HTML, the
+ * expandable plain-text branch otherwise, and nothing at all when the
+ * loop has no description.
+ *
+ * The branch selection mirrors iOS `LoopDetailView.descriptionView`:
+ * HTML when available, plain text otherwise.
  */
 @Composable
 private fun DescriptionSection(loop: Loop, accent: Color) {
-    val html = loop.descriptionHtml?.takeIf { it.isNotBlank() }
-    val plain = loop.description?.takeIf { it.isNotBlank() }
-    if (html == null && plain == null) return
+    val content = resolveDescriptionContent(loop.description, loop.descriptionHtml) ?: return
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = Spacing.space8, vertical = Spacing.space4),
     ) {
-        if (html != null) {
-            KornerzHtmlText(
-                html = html,
+        when (content) {
+            is DescriptionContent.Html -> KornerzHtmlText(
+                html = content.html,
                 accentColor = accent,
+                collapsedLineLimit = DESCRIPTION_LINE_LIMIT,
             )
-        } else if (plain != null) {
-            KornerzExpandableText(
-                text = plain,
+
+            is DescriptionContent.Plain -> KornerzExpandableText(
+                text = content.text,
                 accentColor = accent,
+                lineLimit = DESCRIPTION_LINE_LIMIT,
             )
         }
     }

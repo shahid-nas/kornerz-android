@@ -81,7 +81,15 @@ private fun UpcomingNooksSection(value: AsyncValue<List<com.kornerz.core.model.N
 private fun YourKornerzSection(value: AsyncValue<List<com.kornerz.core.model.Community>>, onEvent: (HomeEvent) -> Unit) {
     when (value) {
         is AsyncValue.Success -> if (value.data.isNotEmpty()) {
-            YourKornerzContent(items = value.data, onItemClick = { onEvent(HomeEvent.KornerClicked(it)) })
+            YourKornerzContent(
+                items = value.data,
+                // The tile's accent hex travels with the tap, so the
+                // Korner detail opens in the very colour the tile was
+                // painted with.
+                onItemClick = { kornerId, themeColorHex ->
+                    onEvent(HomeEvent.KornerClicked(kornerId, themeColorHex))
+                },
+            )
         }
         is AsyncValue.Error -> YourKornerzRetrySection(onRetry = { onEvent(HomeEvent.YourKornerzRetry) })
         AsyncValue.Loading -> YourKornerzShimmerSection()

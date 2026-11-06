@@ -69,12 +69,47 @@ While `LoopDetailState.isLikeInProgress = true` the button SHALL render a centre
 - **AND** the nested NavHost pushes `kornerz/{communityId}` (reusing the existing destination)
 
 ### Requirement: Loop detail renders an expandable description
-When `Loop.descriptionHtml` is non-null and non-empty, the description section SHALL render the shared `KornerzHtmlText` component — a `WebView` host (1:1 with iOS `ExpandableHTMLDescriptionView` + `WebViewRepresentable`) that shows a 2-line plain-text preview when collapsed and the live HTML when expanded, toggled by a **"See More" / "Show Less"** button in the per-loop accent colour. When `Loop.descriptionHtml` is null or empty, the description section SHALL render the shared `KornerzExpandableText` component with a 2-line initial truncation and a **"View More" / "View Less"** button in the per-loop accent colour.
+The description SHALL be resolved from the two fields the backend stores, mirroring iOS `LoopDetailView.descriptionView`: **HTML when available, plain text otherwise**.
 
-The overflow threshold SHALL be iOS's: the text is considered overflowing when `text.length / 50 + newlineCount > lineLimit` — **not** a raw character-count threshold. The description section SHALL render nothing when both `descriptionHtml` and `description` are empty.
+- `Loop.descriptionHtml` non-null and non-empty → the description is rendered as HTML by the shared `KornerzHtmlText` component, toggled by a **"View More" / "View Less"** button in the per-loop accent colour.
+- `Loop.descriptionHtml` null or empty and `Loop.description` non-empty → the description is rendered by the shared `KornerzExpandableText` component with the same **"View More" / "View Less"** button in the per-loop accent colour.
+- Both empty → nothing is rendered.
 
-#### Scenario: Loop detail with descriptionHtml non-empty renders the WebView
-- **WHEN** the loop loads with `descriptionHtml = "<p>Hello world</p>"`
+Both platforms store the description in exactly these two fields — `description` (plain text) and `descriptionHtml` (the HTML export of the iOS rich-text editor's `NSAttributedString`). There is no third "attributed text" field on a loop document; the three-tier `postContent` / `postRTF` / `postHTML` model exists on `Post`, not on `Loop`.
+
+The collapsed description SHALL show **3 lines** of content with an ellipsis, and the expanded description SHALL show the full content. The toggle SHALL render only when the content actually overflows the 3-line limit.
+
+When `descriptionHtml` is empty but `description` carries HTML markup, the description SHALL be treated as HTML and rendered through the same HTML control — raw markup SHALL never be shown to the user.
+
+The HTML rendering mechanism is platform-specific:
+
+- **Android** SHALL use the built-in HTML rendering control — `HtmlCompat.fromHtml` applied to a `TextView` hosted through `AndroidView`. No `WebView` is used. Because `HtmlCompat` does not apply CSS, the HTML SHALL be sanitised first: document scaffolding (`html`/`head`/`body`/`meta`/`link`/`title`), comments, doctypes and `script`/`style` blocks SHALL be stripped so the stylesheet the iOS editor exports never renders as visible text.
+- **iOS** SHALL keep the `WKWebView` host (iOS provides no native HTML rendering control), showing a 2-line plain-text preview while collapsed and the live HTML when expanded, toggled by **"See More" / "Show Less"**.
+
+For the plain-text (`KornerzExpandableText`) branch the overflow threshold SHALL be iOS's: the text is considered overflowing when `text.length / 50 + newlineCount > lineLimit` — **not** a raw character-count threshold.
+
+#### Scenario: Loop detail resolves the description the same way as iOS
+- **WHEN** the loop loads with `descriptionHtml = "<p>Hello world</p>"` and `description = "Hello world"`
+- **THEN** the HTML branch is used
+- **WHEN** the loop loads with `descriptionHtml = null` and `description = "Hello world"`
+- **THEN** the plain-text branch is used
+- **WHEN** the loop loads with `descriptionHtml = null` and `description = null`
+- **THEN** no description is rendered
+
+#### Scenario: Android loop detail with descriptionHtml non-empty renders HTML natively
+- **WHEN** the loop loads with `descriptionHtml = "<p>Hello world</p>"` on Android
+- **THEN** the description section renders the `KornerzHtmlText` component backed by a `TextView` holding the `HtmlCompat`-parsed content
+- **AND** no `WebView` is instantiated
+- **WHEN** the content is longer than 3 lines
+- **THEN** the collapsed description is truncated to 3 lines with an ellipsis and a "View More" button is shown
+- **WHEN** the user taps "View More"
+- **THEN** the full HTML content renders
+- **AND** the button label becomes "View Less"
+- **WHEN** the user taps "View Less"
+- **THEN** the description collapses back to 3 lines
+
+#### Scenario: iOS loop detail with descriptionHtml non-empty renders the WebView
+- **WHEN** the loop loads with `descriptionHtml = "<p>Hello world</p>"` on iOS
 - **THEN** the description section renders the `KornerzHtmlText` component in its collapsed state with a 2-line plain-text preview
 - **AND** the WebView disables file access
 - **AND** the WebView intercepts URL clicks via `shouldOverrideUrlLoading` returning true (no external navigation)
@@ -85,7 +120,7 @@ The overflow threshold SHALL be iOS's: the text is considered overflowing when `
 #### Scenario: Loop detail without descriptionHtml renders ExpandableText
 - **WHEN** the loop loads with `descriptionHtml = null` and `description = "long text here..."`
 - **THEN** the description section renders `KornerzExpandableText` with the text body
-- **AND** initially the text is truncated to 2 lines with a "View More" button
+- **AND** initially the text is truncated to 3 lines with a "View More" button
 - **WHEN** the user taps "View More"
 - **THEN** the text expands to its full height
 - **AND** the button label becomes "View Less"

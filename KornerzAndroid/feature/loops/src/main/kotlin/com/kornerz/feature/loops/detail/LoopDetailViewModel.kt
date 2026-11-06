@@ -411,7 +411,16 @@ class LoopDetailViewModel @Inject constructor(
      */
     private fun navigateToKornerDetail(fallbackId: String) {
         val target = _state.value.community?.id?.takeIf { it.isNotBlank() } ?: fallbackId
-        emit(LoopDetailNavEvent.NavigateToKornerDetail(target))
+        emit(
+            LoopDetailNavEvent.NavigateToKornerDetail(
+                communityId = target,
+                // The loop's own accent colour travels with the
+                // hand-off, so the Korner detail opens painted in the
+                // colour the loop was painted with (iOS parity — the
+                // loop's `color` is handed to the Korner detail).
+                accentColorHex = _state.value.resolvedAccentColorHex,
+            ),
+        )
     }
 
     /**

@@ -63,7 +63,12 @@ class KornerzViewModel @Inject constructor(
             KornerzEvent.Refresh -> refresh()
             KornerzEvent.Retry -> refresh()
             KornerzEvent.AvatarTapped -> emit(KornerzNavEvent.NavigateToProfile)
-            is KornerzEvent.RowClicked -> emit(KornerzNavEvent.NavigateToKornerDetail(event.kornerId))
+            is KornerzEvent.RowClicked -> emit(
+                KornerzNavEvent.NavigateToKornerDetail(
+                    kornerId = event.kornerId,
+                    themeColorHex = event.themeColorHex,
+                ),
+            )
         }
     }
 

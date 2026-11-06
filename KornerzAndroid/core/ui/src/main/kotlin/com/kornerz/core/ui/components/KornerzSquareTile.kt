@@ -189,8 +189,9 @@ fun KornerzSquareTile(
     KornerzSquareImageTile(
         name = korner.name,
         coverUrl = korner.coverUrl,
-        accent = KornerzCardPalette.colorFromHex(korner.themeColor)
-            ?: kornerzCardColor(index),
+        accent = KornerzCardPalette.colorFromHex(
+            KornerzCardPalette.hexForAccent(korner.themeColor, index),
+        ) ?: kornerzCardColor(index),
         onClick = { onClick(korner) },
         modifier = modifier,
     )
@@ -212,8 +213,9 @@ fun KornerzSquareTile(
     KornerzSquareImageTile(
         name = community.name,
         coverUrl = community.coverImageURL,
-        accent = KornerzCardPalette.colorFromHex(community.themeColor)
-            ?: kornerzCardColor(index),
+        accent = KornerzCardPalette.colorFromHex(
+            KornerzCardPalette.hexForAccent(community.themeColor, index),
+        ) ?: kornerzCardColor(index),
         onClick = { onClick(community) },
         modifier = modifier,
         size = size,
@@ -224,11 +226,16 @@ fun KornerzSquareTile(
  * Horizontal carousel of [KornerzSquareTile]s — the shared row used by
  * all three Kornerz tab sections. Mirrors iOS
  * `KornerzCarouselView.swift`.
+ *
+ * [onItemClick] hands the tapped Korner **and** the accent hex the tile
+ * was painted with, so the caller can pass that very colour to the
+ * detail screen it opens (iOS parity — the Kornerz tab hands the tile's
+ * colour to the Korner detail).
  */
 @Composable
 fun KornerzCarousel(
     items: List<Korner>,
-    onItemClick: (Korner) -> Unit,
+    onItemClick: (Korner, String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyRow(
@@ -240,7 +247,7 @@ fun KornerzCarousel(
             KornerzSquareTile(
                 korner = korner,
                 index = index,
-                onClick = onItemClick,
+                onClick = { onItemClick(korner, KornerzCardPalette.hexForAccent(korner.themeColor, index)) },
             )
         }
     }

@@ -215,7 +215,7 @@ fun AppShell(
     // id written before the tab switch is replayed to the collector
     // when it starts, and every id written while the tab is already
     // open is delivered as it happens.
-    val pendingKornerId = remember { MutableStateFlow<String?>(null) }
+    val pendingKornerTarget = remember { MutableStateFlow<KornerDetailTarget?>(null) }
     val pendingLoopTarget = remember { MutableStateFlow<LoopDetailTarget?>(null) }
 
     /**
@@ -252,6 +252,19 @@ fun AppShell(
     var loopsLoopDetailVisible by remember { mutableStateOf(false) }
 
     /**
+     * Whether the Korner detail is the destination on screen in the
+     * Kornerz tab.
+     *
+     * The Korner detail paints its colour band **behind the status
+     * bar** — the same treatment the loop detail's media area gets —
+     * so the shell must not inset the `NavHost` for it. The detail
+     * lives inside the Kornerz tab's **nested** `NavHost`, so the root
+     * route cannot express the decision; the tab lifts its own flag
+     * up here, and only the flag of the **active** tab counts.
+     */
+    var kornerDetailVisible by remember { mutableStateOf(false) }
+
+    /**
      * Executes a resolved deep-link target.
      *
      * Both destinations live inside a tab's **nested** `NavHost` — the
@@ -276,7 +289,7 @@ fun AppShell(
             is DeepLinkTarget.KornerDetail -> navigateToKornerDetail(
                 navController = navController,
                 kornerId = target.kornerId,
-                onPending = { pendingKornerId.value = it },
+                onPending = { pendingKornerTarget.value = it },
             )
         }
     }
@@ -383,6 +396,17 @@ fun AppShell(
                     bottom = padding.calculateBottomPadding(),
                 )
 
+            // The Korner detail paints its colour band under the status
+            // bar, exactly like the loop detail's media area — so the
+            // status-bar inset is dropped for it, and the screen insets
+            // its own header content instead.
+            isKornerDetailOnScreen(currentRoute, kornerDetailVisible) ->
+                Modifier.padding(
+                    start = padding.calculateStartPadding(layoutDirection),
+                    end = padding.calculateEndPadding(layoutDirection),
+                    bottom = padding.calculateBottomPadding(),
+                )
+
             else -> Modifier.padding(padding)
         }
         NavHost(
@@ -391,8 +415,13 @@ fun AppShell(
             modifier = navHostModifier,
         ) {
             homeTabGraph(
-                onNavigateToKornerDetail = { id ->
-                    navigateToKornerDetail(navController, id, onPending = { pendingKornerId.value = id })
+                onNavigateToKornerDetail = { id, themeColorHex ->
+                    navigateToKornerDetail(
+                        navController = navController,
+                        kornerId = id,
+                        themeColorHex = themeColorHex,
+                        onPending = { pendingKornerTarget.value = it },
+                    )
                 },
                 onNavigateToProfile = {
                     navController.navigate(ProfileRoute.View.route)
@@ -406,7 +435,10 @@ fun AppShell(
                         KornerzNavEvent.NavigateToProfile ->
                             navController.navigate(ProfileRoute.View.route)
                         is KornerzNavEvent.NavigateToKornerDetail -> {
-                            pendingKornerId.value = event.kornerId
+                            pendingKornerTarget.value = KornerDetailTarget(
+                                kornerId = event.kornerId,
+                                themeColorHex = event.themeColorHex,
+                            )
                         }
                     }
                 },
@@ -422,10 +454,11 @@ fun AppShell(
                         onPending = { pendingLoopTarget.value = it },
                     )
                 },
-                pendingKornerId = pendingKornerId,
-                onPendingConsumed = { pendingKornerId.value = null },
+                pendingKornerTarget = pendingKornerTarget,
+                onPendingConsumed = { pendingKornerTarget.value = null },
                 snackbarHostState = comingSoonSnackbar,
                 onHideBottomBarChanged = { hides -> kornerDetailHidesBottomBar = hides },
+                onKornerDetailVisibleChanged = { visible -> kornerDetailVisible = visible },
                 onJoinVideoCall = { sessionId, communityName, communityId ->
                     navController.navigate(
                         VideocallRoute.Call.build(sessionId, communityName, communityId),
@@ -437,7 +470,7 @@ fun AppShell(
                     navController.navigate(ProfileRoute.View.route)
                 },
                 onKornerDetail = { kornerId ->
-                    pendingKornerId.value = kornerId
+                    pendingKornerTarget.value = KornerDetailTarget(kornerId = kornerId)
                     navController.navigate(ShellTab.Kornerz.route) {
                         popUpTo(navController.graph.id) { saveState = true }
                         launchSingleTop = true
@@ -454,11 +487,12 @@ fun AppShell(
                 onProfileTap = {
                     navController.navigate(ProfileRoute.View.route)
                 },
-                onNavigateToKornerDetail = { kornerId ->
+                onNavigateToKornerDetail = { kornerId, themeColorHex ->
                     navigateToKornerDetail(
                         navController = navController,
                         kornerId = kornerId,
-                        onPending = { pendingKornerId.value = it },
+                        themeColorHex = themeColorHex,
+                        onPending = { pendingKornerTarget.value = it },
                     )
                 },
                 pendingLoopTarget = pendingLoopTarget,
@@ -664,6 +698,28 @@ internal fun isLoopDetailOnScreen(
 }
 
 /**
+ * Whether the Korner detail is the destination on screen in the active
+ * tab.
+ *
+ * The Korner detail paints its colour band **behind the status bar**,
+ * the way the loop detail's media does, so the shell must not apply
+ * the status-bar inset to the `NavHost` while it is up. The detail
+ * lives inside the Kornerz tab's **nested** `NavHost`, so — like the
+ * loop-detail rule above — the tab lifts its own flag up to the shell
+ * and only the flag of the **active** tab counts.
+ *
+ * Extracted as a pure function so the rule is unit-testable without an
+ * emulator.
+ */
+internal fun isKornerDetailOnScreen(
+    currentRoute: String?,
+    kornerzVisible: Boolean,
+): Boolean = when (currentRoute) {
+    ShellTab.Kornerz.route -> kornerzVisible
+    else -> false
+}
+
+/**
  * Whether the shell's bottom bar is visible.
  *
  * Two rules decide it:
@@ -735,9 +791,10 @@ private fun navigateToTab(navController: NavHostController, tab: ShellTab) {
 private fun navigateToKornerDetail(
     navController: NavHostController,
     kornerId: String,
-    onPending: (String) -> Unit = {},
+    themeColorHex: String = "",
+    onPending: (KornerDetailTarget) -> Unit = {},
 ) {
-    onPending(kornerId)
+    onPending(KornerDetailTarget(kornerId = kornerId, themeColorHex = themeColorHex))
     navController.navigate(ShellTab.Kornerz.route) {
         popUpTo(navController.graph.id) { saveState = true }
         launchSingleTop = true
@@ -787,7 +844,7 @@ private fun navigateToLoopDetail(
  * Home, the tab bar is hidden, and system back returns to the feed.
  */
 internal fun androidx.navigation.NavGraphBuilder.homeTabGraph(
-    onNavigateToKornerDetail: (String) -> Unit = {},
+    onNavigateToKornerDetail: (String, String) -> Unit = { _, _ -> },
     onNavigateToProfile: () -> Unit = {},
     onHideBottomBarChanged: (Boolean) -> Unit = {},
     onLoopDetailVisibleChanged: (Boolean) -> Unit = {},
@@ -855,7 +912,7 @@ internal fun androidx.navigation.NavGraphBuilder.homeTabGraph(
  */
 internal fun androidx.navigation.NavGraphBuilder.loopDetailGraph(
     navController: NavHostController,
-    onNavigateToKornerDetail: (String) -> Unit = {},
+    onNavigateToKornerDetail: (String, String) -> Unit = { _, _ -> },
 ) {
     composable(
         route = LoopsRoute.Detail.PATTERN,
@@ -889,11 +946,22 @@ internal fun androidx.navigation.NavGraphBuilder.loopDetailGraph(
                             ),
                         )
                     }
-                    is LoopDetailNavEvent.NavigateToKornerDetail -> {
+                    is                     LoopDetailNavEvent.NavigateToKornerDetail -> {
                         // The Korner detail lives inside the Kornerz
                         // tab's nested `NavHost`, so the shell's
                         // pending-Korner seam is the only way in.
-                        onNavigateToKornerDetail(event.communityId)
+                        //
+                        // The loop's own accent colour travels with the
+                        // hand-off, so the Korner detail opens painted
+                        // in the colour the loop was painted with (iOS
+                        // hands `loopInfo.color` across the same
+                        // boundary). The colour is empty when the loop
+                        // has none — the Korner detail then falls back
+                        // to the Korner document's own theme colour.
+                        onNavigateToKornerDetail(
+                            event.communityId,
+                            event.accentColorHex,
+                        )
                     }
                 }
             },
@@ -949,9 +1017,10 @@ internal fun androidx.navigation.NavGraphBuilder.kornerzTabGraph(
     onLoopDetail: (loopId: String, accentColorHex: String) -> Unit = { _, _ -> },
     onJoinVideoCall: (sessionId: String, communityName: String, communityId: String) -> Unit =
         { _, _, _ -> },
-    pendingKornerId: MutableStateFlow<String?>,
+    pendingKornerTarget: MutableStateFlow<KornerDetailTarget?>,
     onPendingConsumed: () -> Unit = {},
     onHideBottomBarChanged: (Boolean) -> Unit = {},
+    onKornerDetailVisibleChanged: (Boolean) -> Unit = {},
 ) {
     composable(ShellTab.Kornerz.route) {
         val nested = rememberNavController()
@@ -961,20 +1030,31 @@ internal fun androidx.navigation.NavGraphBuilder.kornerzTabGraph(
         val hidesBottomBar = nestedRoute == KornerzRoute.Detail.PATTERN ||
             nestedRoute?.startsWith("kornerz/") == true
         LaunchedEffect(hidesBottomBar) { onHideBottomBarChanged(hidesBottomBar) }
-        // The pending id is consumed as a **flow**, not as a captured
-        // value: the `NavHost` builder is remembered, so the parameter
-        // would otherwise stay frozen at the graph's creation value and
-        // the `kornerz/{kornerId}` destination would never be pushed.
-        // The collector receives the id written before the tab switch
-        // (a `StateFlow` replays its current value to a new
-        // subscriber) and every id written while the tab is open.
+        // The Korner detail paints its colour band **under the status
+        // bar**, the way the loop detail's media does, so the shell has
+        // to know when it is the destination on screen — it drops the
+        // status-bar inset for it.
+        val kornerDetailVisible = nestedRoute == KornerzRoute.Detail.PATTERN
+        LaunchedEffect(kornerDetailVisible) { onKornerDetailVisibleChanged(kornerDetailVisible) }
+        // The pending target is consumed as a **flow**, not as a
+        // captured value: the `NavHost` builder is remembered, so the
+        // parameter would otherwise stay frozen at the graph's creation
+        // value and the `kornerz/{kornerId}` destination would never be
+        // pushed. The collector receives the target written before the
+        // tab switch (a `StateFlow` replays its current value to a new
+        // subscriber) and every target written while the tab is open.
         LaunchedEffect(nested) {
-            pendingKornerId.collect { id ->
-                if (id != null) {
+            pendingKornerTarget.collect { target ->
+                if (target != null) {
                     // Cleared before the push so a cancelled tab switch
-                    // cannot replay the same id on the next visit.
+                    // cannot replay the same target on the next visit.
                     onPendingConsumed()
-                    nested.navigate(KornerzRoute.Detail.build(id))
+                    nested.navigate(
+                        KornerzRoute.Detail.build(
+                            kornerId = target.kornerId,
+                            themeColorHex = target.themeColorHex,
+                        ),
+                    )
                 }
             }
         }
@@ -992,6 +1072,15 @@ internal fun androidx.navigation.NavGraphBuilder.kornerzTabGraph(
                 route = KornerzRoute.Detail.PATTERN,
                 arguments = listOf(
                     navArgument(KornerDetailViewModel.ARG_KORNER_ID) { type = NavType.StringType },
+                    navArgument(KornerDetailViewModel.ARG_THEME_COLOR_HEX) {
+                        type = NavType.StringType
+                        // The colour the opening screen handed over is
+                        // optional — a deep link or a nook detail opens
+                        // the detail without one, and the screen then
+                        // falls back to the Korner document's own theme
+                        // colour.
+                        defaultValue = ""
+                    },
                 ),
             ) {
                 KornerDetailScreen(
@@ -1151,7 +1240,7 @@ internal fun androidx.navigation.NavGraphBuilder.nooksTabGraph(
  */
 internal fun androidx.navigation.NavGraphBuilder.loopsTabGraph(
     onProfileTap: () -> Unit = {},
-    onNavigateToKornerDetail: (String) -> Unit = {},
+    onNavigateToKornerDetail: (String, String) -> Unit = { _, _ -> },
     pendingLoopTarget: MutableStateFlow<LoopDetailTarget?>,
     onPendingConsumed: () -> Unit = {},
     onHideBottomBarChanged: (Boolean) -> Unit = {},

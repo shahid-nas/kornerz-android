@@ -17,7 +17,7 @@ object HomeNavResolver {
     suspend fun bind(
         snackbar: SnackbarHostState,
         events: Flow<HomeNavEvent>,
-        onNavigateToKornerDetail: (String) -> Unit,
+        onNavigateToKornerDetail: (String, String) -> Unit,
         onNavigateToLoopDetail: (String, String) -> Unit = { _, _ -> },
         onNavigateToProfile: () -> Unit = {},
     ) {
@@ -27,7 +27,8 @@ object HomeNavResolver {
                 is HomeNavEvent.NavigateToLoopDetail ->
                     onNavigateToLoopDetail(event.loopId, event.accentColorHex)
                 is HomeNavEvent.NavigateToEventDetail -> snackbar.showSnackbar("Event detail coming in Phase 4")
-                is HomeNavEvent.NavigateToKornerDetail -> onNavigateToKornerDetail(event.kornerId)
+                is HomeNavEvent.NavigateToKornerDetail ->
+                    onNavigateToKornerDetail(event.kornerId, event.themeColorHex)
             }
         }
     }

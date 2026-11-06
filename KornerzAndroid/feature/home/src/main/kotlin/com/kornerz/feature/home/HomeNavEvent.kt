@@ -24,5 +24,18 @@ sealed interface HomeNavEvent {
     ) : HomeNavEvent
 
     data class NavigateToEventDetail(val nookId: String) : HomeNavEvent
-    data class NavigateToKornerDetail(val kornerId: String) : HomeNavEvent
+
+    /**
+     * Opens the Korner detail.
+     *
+     * @param kornerId the Korner to open.
+     * @param themeColorHex the tile's accent colour as a `#RRGGBB`
+     * hex string — the colour the tile was painted with. The detail
+     * screen inherits it, so the Korner keeps one colour across the
+     * carousel and the detail.
+     */
+    data class NavigateToKornerDetail(
+        val kornerId: String,
+        val themeColorHex: String,
+    ) : HomeNavEvent
 }
