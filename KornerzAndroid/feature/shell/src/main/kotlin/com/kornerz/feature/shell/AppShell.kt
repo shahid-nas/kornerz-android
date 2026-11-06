@@ -234,6 +234,24 @@ fun AppShell(
     var kornerDetailHidesBottomBar by remember { mutableStateOf(false) }
 
     /**
+     * Whether the loop detail is the destination on screen in the tab
+     * that hosts it.
+     *
+     * The loop detail paints its media **behind the status bar** — iOS
+     * parity: `LoopDetailView` ignores the top safe area, so the media
+     * section runs under the status bar while the content below it
+     * stays clear of it. The shell therefore must not inset the
+     * `NavHost` for that destination: the detail insets its own chrome
+     * (the floating back control) instead, the way the video call does.
+     *
+     * Only the **active** tab's flag counts — a flag left behind by a
+     * tab the user has left must not lift the inset on the tab they are
+     * on now.
+     */
+    var homeLoopDetailVisible by remember { mutableStateOf(false) }
+    var loopsLoopDetailVisible by remember { mutableStateOf(false) }
+
+    /**
      * Executes a resolved deep-link target.
      *
      * Both destinations live inside a tab's **nested** `NavHost` — the
@@ -344,14 +362,28 @@ fun AppShell(
         // screen insets its own chrome (`statusBarsPadding` /
         // `navigationBarsPadding`) instead, which is what iOS does with
         // its safe-area insets.
-        val navHostModifier = if (currentRoute?.startsWith(VideocallRoute.ROUTE_PREFIX) == true) {
-            val layoutDirection = LocalLayoutDirection.current
-            Modifier.padding(
+        //
+        // The loop detail does the same for the **status bar only**: its
+        // media section runs under the status bar (iOS parity — the list
+        // ignores the top safe area) while the content below it stays
+        // clear of it. The side and bottom insets still apply, so the
+        // content keeps clear of a display cutout in landscape and the
+        // pinned add-comment bar stays above the system navigation bar.
+        val layoutDirection = LocalLayoutDirection.current
+        val navHostModifier = when {
+            currentRoute?.startsWith(VideocallRoute.ROUTE_PREFIX) == true -> Modifier.padding(
                 start = padding.calculateStartPadding(layoutDirection),
                 end = padding.calculateEndPadding(layoutDirection),
             )
-        } else {
-            Modifier.padding(padding)
+
+            isLoopDetailOnScreen(currentRoute, homeLoopDetailVisible, loopsLoopDetailVisible) ->
+                Modifier.padding(
+                    start = padding.calculateStartPadding(layoutDirection),
+                    end = padding.calculateEndPadding(layoutDirection),
+                    bottom = padding.calculateBottomPadding(),
+                )
+
+            else -> Modifier.padding(padding)
         }
         NavHost(
             navController = navController,
@@ -366,6 +398,7 @@ fun AppShell(
                     navController.navigate(ProfileRoute.View.route)
                 },
                 onHideBottomBarChanged = { hides -> homeLoopDetailHidesBottomBar = hides },
+                onLoopDetailVisibleChanged = { visible -> homeLoopDetailVisible = visible },
             )
             kornerzTabGraph(
                 onNavEvent = { event ->
@@ -393,6 +426,11 @@ fun AppShell(
                 onPendingConsumed = { pendingKornerId.value = null },
                 snackbarHostState = comingSoonSnackbar,
                 onHideBottomBarChanged = { hides -> kornerDetailHidesBottomBar = hides },
+                onJoinVideoCall = { sessionId, communityName, communityId ->
+                    navController.navigate(
+                        VideocallRoute.Call.build(sessionId, communityName, communityId),
+                    )
+                },
             )
             nooksTabGraph(
                 onProfileTap = {
@@ -426,6 +464,7 @@ fun AppShell(
                 pendingLoopTarget = pendingLoopTarget,
                 onPendingConsumed = { pendingLoopTarget.value = null },
                 onHideBottomBarChanged = { loopsLoopDetailHidesBottomBar = it },
+                onLoopDetailVisibleChanged = { loopsLoopDetailVisible = it },
             )
             // P6 (task 9.1) — Profile is pushed onto the root NavHost
             // (mirrors iOS `UserProfileVC.hidesBottomBarWhenPushed`).
@@ -601,6 +640,30 @@ internal fun hidesBottomBarForLoopDetail(
 }
 
 /**
+ * Whether the loop detail is the destination on screen in the active
+ * tab.
+ *
+ * The loop detail paints its media **behind the status bar** (iOS
+ * parity — `LoopDetailView` ignores the top safe area), so the shell
+ * must not apply the status-bar inset to the `NavHost` while it is up.
+ * The detail lives inside a tab's **nested** `NavHost`, so — like the
+ * bottom-bar rule above — each tab lifts its own flag up to the shell
+ * and only the flag of the **active** tab counts.
+ *
+ * Extracted as a pure function so the rule is unit-testable without an
+ * emulator.
+ */
+internal fun isLoopDetailOnScreen(
+    currentRoute: String?,
+    homeVisible: Boolean,
+    loopsVisible: Boolean,
+): Boolean = when (currentRoute) {
+    ShellTab.Home.route -> homeVisible
+    ShellTab.Loops.route -> loopsVisible
+    else -> false
+}
+
+/**
  * Whether the shell's bottom bar is visible.
  *
  * Two rules decide it:
@@ -727,6 +790,7 @@ internal fun androidx.navigation.NavGraphBuilder.homeTabGraph(
     onNavigateToKornerDetail: (String) -> Unit = {},
     onNavigateToProfile: () -> Unit = {},
     onHideBottomBarChanged: (Boolean) -> Unit = {},
+    onLoopDetailVisibleChanged: (Boolean) -> Unit = {},
 ) {
     composable(ShellTab.Home.route) {
         val nested = rememberNavController()
@@ -741,6 +805,12 @@ internal fun androidx.navigation.NavGraphBuilder.homeTabGraph(
                 nestedRoute?.contains("/comment") == true ||
                 nestedRoute?.contains("/reply") == true
         LaunchedEffect(hidesBottomBar) { onHideBottomBarChanged(hidesBottomBar) }
+        // The loop detail paints its media behind the status bar, so the
+        // shell has to know when it is the destination on screen — it
+        // drops the status-bar inset for it, the way it does for the
+        // video call.
+        val loopDetailVisible = nestedRoute == LoopsRoute.Detail.PATTERN
+        LaunchedEffect(loopDetailVisible) { onLoopDetailVisibleChanged(loopDetailVisible) }
         NavHost(
             navController = nested,
             startDestination = HomeRoute.Route,
@@ -877,6 +947,8 @@ internal fun androidx.navigation.NavGraphBuilder.kornerzTabGraph(
     onNavEvent: (KornerzNavEvent) -> Unit = {},
     snackbarHostState: SnackbarHostState,
     onLoopDetail: (loopId: String, accentColorHex: String) -> Unit = { _, _ -> },
+    onJoinVideoCall: (sessionId: String, communityName: String, communityId: String) -> Unit =
+        { _, _, _ -> },
     pendingKornerId: MutableStateFlow<String?>,
     onPendingConsumed: () -> Unit = {},
     onHideBottomBarChanged: (Boolean) -> Unit = {},
@@ -949,6 +1021,21 @@ internal fun androidx.navigation.NavGraphBuilder.kornerzTabGraph(
                             // colour the tapped row was painted with.
                             is KornerDetailNavEvent.NavigateToLoopDetail -> {
                                 onLoopDetail(event.loopId, event.accentColorHex)
+                            }
+                            is KornerDetailNavEvent.JoinVideoCall -> {
+                                // The video call is a full-screen route
+                                // registered on the shell's **root**
+                                // graph, so the Join capsule on the
+                                // Korner detail's "Current" nook card
+                                // bubbles to the shell and is pushed
+                                // there (the same path the Nooks tab
+                                // uses) — the bottom bar is hidden for
+                                // the duration of the call.
+                                onJoinVideoCall(
+                                    event.sessionId,
+                                    event.communityName,
+                                    event.communityId,
+                                )
                             }
                             is KornerDetailNavEvent.ShowMessage -> {
                                 scope.launch {
@@ -1068,6 +1155,7 @@ internal fun androidx.navigation.NavGraphBuilder.loopsTabGraph(
     pendingLoopTarget: MutableStateFlow<LoopDetailTarget?>,
     onPendingConsumed: () -> Unit = {},
     onHideBottomBarChanged: (Boolean) -> Unit = {},
+    onLoopDetailVisibleChanged: (Boolean) -> Unit = {},
 ) {
     composable(ShellTab.Loops.route) {
         val nested = rememberNavController()
@@ -1083,6 +1171,12 @@ internal fun androidx.navigation.NavGraphBuilder.loopsTabGraph(
                 nestedRoute?.contains("/comment") == true ||
                 nestedRoute?.contains("/reply") == true
         LaunchedEffect(hidesBottomBar) { onHideBottomBarChanged(hidesBottomBar) }
+        // The loop detail paints its media behind the status bar, so the
+        // shell has to know when it is the destination on screen — it
+        // drops the status-bar inset for it, the way it does for the
+        // video call.
+        val loopDetailVisible = nestedRoute == LoopsRoute.Detail.PATTERN
+        LaunchedEffect(loopDetailVisible) { onLoopDetailVisibleChanged(loopDetailVisible) }
         LaunchedEffect(nested) {
             pendingLoopTarget.collect { target ->
                 if (target != null) {

@@ -76,9 +76,9 @@ class FcmTokenRegistrar @Inject constructor(
      * Singleton process is torn down.
      */
     private suspend fun observeRotation() {
-        messaging.token.addOnCompleteListener { task ->
-            val next = task.result
-            if (next != null && next != lastUploadedToken) {
+        messaging.token
+            .addOnSuccessListener { next ->
+                if (next.isNullOrEmpty() || next == lastUploadedToken) return@addOnSuccessListener
                 lastUploadedToken = next
                 scope.launch {
                     if (sessionRepository.data.first() is SessionState.Authenticated) {
@@ -86,7 +86,9 @@ class FcmTokenRegistrar @Inject constructor(
                     }
                 }
             }
-        }
+            .addOnFailureListener { error ->
+                Log.w(TAG, "FCM token rotation failed", error)
+            }
     }
 
     /** Called from `AuthRepository.clearFcmToken(...)` via the UI layer. */
@@ -101,7 +103,9 @@ class FcmTokenRegistrar @Inject constructor(
     private suspend fun fetchTokenWithRetry(): String? {
         repeat(MAX_ATTEMPTS) { attempt ->
             val token = withTimeoutOrNull(TOKEN_FETCH_TIMEOUT_MS) {
-                runCatching { messaging.token.await() }.getOrNull()
+                runCatching { messaging.token.await() }
+                    .onFailure { Log.w(TAG, "FCM token fetch failed (attempt $attempt)", it) }
+                    .getOrNull()
             }
             if (!token.isNullOrEmpty()) return token
             delay(BACKOFF_BASE_MS * (1L shl attempt))

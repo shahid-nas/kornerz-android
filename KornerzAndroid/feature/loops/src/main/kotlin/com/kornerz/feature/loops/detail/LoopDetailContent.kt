@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -103,6 +104,11 @@ fun LoopDetailContent(
             onBack = { onEvent(LoopDetailEvent.BackTapped) },
             modifier = Modifier
                 .align(Alignment.TopStart)
+                // The media runs under the status bar (iOS parity), so the
+                // floating control keeps itself clear of it — the
+                // Android counterpart of the transparent navigation bar,
+                // whose content sits below the status bar.
+                .statusBarsPadding()
                 .padding(vertical = Spacing.space8),
         )
     }

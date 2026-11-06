@@ -66,7 +66,7 @@ class KornerFirestoreApi @Inject constructor(
     suspend fun fetchAllKornerz(): Result<List<Korner>> = runCatching {
         try {
             firestore.collection(COLLECTION_COMMUNITIES)
-                .whereEqualTo(FIELD_COMMUNITY_APPROVED, true)
+//                .whereEqualTo(FIELD_COMMUNITY_APPROVED, true)
                 .orderBy(FIELD_COMMUNITY_NAME, Query.Direction.DESCENDING)
                 .limit(LIST_QUERY_LIMIT)
                 .get()

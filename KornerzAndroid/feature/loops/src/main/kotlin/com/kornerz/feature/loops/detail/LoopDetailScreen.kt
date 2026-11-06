@@ -3,6 +3,7 @@ package com.kornerz.feature.loops.detail
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
@@ -72,6 +73,14 @@ fun LoopDetailScreen(
                 enabled = !state.isLoading,
             )
         },
+        // The media section runs **under the status bar** — iOS parity:
+        // `LoopDetailView` ignores the top safe area, so the image
+        // reaches the top of the screen while the content below it stays
+        // clear of the bar. The shell drops the status-bar inset for
+        // this destination, so the screen must not apply it a second
+        // time; the chrome that needs it (the floating back control)
+        // insets itself.
+        contentWindowInsets = WindowInsets(0),
         modifier = modifier,
     ) { padding ->
         Box(

@@ -31,9 +31,23 @@ sealed interface KornerDetailNavEvent {
     ) : KornerDetailNavEvent
 
     /**
+     * Joins the video call for a live session.
+     *
+     * Mirrors iOS `KornerDetailViewModel.joinCall(for:)`, which hands
+     * the session id and the community to the coordinator. The shell
+     * resolves it into the `videocall/{sessionId}` destination — the
+     * same full-screen route the Nooks tab's Join capsule opens.
+     */
+    data class JoinVideoCall(
+        val sessionId: String,
+        val communityName: String,
+        val communityId: String,
+    ) : KornerDetailNavEvent
+
+    /**
      * A transient message for the shell's shared snackbar — used for
-     * the actions that are not wired to the backend yet (joining a live
-     * session) and for failed follow / unfollow writes.
+     * the actions that are not wired to the backend yet and for failed
+     * follow / unfollow writes.
      */
     data class ShowMessage(val message: String) : KornerDetailNavEvent
 }

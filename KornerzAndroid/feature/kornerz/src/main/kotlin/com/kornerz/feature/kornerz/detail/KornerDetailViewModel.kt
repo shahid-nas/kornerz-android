@@ -93,9 +93,7 @@ class KornerDetailViewModel @Inject constructor(
             is KornerDetailEvent.LoopTileClicked -> emit(
                 KornerDetailNavEvent.NavigateToLoopDetail(event.loopId, event.accentColorHex),
             )
-            is KornerDetailEvent.JoinCtaClicked -> emit(
-                KornerDetailNavEvent.ShowMessage("Joining a session is coming soon"),
-            )
+            is KornerDetailEvent.JoinCtaClicked -> joinCall(event.nookId)
         }
     }
 
@@ -119,6 +117,38 @@ class KornerDetailViewModel @Inject constructor(
                     }
             }
         }
+    }
+
+    /**
+     * Joins the live session behind a nook card's "Join" capsule.
+     *
+     * Mirrors iOS `KornerDetailViewModel.joinCall(for:)`: the nook's
+     * own `sessionId` is used when the tapped card is a scheduled
+     * nook, and the Korner's `sessionId` is the fallback for the
+     * "Current" card (which renders even when the Korner has no live
+     * nook — iOS joins the community session there).
+     *
+     * A card without any session id has nothing to join yet, so the
+     * screen reports it through the shared snackbar.
+     */
+    private fun joinCall(nookId: String) {
+        val detail = (_state.value.detail as? AsyncValue.Success)?.data ?: return
+        val nook = detail.nooks.firstOrNull { it.id == nookId }
+        val sessionId = nook?.sessionId?.takeIf { it.isNotBlank() }
+            ?: detail.korner.sessionId?.takeIf { it.isNotBlank() }
+        if (sessionId == null) {
+            emit(
+                KornerDetailNavEvent.ShowMessage("This session isn't live yet"),
+            )
+            return
+        }
+        emit(
+            KornerDetailNavEvent.JoinVideoCall(
+                sessionId = sessionId,
+                communityName = detail.korner.name,
+                communityId = detail.korner.id,
+            ),
+        )
     }
 
     /**

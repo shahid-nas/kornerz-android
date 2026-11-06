@@ -33,6 +33,21 @@
 -keep class com.opentok.otc.** { *; }
 -dontwarn com.opentok.**
 
+# --- Vonage WebRTC runtime (com.vonage:webrtc) ---
+# `libopentok.so` looks these up by JNI name from native code, e.g.
+# `FindClass("com/vonage/webrtc/ContextUtils")`. R8 renames or strips
+# them, which aborts the process inside the SDK:
+#   "Error during FindClass: com/vonage/webrtc/ContextUtils"
+# The upstream `com.vonage:webrtc` AAR ships no consumer rules, so the
+# whole package has to be kept here.
+-keep class com.vonage.** { *; }
+-dontwarn com.vonage.**
+
+# JNI entry points are looked up by name from native code as well.
+-keepclasseswithmembernames class * {
+    native <methods>;
+}
+
 # --- Kotlin reflection (used by Hilt and Firebase) ---
 -keep class kotlin.reflect.jvm.internal.** { *; }
 -keep class kotlin.Metadata { *; }
