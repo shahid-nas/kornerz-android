@@ -66,7 +66,6 @@ fun LoopsContent(
             state = state.header,
             onAvatarTap = { onEvent(LoopsEvent.AvatarTapped) },
         )
-        LoopsHeader()
         LoopsFilterSection(
             state = state,
             onEvent = onEvent,
@@ -90,21 +89,6 @@ fun LoopsContent(
                 onEvent = onEvent,
             )
         }
-    }
-}
-
-@Composable
-private fun LoopsHeader() {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = Spacing.space8, vertical = Spacing.space4),
-    ) {
-        Text(
-            text = "Loops",
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onBackground,
-        )
     }
 }
 

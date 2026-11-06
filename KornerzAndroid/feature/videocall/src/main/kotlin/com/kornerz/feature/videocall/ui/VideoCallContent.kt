@@ -210,9 +210,16 @@ private fun TopToolbar(state: VideoCallState) {
         modifier = Modifier
             .fillMaxWidth()
             // The call paints edge-to-edge, so the toolbar keeps itself
-            // clear of the status bar — the iOS safe-area inset.
+            // clear of the status bar — the iOS safe-area inset — and
+            // then takes the extra vertical padding so the self-view
+            // and the community name do not sit flush against the top
+            // of the visible area.
             .statusBarsPadding()
-            .padding(horizontal = VideoCallLayout.HorizontalPadding),
+            .padding(
+                top = VideoCallLayout.VerticalPadding,
+                start = VideoCallLayout.HorizontalPadding,
+                end = VideoCallLayout.HorizontalPadding,
+            ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         LocalPublisherTile(state = state)
@@ -372,9 +379,15 @@ private fun BottomToolbar(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            // …and the bottom toolbar stays clear of the navigation bar.
+            // …and the bottom toolbar stays clear of the navigation bar,
+            // plus the same extra vertical padding so the controls do
+            // not sit flush against the bottom of the visible area.
             .navigationBarsPadding()
-            .padding(horizontal = VideoCallLayout.HorizontalPadding),
+            .padding(
+                bottom = VideoCallLayout.VerticalPadding,
+                start = VideoCallLayout.HorizontalPadding,
+                end = VideoCallLayout.HorizontalPadding,
+            ),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -406,6 +419,9 @@ private fun BottomToolbar(
             contentDescription = stringResource(R.string.video_call_toggle_hand_raised),
             onClick = { onEvent(VideoCallEvent.ToggleHandRaised) },
             selected = state.isHandRaised,
+            // iOS raises a left hand (`hand.raised`); Material's
+            // `pan_tool` is a right hand, so the glyph is mirrored.
+            flipHorizontally = true,
         )
     }
 }
@@ -456,6 +472,19 @@ private fun PermissionDeniedCard(onGrant: () -> Unit) {
 internal object VideoCallLayout {
     val SectionSpacing = 16.dp
     val HorizontalPadding = 16.dp
+
+    /**
+     * Vertical breathing room between the toolbars and the edges of
+     * the visible area.
+     *
+     * The call screen is edge-to-edge (`enableEdgeToEdge()` in
+     * `MainActivity`), so the top toolbar and the bottom toolbar are
+     * already inset by the status bar / navigation bar. On top of
+     * that, iOS keeps a visible margin between the controls and the
+     * screen edge, which the Android port was missing — the toolbar
+     * buttons looked flush against the edge.
+     */
+    val VerticalPadding = 16.dp
 
     /**
      * Vertical breathing room above and below the subscriber grid.

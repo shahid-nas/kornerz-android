@@ -7,7 +7,7 @@
          "waiting_other_users_msg"). -->
     <string name="video_call_authenticating">Authenticating, please wait</string>
     <string name="video_call_connecting">Connecting</string>
-    <string name="video_call_waiting_for_others">Waiting for others to join</string>
+    <string name="video_call_waiting_for_others">Wait a few moments while other Klouderz from the Kornerz community connect in the video call with you.</string>
     <string name="video_call_error_title">We couldn\'t start the call</string>
     <string name="video_call_try_again">Try again</string>
     <string name="video_call_permission_required">Camera and microphone access is required to join a video call</string>

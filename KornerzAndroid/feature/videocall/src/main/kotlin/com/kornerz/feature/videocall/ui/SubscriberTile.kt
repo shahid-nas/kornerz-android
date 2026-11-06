@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -19,6 +20,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
@@ -156,12 +159,36 @@ internal fun SubscriberTile(
                 )
                 Spacer(modifier = Modifier.weight(1f))
                 if (participant.raisedHand) {
-                    Icon(
-                        imageVector = Icons.Filled.PanTool,
-                        contentDescription = null,
-                        tint = VideoCallPalette.OnBackground,
-                        modifier = Modifier.size(SubscriberTileMetrics.RaisedHandSize),
-                    )
+                    // The raised-hand badge is white, so it vanishes on a
+                    // white tile. iOS gets this for free from the
+                    // overlay stack's `.shadow(radius: 5)`; on Android
+                    // the name's shadow is drawn per-glyph via
+                    // `TextStyle`, so the icon needs its own pass: the
+                    // same glyph, black and blurred, offset downwards
+                    // and painted behind the white one.
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Filled.PanTool,
+                            contentDescription = null,
+                            tint = Color.Black.copy(alpha = 0.45f),
+                            modifier = Modifier
+                                // iOS raises a left hand (`hand.raised`);
+                                // Material's `pan_tool` is a right hand,
+                                // so the glyph is mirrored.
+                                .scale(scaleX = -1f, scaleY = 1f)
+                                .offset(y = SubscriberTileMetrics.RaisedHandShadowOffset)
+                                .blur(SubscriberTileMetrics.RaisedHandShadowBlur)
+                                .size(SubscriberTileMetrics.RaisedHandSize),
+                        )
+                        Icon(
+                            imageVector = Icons.Filled.PanTool,
+                            contentDescription = null,
+                            tint = VideoCallPalette.OnBackground,
+                            modifier = Modifier
+                                .scale(scaleX = -1f, scaleY = 1f)
+                                .size(SubscriberTileMetrics.RaisedHandSize),
+                        )
+                    }
                 }
             }
         }
@@ -180,6 +207,8 @@ internal object SubscriberTileMetrics {
     val RaisedHandSize = 25.dp
     val OverlayPadding = 8.dp
     val OverlayShadowRadius = 5.dp
+    val RaisedHandShadowOffset = 1.dp
+    val RaisedHandShadowBlur = 3.dp
     val NameSize = 14.sp
 }
 

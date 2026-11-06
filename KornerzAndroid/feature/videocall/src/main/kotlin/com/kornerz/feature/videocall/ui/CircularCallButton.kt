@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -51,6 +52,7 @@ internal fun CircularCallButton(
     modifier: Modifier = Modifier,
     selected: Boolean = false,
     style: CallButtonStyle = CallButtonStyle.Bordered,
+    flipHorizontally: Boolean = false,
 ) {
     val background = when {
         selected -> VideoCallPalette.Tile
@@ -86,7 +88,19 @@ internal fun CircularCallButton(
             imageVector = icon,
             contentDescription = contentDescription,
             tint = foreground,
-            modifier = Modifier.size(CallButtonMetrics.IconSize),
+            modifier = Modifier
+                .size(CallButtonMetrics.IconSize)
+                // Material's `pan_tool` is a right hand; iOS draws the
+                // raised hand with `hand.raised`, which is the mirrored
+                // (left hand) glyph. Mirroring the vector keeps the
+                // icon set to one glyph and matches iOS.
+                .then(
+                    if (flipHorizontally) {
+                        Modifier.scale(scaleX = -1f, scaleY = 1f)
+                    } else {
+                        Modifier
+                    },
+                ),
         )
     }
 }
