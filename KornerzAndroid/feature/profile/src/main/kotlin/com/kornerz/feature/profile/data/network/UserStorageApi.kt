@@ -1,7 +1,6 @@
 package com.kornerz.feature.profile.data.network
 
-import com.google.firebase.storage.FirebaseStorage
-import kotlinx.coroutines.tasks.await
+import com.kornerz.core.network.storage.FirebaseStorageUploader
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -22,10 +21,16 @@ import javax.inject.Singleton
  * `firebaseThumbnailUrl`) — the Android port writes the same four
  * fields to keep backwards compatibility with the legacy
  * `imageURL` / `thumbnailURL` IPFS branches.
+ *
+ * The upload goes through [FirebaseStorageUploader] rather than the
+ * Firebase client SDK because the bucket's storage rules deny client
+ * writes (`allow write: if false;` — see
+ * `kornerz/FIREBASE_STORAGE_MIGRATION.md:336-347`); a direct
+ * `putBytes` fails with `StorageException … 403 Permission denied`.
  */
 @Singleton
 class UserStorageApi @Inject constructor(
-    private val storage: FirebaseStorage,
+    private val uploader: FirebaseStorageUploader,
 ) {
 
     /**
@@ -37,16 +42,20 @@ class UserStorageApi @Inject constructor(
         fullJpegBytes: ByteArray,
         thumbnailBytes: ByteArray,
     ): Result<Pair<String, String>> = runCatching {
-        val fullRef = storage.reference
-            .child("users/$userCode/profile/avatar.jpg")
-        val thumbRef = storage.reference
-            .child("users/$userCode/profile/avatar_thumb.jpg")
-
-        fullRef.putBytes(fullJpegBytes).await()
-        thumbRef.putBytes(thumbnailBytes).await()
-
-        val fullUrl = fullRef.downloadUrl.await().toString()
-        val thumbUrl = thumbRef.downloadUrl.await().toString()
+        val fullUrl = uploader.uploadBytes(
+            path = "users/$userCode/profile/avatar.jpg",
+            bytes = fullJpegBytes,
+            contentType = CONTENT_TYPE_IMAGE,
+        )
+        val thumbUrl = uploader.uploadBytes(
+            path = "users/$userCode/profile/avatar_thumb.jpg",
+            bytes = thumbnailBytes,
+            contentType = CONTENT_TYPE_IMAGE,
+        )
         fullUrl to thumbUrl
+    }
+
+    private companion object {
+        const val CONTENT_TYPE_IMAGE = "image/jpeg"
     }
 }

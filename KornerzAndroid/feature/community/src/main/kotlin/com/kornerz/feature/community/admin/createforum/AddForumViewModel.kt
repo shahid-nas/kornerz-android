@@ -8,12 +8,12 @@ import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.provider.OpenableColumns
 import java.io.ByteArrayOutputStream
+import java.io.File
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.firebase.storage.FirebaseStorage
-import com.google.firebase.storage.StorageReference
 import com.kornerz.core.model.Loop
 import com.kornerz.core.network.loops.LoopFirestoreApi
+import com.kornerz.core.network.storage.FirebaseStorageUploader
 import com.kornerz.core.storage.session.SessionRepository
 import com.kornerz.core.storage.session.SessionState
 import com.kornerz.feature.community.data.CommunitiesRepository
@@ -33,7 +33,6 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.Clock
 import javax.inject.Inject
@@ -145,7 +144,7 @@ class AddForumViewModel @Inject constructor(
     private val sessionRepository: SessionRepository,
     private val loopFirestoreApi: LoopFirestoreApi,
     private val communitiesRepository: CommunitiesRepository,
-    private val storage: FirebaseStorage,
+    private val uploader: FirebaseStorageUploader,
 ) : AndroidViewModel(application) {
 
     private val contentResolver: ContentResolver = application.contentResolver
@@ -412,7 +411,7 @@ class AddForumViewModel @Inject constructor(
                     _state.update {
                         it.copy(uploadStep = STEP_UPLOADING_VIDEO, uploadStepProgress = 0.0)
                     }
-                    videoUrl = uploadFile(s.videoUri, "loops/$forumId/video/video.mp4") { progress ->
+                    videoUrl = uploadVideo(s.videoUri, "loops/$forumId/video") { progress ->
                         _state.update {
                             it.copy(
                                 uploadProgress = progress * 0.4,
@@ -445,11 +444,11 @@ class AddForumViewModel @Inject constructor(
                 // progress — the thumbnail upload is fired without a
                 // progress handler — so the step bar tracks the cover
                 // image alone and never jumps backwards.
-                val imageRef = storage.reference.child("loops/$forumId/images/image.jpg")
-                val thumbRef = storage.reference.child("loops/$forumId/images/thumb.jpg")
+                val imagePath = "loops/$forumId/images/${randomObjectId()}.jpg"
+                val thumbPath = "loops/$forumId/images/${randomObjectId()}.jpg"
 
                 val imageUpload = async {
-                    uploadBytes(imageRef, imageBytesJpeg) { progress ->
+                    uploader.uploadBytes(imagePath, imageBytesJpeg, CONTENT_TYPE_IMAGE) { progress ->
                         _state.update {
                             it.copy(
                                 uploadProgress = imageStart + (progress * 0.4),
@@ -459,7 +458,7 @@ class AddForumViewModel @Inject constructor(
                     }
                 }
                 val thumbUpload = async {
-                    uploadBytes(thumbRef, thumbBytesJpeg)
+                    uploader.uploadBytes(thumbPath, thumbBytesJpeg, CONTENT_TYPE_IMAGE)
                 }
 
                 val imageUrl = imageUpload.await()
@@ -578,51 +577,63 @@ class AddForumViewModel @Inject constructor(
     }
 
     /**
-     * Uploads [bytes] to [ref] and returns its download URL.
+     * Uploads the video behind [uri] under [pathPrefix] and returns the
+     * public download URL.
      *
-     * [onProgress] is optional: iOS fires the thumbnail upload without a
-     * progress handler (`AddForumViewModel.swift:181-189`) so only the
-     * cover image drives the progress bar.
+     * The bucket's storage rules deny client writes
+     * (`allow write: if false;` — see
+     * `kornerz/FIREBASE_STORAGE_MIGRATION.md:336-347`), so the bytes
+     * are uploaded to a v4 signed URL minted by the `issueUploadUrl`
+     * Cloud Function, exactly as iOS does in
+     * `FirebaseStorageService.swift`.
+     *
+     * The URI is copied into the app's cache first: the picker may
+     * hand back a document URI whose content is not addressable by
+     * path, and the signed upload streams the file from disk.
      */
-    private suspend fun uploadBytes(
-        ref: StorageReference,
-        bytes: ByteArray,
-        onProgress: ((Double) -> Unit)? = null,
+    private suspend fun uploadVideo(
+        uri: Uri,
+        pathPrefix: String,
+        onProgress: (Double) -> Unit,
     ): String {
-        val task = ref.putBytes(bytes)
-        if (onProgress != null) {
-            task.addOnProgressListener { snapshot ->
-                val total = snapshot.totalByteCount
-                if (total > 0) {
-                    val progress = snapshot.bytesTransferred.toDouble() / total
-                    viewModelScope.launch {
-                        withContext(Dispatchers.Main) {
-                            onProgress(progress)
-                        }
-                    }
-                }
-            }
+        val file = withContext(Dispatchers.IO) { copyToCache(uri) }
+        return try {
+            uploader.uploadFile(
+                path = "$pathPrefix/${randomObjectId()}.mp4",
+                file = file,
+                contentType = CONTENT_TYPE_VIDEO,
+                onProgress = onProgress,
+            )
+        } finally {
+            withContext(Dispatchers.IO) { file.delete() }
         }
-        task.await()
-        return ref.downloadUrl.await().toString()
     }
 
-    private suspend fun uploadFile(uri: Uri, path: String, onProgress: (Double) -> Unit): String {
-        val ref = storage.reference.child(path)
-        val task = ref.putFile(uri)
-        task.addOnProgressListener { snapshot ->
-            val total = snapshot.totalByteCount
-            if (total > 0) {
-                val progress = snapshot.bytesTransferred.toDouble() / total
-                viewModelScope.launch {
-                    withContext(Dispatchers.Main) {
-                        onProgress(progress)
-                    }
-                }
-            }
+    /**
+     * Copies the content behind [uri] into a temporary file in the
+     * app's cache directory.
+     */
+    private suspend fun copyToCache(uri: Uri): File = withContext(Dispatchers.IO) {
+        val target = File(
+            getApplication<Application>().cacheDir,
+            "upload-${System.currentTimeMillis()}-${randomObjectId()}.tmp",
+        )
+        contentResolver.openInputStream(uri).use { input ->
+            requireNotNull(input) { "Could not open $uri" }
+            target.outputStream().use { output -> input.copyTo(output) }
         }
-        task.await()
-        return ref.downloadUrl.await().toString()
+        target
+    }
+
+    /**
+     * A 12-character random object id, mirroring iOS
+     * `UUID().uuidString.prefix(12)` in
+     * `AppHelper.firebaseImagePath` / `firebaseVideoPath` — each
+     * uploaded object gets its own name under the loop's prefix.
+     */
+    private fun randomObjectId(): String {
+        val chars = "0123456789abcdef"
+        return (1..12).map { chars.random() }.joinToString("")
     }
 
     private fun generateCode(length: Int): String {
@@ -635,6 +646,13 @@ class AddForumViewModel @Inject constructor(
 private const val STEP_UPLOADING_IMAGE = "Uploading image..."
 private const val STEP_UPLOADING_VIDEO = "Uploading video..."
 private const val STEP_CREATING_FORUM = "Creating forum..."
+
+// The MIME types the signed upload URLs are minted for. They must
+// match the `Content-Type` header of the PUT, mirroring iOS
+// (`AppHelper.uploadImage` → "image/jpeg",
+// `AppHelper.uploadVideo` → "video/mp4").
+private const val CONTENT_TYPE_IMAGE = "image/jpeg"
+private const val CONTENT_TYPE_VIDEO = "video/mp4"
 
 // iOS `AddForumViewModel.showErrorMessage` copy.
 private const val ERROR_SELECT_IMAGE = "Please select an image"
