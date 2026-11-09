@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Circular "next" arrow, inactive (disabled) state.
+
+    Ported from the iOS asset
+    kornerz/Kornerz/Resources/Assets.xcassets/Images/nextinactive.imageset
+    (a 100x100pt PNG: a light-grey filled circle with a darker-grey
+    chevron).
+
+    Geometry matches ic_create_forum_next_active.xml exactly so the
+    button does not shift when it toggles between states.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="50dp"
+    android:height="50dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+
+    <path
+        android:fillColor="#E5E5EA"
+        android:pathData="M50,50m-50,0a50,50 0,1 1,100 0a50,50 0,1 1,-100 0" />
+
+    <path
+        android:pathData="M36,50 L60,50"
+        android:strokeColor="#9E9EAE"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+
+    <path
+        android:pathData="M52,41 L61,50 L52,59"
+        android:strokeColor="#9E9EAE"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

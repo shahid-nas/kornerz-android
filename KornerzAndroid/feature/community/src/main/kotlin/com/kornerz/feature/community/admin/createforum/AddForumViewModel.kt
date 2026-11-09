@@ -4,14 +4,16 @@ import android.app.Application
 import android.content.ContentResolver
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.provider.OpenableColumns
 import java.io.ByteArrayOutputStream
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageReference
-import com.google.firebase.storage.UploadTask
 import com.kornerz.core.model.Loop
+import com.kornerz.core.network.community.CommunitiesRepository
 import com.kornerz.core.network.loops.LoopFirestoreApi
 import com.kornerz.core.storage.session.SessionRepository
 import com.kornerz.core.storage.session.SessionState
@@ -39,16 +41,48 @@ private const val MAX_VIDEO_SIZE_MB = 500.0
 private const val THUMBNAIL_MAX_DIMENSION = 200
 
 /**
+ * The five steps of the create-forum (create loop) wizard.
+ *
+ * Mirrors the iOS push chain in `kornerz/Kornerz/HomeVC/AddForum/`:
+ *
+ * ```
+ * AddForumTitleScreen
+ *   -> AddForumDescriptionScreen
+ *     -> AddForumCoverImageScreen
+ *       -> AddForumVideoScreen
+ *         -> AddForumPublishScreen
+ * ```
+ *
+ * The step lives in [AddForumUiState] rather than in a local `var` so
+ * that the transition is a ViewModel event (`docs/architecture.md` §7
+ * rule 1: no business logic in Composables), matching the canonical
+ * signup wizard in `feature/auth/.../signup/SignupScreen.kt`.
+ */
+enum class CreateForumStep {
+    Title,
+    Description,
+    CoverImage,
+    Video,
+    Publish,
+}
+
+/**
  * UI state for the create-forum (create loop) wizard. Mirrors iOS
  * `AddForumViewModel` published fields (`title`, `description`,
- * `selectedImage`, `selectedVideo`, `isUploading`, `uploadProgress`,
- * `uploadStep`, `uploadStepProgress`).
+ * `selectedImage`, `selectedVideo`, `videoThumbnail`, `isUploading`,
+ * `uploadProgress`, `uploadStep`, `uploadStepProgress`).
  */
 data class AddForumUiState(
+    val step: CreateForumStep = CreateForumStep.Title,
     val title: String = "",
     val description: String = "",
+    val descriptionHtml: String? = null,
     val imageUri: Uri? = null,
     val videoUri: Uri? = null,
+    val videoThumbnail: Bitmap? = null,
+    val communityName: String = "",
+    val publisherNickname: String = "",
+    val publisherAvatarUrl: String? = null,
     val isUploading: Boolean = false,
     val uploadProgress: Double = 0.0,
     val uploadStep: String = "",
@@ -61,17 +95,34 @@ data class AddForumUiState(
 }
 
 sealed class AddForumEvent {
-    object Refresh : AddForumEvent()
     data class TitleChanged(val text: String) : AddForumEvent()
     data class DescriptionChanged(val text: String) : AddForumEvent()
+    data class DescriptionHtmlChanged(val html: String) : AddForumEvent()
     data class ImageSelected(val uri: Uri) : AddForumEvent()
     data class VideoSelected(val uri: Uri) : AddForumEvent()
     object VideoRemoved : AddForumEvent()
     object Publish : AddForumEvent()
+
+    /** Advances to the next wizard step. */
+    object Next : AddForumEvent()
+
+    /**
+     * Returns to the previous wizard step.
+     *
+     * iOS clears the description when the user backs out of the
+     * description step (`AddForumDescriptionScreen.swift:120`), so the
+     * Android back transition does the same via [descriptionCleared].
+     */
+    object Back : AddForumEvent()
 }
 
 sealed class AddForumNavEvent {
+    /** The loop was published successfully — the wizard closes. */
     object ForumCreated : AddForumNavEvent()
+
+    /** The wizard was abandoned before publishing — the wizard closes. */
+    object CloseWizard : AddForumNavEvent()
+
     data class ShowError(val message: String) : AddForumNavEvent()
 }
 
@@ -90,6 +141,7 @@ class AddForumViewModel @Inject constructor(
     application: Application,
     private val sessionRepository: SessionRepository,
     private val loopFirestoreApi: LoopFirestoreApi,
+    private val communitiesRepository: CommunitiesRepository,
     private val storage: FirebaseStorage,
 ) : AndroidViewModel(application) {
 
@@ -103,8 +155,32 @@ class AddForumViewModel @Inject constructor(
 
     private var communityId: String? = null
 
+    /**
+     * Binds the wizard to its community and resolves the copy the
+     * publish preview needs: the community's name (iOS reads it from the
+     * `Community` model it was constructed with — `AddForumViewModel.init`
+     * — and renders it in blue under the title) and the signed-in user's
+     * nickname (iOS reads `AppHelper.shared.user?.nickName`).
+     */
     fun setCommunity(communityId: String) {
         this.communityId = communityId
+        viewModelScope.launch {
+            val publisher = sessionRepository.data
+                .filterNot { it is SessionState.Loading }
+                .map { state -> (state as? SessionState.Authenticated)?.user }
+                .first()
+            val communityName = communitiesRepository
+                .fetchByCommunityId(communityId)
+                ?.name
+                .orEmpty()
+            _state.update {
+                it.copy(
+                    publisherNickname = publisher?.nickname.orEmpty(),
+                    publisherAvatarUrl = publisher?.thumbnailURL,
+                    communityName = communityName,
+                )
+            }
+        }
     }
 
     fun onEvent(event: AddForumEvent) {
@@ -117,34 +193,148 @@ class AddForumViewModel @Inject constructor(
                 val text = event.text.take(MAX_DESCRIPTION_LENGTH)
                 _state.update { it.copy(description = text, error = null) }
             }
+            is AddForumEvent.DescriptionHtmlChanged -> {
+                _state.update { it.copy(descriptionHtml = event.html) }
+            }
             is AddForumEvent.ImageSelected -> _state.update { it.copy(imageUri = event.uri, error = null) }
-            is AddForumEvent.VideoSelected -> _state.update { it.copy(videoUri = event.uri, error = null) }
-            is AddForumEvent.VideoRemoved -> _state.update { it.copy(videoUri = null, error = null) }
+            is AddForumEvent.VideoRemoved -> _state.update {
+                it.copy(videoUri = null, videoThumbnail = null, error = null)
+            }
+            is AddForumEvent.VideoSelected -> onVideoSelected(event.uri)
             AddForumEvent.Publish -> publish()
-            else -> { }
+            AddForumEvent.Next -> goNext()
+            AddForumEvent.Back -> goBack()
         }
     }
 
-    fun setImage(uri: Uri?) {
-        _state.update { it.copy(imageUri = uri, error = null) }
+    /**
+     * Advances one step forward, mirroring the iOS `NavigationLink`
+     * chain. The guard conditions are the same ones the iOS screens
+     * enforce by disabling their next button:
+     *
+     * - title step: the title must be non-empty
+     * - description step: the description must be non-empty
+     * - cover-image step: an image must be selected
+     * - video step: a video is optional, so it always advances
+     */
+    private fun goNext() {
+        val current = _state.value
+        val next = when (current.step) {
+            CreateForumStep.Title ->
+                if (current.title.isBlank()) return else CreateForumStep.Description
+            CreateForumStep.Description ->
+                if (current.description.isBlank()) return else CreateForumStep.CoverImage
+            CreateForumStep.CoverImage ->
+                if (current.imageUri == null) return else CreateForumStep.Video
+            CreateForumStep.Video -> CreateForumStep.Publish
+            CreateForumStep.Publish -> return
+        }
+        _state.update { it.copy(step = next, error = null) }
     }
 
-    fun setVideo(uri: Uri?) {
-        _state.update { it.copy(videoUri = uri, error = null) }
+    /**
+     * Returns one step back. From the title step the wizard is closed
+     * instead — iOS dismisses the pushed `UIHostingController` from the
+     * leading toolbar button on the first screen.
+     *
+     * Backing out of the description step clears the description first,
+     * mirroring iOS (`AddForumDescriptionScreen.swift:120` — the
+     * leading back button assigns `NSAttributedString()` before it
+     * dismisses).
+     */
+    private fun goBack() {
+        val current = _state.value
+        val previous = when (current.step) {
+            CreateForumStep.Title -> {
+                _navEvents.trySend(AddForumNavEvent.CloseWizard)
+                return
+            }
+            CreateForumStep.Description -> {
+                _state.update { it.copy(description = "", descriptionHtml = null) }
+                CreateForumStep.Title
+            }
+            CreateForumStep.CoverImage -> CreateForumStep.Description
+            CreateForumStep.Video -> CreateForumStep.CoverImage
+            CreateForumStep.Publish -> CreateForumStep.Video
+        }
+        _state.update { it.copy(step = previous, error = null) }
     }
+
+    /**
+     * Handles a freshly picked video: enforces the iOS 500 MB limit
+     * (`AddForumViewModel.videoSelected`), then extracts a poster frame
+     * so the wizard can show the same thumbnail preview iOS renders
+     * (`AVAssetImageGenerator` at the 1-second mark).
+     */
+    private fun onVideoSelected(uri: Uri) {
+        viewModelScope.launch {
+            val sizeInMb = videoSizeInMb(uri)
+            if (sizeInMb != null && sizeInMb > MAX_VIDEO_SIZE_MB) {
+                _state.update {
+                    it.copy(
+                        videoUri = null,
+                        videoThumbnail = null,
+                        error = VIDEO_TOO_LARGE_MESSAGE,
+                    )
+                }
+                return@launch
+            }
+            val thumbnail = extractVideoThumbnail(uri)
+            _state.update {
+                it.copy(videoUri = uri, videoThumbnail = thumbnail, error = null)
+            }
+        }
+    }
+
+    /**
+     * The picked video's size in megabytes, or `null` when the size
+     * cannot be resolved.
+     */
+    private fun videoSizeInMb(uri: Uri): Double? =
+        runCatching {
+            contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                if (!cursor.moveToFirst() || sizeIndex < 0) return@use null
+                val bytes = cursor.getLong(sizeIndex)
+                if (bytes <= 0) null else bytes / (1024.0 * 1024.0)
+            }
+        }.getOrNull()
+
+    /**
+     * Extracts a poster frame from the video, mirroring iOS's
+     * `generateVideoThumbnail` (which seeks to the 1-second mark).
+     * Returns `null` when the frame cannot be decoded — the wizard then
+     * falls back to rendering the video itself in a `VideoView`.
+     */
+    private suspend fun extractVideoThumbnail(uri: Uri): Bitmap? =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val descriptor = contentResolver.openFileDescriptor(uri, "r")
+                    ?: return@runCatching null
+                val retriever = MediaMetadataRetriever()
+                try {
+                    descriptor.use {
+                        retriever.setDataSource(it.fileDescriptor)
+                    }
+                    retriever.getFrameAtTime(THUMBNAIL_TIMESTAMP_US)
+                } finally {
+                    retriever.release()
+                }
+            }.getOrNull()
+        }
 
     private fun publish() {
         val s = _state.value
         if (s.title.isBlank()) {
-            _state.update { it.copy(error = "Please enter a title") }
+            _state.update { it.copy(error = ERROR_TITLE_REQUIRED) }
             return
         }
         if (s.imageUri == null) {
-            _state.update { it.copy(error = "Please select an image") }
+            _state.update { it.copy(error = ERROR_SELECT_IMAGE) }
             return
         }
         if (communityId.isNullOrBlank()) {
-            _state.update { it.copy(error = "Community context missing") }
+            _state.update { it.copy(error = ERROR_COMMUNITY_MISSING) }
             return
         }
 
@@ -153,7 +343,7 @@ class AddForumViewModel @Inject constructor(
                 isUploading = true,
                 uploadProgress = 0.0,
                 uploadStepProgress = 0.0,
-                uploadStep = "Uploading image...",
+                uploadStep = STEP_UPLOADING_IMAGE,
                 error = null,
             )
         }
@@ -161,7 +351,9 @@ class AddForumViewModel @Inject constructor(
         viewModelScope.launch {
             val userCode = currentUserCode()
                 ?: run {
-                    _state.update { it.copy(isUploading = false, error = "Please sign in to create a forum") }
+                    _state.update {
+                        it.copy(isUploading = false, error = ERROR_SIGN_IN)
+                    }
                     return@launch
                 }
 
@@ -171,8 +363,10 @@ class AddForumViewModel @Inject constructor(
             try {
                 // Optional video first (mirrors iOS uploadVideoThenImage ordering)
                 if (s.videoUri != null) {
-                    _state.update { it.copy(uploadStep = "Uploading video...", uploadStepProgress = 0.0) }
-                    videoUrl = uploadFile(s.videoUri!!, "loops/$forumId/video/video.mp4") { progress ->
+                    _state.update {
+                        it.copy(uploadStep = STEP_UPLOADING_VIDEO, uploadStepProgress = 0.0)
+                    }
+                    videoUrl = uploadFile(s.videoUri, "loops/$forumId/video/video.mp4") { progress ->
                         _state.update {
                             it.copy(
                                 uploadProgress = progress * 0.4,
@@ -183,11 +377,15 @@ class AddForumViewModel @Inject constructor(
                 }
 
                 // Compulsory image + thumbnail
-                _state.update { it.copy(uploadStep = "Uploading image...", uploadStepProgress = 0.0) }
-                val imageBytes = readBytes(s.imageUri!!)
+                _state.update {
+                    it.copy(uploadStep = STEP_UPLOADING_IMAGE, uploadStepProgress = 0.0)
+                }
+                val imageBytes = readBytes(s.imageUri)
                 val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
                     ?: run {
-                        _state.update { it.copy(isUploading = false, error = "Failed to load image") }
+                        _state.update {
+                            it.copy(isUploading = false, error = ERROR_LOAD_IMAGE)
+                        }
                         return@launch
                     }
                 val thumbnail = createThumbnail(bitmap)
@@ -220,7 +418,13 @@ class AddForumViewModel @Inject constructor(
                 }
 
                 // Create the loop document (mirrors iOS createLoopWithHashes → repository.createLoop)
-                _state.update { it.copy(uploadStep = "Creating forum...", uploadProgress = 0.8, uploadStepProgress = 0.0) }
+                _state.update {
+                    it.copy(
+                        uploadStep = STEP_CREATING_FORUM,
+                        uploadProgress = 0.8,
+                        uploadStepProgress = 0.0,
+                    )
+                }
                 val loop = Loop(
                     id = forumId,
                     communityId = communityId,
@@ -228,7 +432,7 @@ class AddForumViewModel @Inject constructor(
                     active = true,
                     title = s.title,
                     description = s.description.takeIf { it.isNotBlank() },
-                    descriptionHtml = null,
+                    descriptionHtml = s.descriptionHtml,
                     imageHash = null,
                     thumbnailHash = null,
                     videoHash = null,
@@ -238,7 +442,9 @@ class AddForumViewModel @Inject constructor(
                     creationDate = Clock.System.now(),
                 )
                 loopFirestoreApi.createLoop(loop).onFailure { error ->
-                    _state.update { it.copy(isUploading = false, error = error.message ?: "Failed to create forum") }
+                    _state.update {
+                        it.copy(isUploading = false, error = error.message ?: ERROR_CREATE)
+                    }
                     return@launch
                 }
 
@@ -252,7 +458,9 @@ class AddForumViewModel @Inject constructor(
                 }
                 _navEvents.trySend(AddForumNavEvent.ForumCreated)
             } catch (e: Exception) {
-                _state.update { it.copy(isUploading = false, error = e.message ?: "Failed to create forum") }
+                _state.update {
+                    it.copy(isUploading = false, error = e.message ?: ERROR_CREATE)
+                }
             }
         }
     }
@@ -326,8 +534,22 @@ class AddForumViewModel @Inject constructor(
         val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
         return (1..length).map { chars.random() }.joinToString("")
     }
-
-    companion object {
-        private const val TAG = "AddForumViewModel"
-    }
 }
+
+// iOS `AddForumViewModel.UploadStep` raw values.
+private const val STEP_UPLOADING_IMAGE = "Uploading image..."
+private const val STEP_UPLOADING_VIDEO = "Uploading video..."
+private const val STEP_CREATING_FORUM = "Creating forum..."
+
+// iOS `AddForumViewModel.showErrorMessage` copy.
+private const val ERROR_SELECT_IMAGE = "Please select an image"
+private const val ERROR_SIGN_IN = "Please sign in to create a forum"
+private const val ERROR_LOAD_IMAGE = "Failed to load image"
+private const val ERROR_CREATE = "Failed to create forum"
+private const val ERROR_COMMUNITY_MISSING = "Community context missing"
+private const val ERROR_TITLE_REQUIRED = "Please enter a title"
+private const val VIDEO_TOO_LARGE_MESSAGE =
+    "Video file size is too big. Maximum allowed size is 500MB."
+
+/** The 1-second poster-frame mark, mirroring iOS's `CMTime(seconds: 1)`. */
+private const val THUMBNAIL_TIMESTAMP_US = 1_000_000L

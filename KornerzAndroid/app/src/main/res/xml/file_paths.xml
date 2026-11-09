@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Paths exposed by the app's FileProvider.
+
+    The create-forum wizard's camera capture writes the captured frame
+    into the app's cache directory and hands the picker a
+    `content://` URI for it, so the picker process can read the image
+    back. `cache-path` maps to `Context.getCacheDir()`, which is
+    exactly where `MediaCache.toCacheUri` writes.
+-->
+<paths>
+    <cache-path
+        name="create_forum_media"
+        path="create_forum_media/" />
+</paths>

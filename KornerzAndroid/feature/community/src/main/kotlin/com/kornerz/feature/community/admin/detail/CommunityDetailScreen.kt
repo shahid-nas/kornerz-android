@@ -121,7 +121,7 @@ fun CommunityDetailScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "My Communities",
+                        text = "My Community",
                         fontFamily = Satoshi,
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp,
@@ -225,7 +225,7 @@ private fun LoadedBody(
         }
         item { HorizontalDivider() }
         item {
-            AddRow(onAddForumTap = { onOpenCreateForum(communityId) })
+            ForAddRow(onAddForumTap = { onOpenCreateForum(communityId) })
         }
     }
 }
@@ -348,7 +348,10 @@ private fun StatsGrid(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 23.dp),
+            // The grid sits between the section's top and bottom
+            // dividers, so it needs breathing room on both sides —
+            // without it the tiles touch the divider lines.
+            .padding(horizontal = 23.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         rows.forEach { (left, right) ->
@@ -374,7 +377,7 @@ private fun StatsGrid(
 }
 
 @Composable
-private fun AddRow(
+private fun ForAddRow(
     onAddForumTap: () -> Unit,
 ) {
     Column(
@@ -397,7 +400,7 @@ private fun AddRow(
 // full-width `forums` pill below. Mirrored here by not rendering
 // either hidden pill.
 AddPill(
-            label = "forums",
+            label = "Loops",
             onClick = onAddForumTap,
             modifier = Modifier.fillMaxWidth(),
         )

@@ -48,6 +48,14 @@ sealed class CommunityRoute {
 
         const val ARG_COMMUNITY_ID: String = "communityId"
 
-        fun build(communityId: String): String = "community/create-forum/$communityId"
+        /**
+         * The route prefix shared by every destination of the create-loop
+         * flow. The wizard is a full-screen flow, so the shell hides the
+         * bottom bar across all of it — the prefix keeps that rule true
+         * whatever destination the flow is on.
+         */
+        const val ROUTE_PREFIX: String = "community/create-forum"
+
+        fun build(communityId: String): String = "$ROUTE_PREFIX/$communityId"
     }
 }

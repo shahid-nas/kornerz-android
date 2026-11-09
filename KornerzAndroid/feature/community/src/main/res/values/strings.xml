@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Create-forum (create loop) wizard (P7). Strings live in
+        feature/community so the surface is co-located with its
+        consumer, mirroring feature/videocall.
+
+        The copy is a 1:1 port of the iOS localisation keys used by
+        kornerz/Kornerz/HomeVC/AddForum/AddForum*Screen.swift:
+
+          create_forum                 -> "Create Loop"   (Localizable.xcstrings)
+          forum_title                  -> "Loop Title"
+          forum_description            -> "Loop Description"
+          choose_video_cover_image     -> "Choose cover image for replay"
+          choose_video                 -> "Choose a replay"
+          skip                         -> "Skip"
+          publish                      -> "Publish"
+
+        The android key names are prefixed with `create_forum_` because
+        Android resource names must be unique app-wide, and the raw iOS
+        keys are too generic to claim at the app level.
+    -->
+    <string name="create_forum_title">Create Loop</string>
+    <string name="create_forum_loop_title_label">Loop Title</string>
+    <string name="create_forum_loop_description_label">Loop Description</string>
+    <string name="create_forum_choose_cover_image">Choose cover image for replay</string>
+    <string name="create_forum_choose_video">Choose a replay</string>
+    <string name="create_forum_skip">Skip</string>
+    <string name="create_forum_publish">Publish</string>
+
+    <!-- Character counters -->
+    <string name="create_forum_title_counter">Characters: %1$d of %2$d</string>
+    <string name="create_forum_description_counter">%1$d/%2$d</string>
+
+    <!-- Media picker action sheet (iOS "Select an Image" / "Select a Video") -->
+    <string name="create_forum_select_an_image">Select an Image</string>
+    <string name="create_forum_select_a_video">Select a Video</string>
+    <string name="create_forum_photo_library">Photo Library</string>
+    <string name="create_forum_camera">Camera</string>
+    <string name="create_forum_cancel">Cancel</string>
+
+    <!-- Publish preview -->
+    <string name="create_forum_in">in</string>
+    <string name="create_forum_view_more">View More</string>
+    <string name="create_forum_view_less">View Less</string>
+
+    <!-- Upload progress overlay -->
+    <string name="create_forum_upload_progress">Upload Progress</string>
+
+    <!-- Errors (mirrors iOS showErrorMessage copy) -->
+    <string name="create_forum_error_title">Error</string>
+    <string name="create_forum_ok">OK</string>
+    <string name="create_forum_error_select_image">Please select an image</string>
+    <string name="create_forum_error_sign_in">Please sign in to create a forum</string>
+    <string name="create_forum_error_load_image">Failed to load image</string>
+    <string name="create_forum_error_load_video">Failed to load video</string>
+    <string name="create_forum_error_upload_video">Failed to upload replay</string>
+    <string name="create_forum_error_upload_image">Failed to upload guest image.</string>
+    <string name="create_forum_error_create">Failed to create forum</string>
+    <string name="create_forum_error_community_missing">Community context missing</string>
+    <string name="create_forum_error_title_required">Please enter a title</string>
+    <string name="create_forum_video_too_big">Video file size is too big. Maximum allowed size is 500MB.</string>
+
+    <!-- Content descriptions -->
+    <string name="create_forum_cd_back">Back</string>
+    <string name="create_forum_cd_close">Close</string>
+    <string name="create_forum_cd_next">Next</string>
+    <string name="create_forum_cd_cover_image">Cover image</string>
+    <string name="create_forum_cd_video">Video</string>
+    <string name="create_forum_cd_play_video">Play video</string>
+</resources>

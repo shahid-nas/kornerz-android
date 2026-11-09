@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Circular "next" arrow, active state.
+
+    Ported from the iOS asset
+    kornerz/Kornerz/Resources/Assets.xcassets/Images/nextactive.imageset
+    (a 100x100pt PNG: a #5D47ED filled circle with a white chevron).
+
+    The iOS image is raster, so the circle and chevron are re-created
+    here as vector geometry so the Android button stays crisp at every
+    density. The circle is a 100x100 viewport with a 50dp radius and
+    the chevron is stroked with a 5dp round-capped path, matching the
+    raster's proportions.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="50dp"
+    android:height="50dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+
+    <path
+        android:fillColor="#5D47ED"
+        android:pathData="M50,50m-50,0a50,50 0,1 1,100 0a50,50 0,1 1,-100 0" />
+
+    <path
+        android:pathData="M36,50 L60,50"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+
+    <path
+        android:pathData="M52,41 L61,50 L52,59"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

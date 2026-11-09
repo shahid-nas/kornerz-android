@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The "choose a cover image" placeholder artwork.
+
+    Ported from the iOS asset
+    kornerz/Kornerz/HomeVC/ArticleCreation/Resources/Articles.xcassets/
+        Image-upload.imageset/Image upload.svg
+
+    The iOS artwork is a 330x132 SVG: a #F2F4F6 rounded rect with a
+    60x60 grey (#9E9EAE) photo-plus glyph clipped and centred over it.
+
+    iOS renders this image with `.scaledToFill()` inside a 150dp-tall,
+    25dp-radius frame, so the artwork itself is centred within a
+    #F2F4F6 card and the image-plus glyph sits in the middle.
+
+    This vector keeps the 330x132 viewport so the glyph lands in the
+    same relative position as iOS, and the card background is drawn as
+    a vector shape rather than a Compose background so the whole
+    placeholder is a single drawable.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="165dp"
+    android:height="66dp"
+    android:viewportWidth="330"
+    android:viewportHeight="132">
+
+    <path
+        android:fillColor="#F2F4F6"
+        android:pathData="M10,0 L320,0 A10,10 0,0 1,330 10 L330,122 A10,10 0,0 1,320 132 L10,132 A10,10 0,0 1,0 122 L0,10 A10,10 0,0 1,10 0 Z" />
+
+    <!--
+        Photo-plus glyph. The iOS SVG draws the glyph inside a 60x60
+        clip at (135,36); the glyph paths below are the same geometry
+        with that translation already applied.
+    -->
+    <group
+        android:pivotX="0"
+        android:pivotY="0"
+        android:scaleX="1"
+        android:scaleY="1"
+        android:translateX="135"
+        android:translateY="36">
+
+        <path
+            android:fillColor="#9E9EAE"
+            android:pathData="M52.5,37.5V45H60V50H52.5V57.5H47.5V50H40V45H47.5V37.5H52.5ZM52.52,7.5C53.89,7.5 55,8.6125 55,9.9825V32.5H50V12.5H10V47.4975L35,22.5L42.5,30V37.0725L35,29.5725L17.068,47.5H35V52.5H7.48C6.822,52.4993 6.191,52.2375 5.726,51.772C5.261,51.3065 5,50.6755 5,50.0175V9.9825C5.005,9.3259 5.267,8.6975 5.731,8.233C6.195,7.7685 6.823,7.5052 7.48,7.5H52.52ZM20,17.5C21.326,17.5 22.598,18.0268 23.536,18.9645C24.473,19.9021 25,21.1739 25,22.5C25,23.8261 24.473,25.0979 23.536,26.0355C22.598,26.9732 21.326,27.5 20,27.5C18.674,27.5 17.402,26.9732 16.464,26.0355C15.527,25.0979 15,23.8261 15,22.5C15,21.1739 15.527,19.9021 16.464,18.9645C17.402,18.0268 18.674,17.5 20,17.5Z" />
+    </group>
+</vector>

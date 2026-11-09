@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Close "X" used by the create-forum wizard's trailing toolbar item.
+
+    Ported from the iOS asset
+    kornerz/Kornerz/Resources/Assets.xcassets/Images/cross.imageset
+    (a dark-navy #353446 X).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <path
+        android:pathData="M6,6 L18,18"
+        android:strokeColor="#353446"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+
+    <path
+        android:pathData="M18,6 L6,18"
+        android:strokeColor="#353446"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

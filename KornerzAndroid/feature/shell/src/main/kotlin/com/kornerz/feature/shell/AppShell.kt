@@ -725,11 +725,15 @@ internal fun isKornerDetailOnScreen(
  * Two rules decide it:
  *  1. the **route** — the full-screen routes (`videocall/…`,
  *     `notifications/list`, `profile/…`, `community/admin/…`,
- *     `subscription/…`, `deeplink/…`) hide it;
+ *     `community/create-forum/…`, `subscription/…`, `deeplink/…`) hide it;
  *  2. the **loop detail's `hideBottomBar` argument** — the loop detail
  *     is a full-screen destination, so the bar is hidden across it
  *     whichever entry point opened it (the Home carousel, the Loops
  *     feed, the Korner detail, a deep link, a notification).
+ *
+ * The create-loop (create-forum) wizard is a **full-screen flow**: the
+ * bar is hidden across every step of it, so the rule is expressed as a
+ * route prefix — every destination the flow pushes is covered by it.
  *
  * Extracted as a pure function so the rule is unit-testable without an
  * emulator.
@@ -739,6 +743,7 @@ internal fun shouldShowBottomBar(
     hidesBottomBarForLoopDetail: Boolean,
 ): Boolean {
     if (hidesBottomBarForLoopDetail) return false
+    if (currentRoute?.startsWith(CommunityRoute.CreateForum.ROUTE_PREFIX) == true) return false
     return currentRoute?.matches(
         Regex(
             "videocall/.*|notifications/list|profile/.*|community/admin/.*" +
