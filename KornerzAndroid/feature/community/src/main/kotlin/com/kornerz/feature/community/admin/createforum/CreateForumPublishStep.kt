@@ -39,6 +39,7 @@ import coil.compose.AsyncImage
 import com.kornerz.core.ui.components.KornerzExpandableText
 import com.kornerz.core.ui.components.KornerzHtmlText
 import com.kornerz.core.ui.components.KornerzTriangleImage
+import com.kornerz.core.ui.components.TriangleCorner
 import com.kornerz.core.ui.theme.Satoshi
 import com.kornerz.core.ui.theme.Spacing
 import com.kornerz.feature.community.R
@@ -120,6 +121,12 @@ fun CreateForumPublishStep(
  * overlays a 70 dp `play.circle.fill` when a video is attached, and
  * pins the publisher's triangle avatar to the bottom-leading corner
  * (`AddForumPublishScreen.swift:159-190`).
+ *
+ * That avatar is a **bottom-left** triangle: iOS's `TriangleImageView`
+ * defaults to `type: .bottomLeft`
+ * (`kornerz/Kornerz/SwiftUI/Components/TriangleImageView.swift:16`),
+ * so the Android port asks [KornerzTriangleImage] for that corner
+ * instead of the component's own `TopRight` default.
  */
 @Composable
 private fun PublishMediaBlock(
@@ -155,6 +162,7 @@ private fun PublishMediaBlock(
             imageUrl = publisherAvatarUrl,
             size = 55.dp,
             cornerRadius = 8.dp,
+            corner = TriangleCorner.BottomLeft,
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .padding(Spacing.space12),

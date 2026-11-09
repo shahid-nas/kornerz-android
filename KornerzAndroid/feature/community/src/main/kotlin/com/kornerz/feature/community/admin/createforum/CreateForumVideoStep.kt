@@ -8,7 +8,6 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -41,7 +40,6 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import coil.compose.AsyncImage
 import com.kornerz.core.ui.theme.Spacing
 import com.kornerz.feature.community.R
 
@@ -51,17 +49,20 @@ import com.kornerz.feature.community.R
  * 1:1 port of iOS `AddForumVideoScreen`
  * (`kornerz/Kornerz/HomeVC/AddForum/AddForumVideoScreen.swift`).
  *
- * iOS shows the bold "Choose a replay" heading, **the cover image
- * again** in a 150 dp frame with a 25 dp corner radius, and — when a
- * video has been picked — its poster frame with a 100 dp
+ * iOS shows the bold "Choose a replay" heading, the media artwork in a
+ * 150 dp frame that opens the "Select a Video" sheet when tapped, and
+ * — when a video has been picked — its poster frame with a 100 dp
  * `play.circle.fill` overlay that plays the video when tapped. A "Skip"
  * label sits bottom-leading and the circular next arrow
  * bottom-trailing; the arrow stays disabled until a video is chosen,
  * while Skip advances without one.
+ *
+ * This step deals with the video only: the cover image picked in the
+ * previous step is not shown here, so the poster frame is the sole
+ * preview of the media attached to the loop.
  */
 @Composable
 fun CreateForumVideoStep(
-    imageUri: Uri?,
     videoUri: Uri?,
     videoThumbnail: Bitmap?,
     onVideoPicked: (Uri) -> Unit,
@@ -98,21 +99,12 @@ fun CreateForumVideoStep(
                 .clickable { showSourceDialog = true },
             contentAlignment = Alignment.Center,
         ) {
-            if (imageUri != null) {
-                AsyncImage(
-                    model = imageUri,
-                    contentDescription = stringResource(R.string.create_forum_cd_cover_image),
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            } else {
-                Image(
-                    painter = painterResource(R.drawable.ic_create_forum_image_upload),
-                    contentDescription = null,
-                    contentScale = ContentScale.FillWidth,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
+            Image(
+                painter = painterResource(R.drawable.ic_create_forum_image_upload),
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
         }
 
         Spacer(modifier = Modifier.height(Spacing.space12))
@@ -174,7 +166,8 @@ fun CreateForumVideoStep(
  * iOS renders the thumbnail with `.scaledToFit()` inside a frame with
  * a 25 dp corner radius and overlays a 100 dp `play.circle.fill`
  * (`AddForumVideoScreen.swift:113-134`). Tapping the frame plays the
- * video.
+ * video. Nothing is rendered while no video is attached — iOS leaves
+ * a `Spacer()` in its place.
  */
 @Composable
 private fun VideoThumbnailPreview(

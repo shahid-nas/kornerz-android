@@ -29,6 +29,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -158,11 +161,24 @@ private fun CoverImagePreview(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val shape = RoundedCornerShape(25.dp)
+    val borderColor = MaterialTheme.colorScheme.outline
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(25.dp))
+            .clip(shape)
             .background(MaterialTheme.colorScheme.surfaceVariant)
-            .clickable(onClick = onClick),
+            .clickable(onClick = onClick)
+            .drawWithContent {
+                drawContent()
+                if (imageUri == null) {
+                    drawRoundRect(
+                        color = borderColor,
+                        size = size,
+                        cornerRadius = CornerRadius(25.dp.toPx()),
+                        style = Stroke(width = 1.dp.toPx()),
+                    )
+                }
+            },
         contentAlignment = Alignment.Center,
     ) {
         if (imageUri != null) {
@@ -176,8 +192,8 @@ private fun CoverImagePreview(
             Image(
                 painter = painterResource(R.drawable.ic_create_forum_image_upload),
                 contentDescription = null,
-                contentScale = ContentScale.FillWidth,
-                modifier = Modifier.fillMaxWidth(),
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
             )
         }
     }

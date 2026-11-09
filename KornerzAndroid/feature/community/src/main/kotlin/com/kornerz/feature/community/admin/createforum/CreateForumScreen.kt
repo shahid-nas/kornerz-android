@@ -121,7 +121,6 @@ fun CreateForumScreen(
                 )
 
                 CreateForumStep.Video -> CreateForumVideoStep(
-                    imageUri = state.imageUri,
                     videoUri = state.videoUri,
                     videoThumbnail = state.videoThumbnail,
                     onVideoPicked = { viewModel.onEvent(AddForumEvent.VideoSelected(it)) },
