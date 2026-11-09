@@ -1,21 +1,19 @@
 package com.kornerz.feature.community.admin.createforum
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -25,7 +23,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kornerz.core.ui.theme.Satoshi
-import com.kornerz.core.ui.theme.Spacing
 import com.kornerz.feature.community.R
 
 /**
@@ -48,7 +45,12 @@ import com.kornerz.feature.community.R
  * The publish step's title is "Publish" rather than "Create Loop",
  * matching iOS's `.navigationTitle(getLocalizedValueFor("publish"))`
  * on `AddForumPublishScreen`.
+ *
+ * The chrome mirrors the admin community detail screen's top bar
+ * (`CommunityDetailScreen.kt`): the same Material 3 `TopAppBar` with
+ * the same background colour, height, title font and 24-dp icons.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CreateForumTopBar(
     title: String,
@@ -56,36 +58,41 @@ fun CreateForumTopBar(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = Spacing.space8, vertical = Spacing.space6),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        IconButton(onClick = onBack) {
-            Icon(
-                painter = painterResource(R.drawable.ic_create_forum_back),
-                contentDescription = stringResource(R.string.create_forum_cd_back),
-                tint = Color(0xFF353446),
+    TopAppBar(
+        modifier = modifier,
+        title = {
+            Text(
+                text = title,
+                fontFamily = Satoshi,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                color = Color(0xFF353446),
             )
-        }
-        Text(
-            text = title,
-            fontFamily = Satoshi,
-            fontWeight = FontWeight.Bold,
-            fontSize = 18.sp,
-            color = Color(0xFF353446),
-            modifier = Modifier.weight(1f),
-        )
-        IconButton(onClick = onClose) {
-            Icon(
-                painter = painterResource(R.drawable.ic_create_forum_close),
-                contentDescription = stringResource(R.string.create_forum_cd_close),
-                tint = Color(0xFF353446),
-            )
-        }
-    }
+        },
+        navigationIcon = {
+            IconButton(onClick = onBack) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_create_forum_back),
+                    contentDescription = stringResource(R.string.create_forum_cd_back),
+                    tint = Color(0xFF353446),
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+        },
+        actions = {
+            IconButton(onClick = onClose) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_create_forum_close),
+                    contentDescription = stringResource(R.string.create_forum_cd_close),
+                    tint = Color(0xFF353446),
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(
+            containerColor = MaterialTheme.colorScheme.background,
+        ),
+    )
 }
 
 /**
