@@ -120,13 +120,7 @@ fun CreateForumPublishStep(
  * 250 dp-tall, full-width frame that is `.clipped()` to its bounds,
  * overlays a 70 dp `play.circle.fill` when a video is attached, and
  * pins the publisher's triangle avatar to the bottom-leading corner
- * (`AddForumPublishScreen.swift:159-190`).
- *
- * That avatar is a **bottom-left** triangle: iOS's `TriangleImageView`
- * defaults to `type: .bottomLeft`
- * (`kornerz/Kornerz/SwiftUI/Components/TriangleImageView.swift:16`),
- * so the Android port asks [KornerzTriangleImage] for that corner
- * instead of the component's own `TopRight` default.
+ * (`AddForumPublishScreen.swift:159-190`) — see [PublisherAvatar].
  */
 @Composable
 private fun PublishMediaBlock(
@@ -158,16 +152,43 @@ private fun PublishMediaBlock(
                 modifier = Modifier.size(70.dp),
             )
         }
-        KornerzTriangleImage(
-            imageUrl = publisherAvatarUrl,
-            size = 55.dp,
-            cornerRadius = 8.dp,
-            corner = TriangleCorner.BottomLeft,
+        PublisherAvatar(
+            avatarUrl = publisherAvatarUrl,
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .padding(Spacing.space12),
         )
     }
+}
+
+/**
+ * The publisher's avatar, pinned to the bottom-leading corner of the
+ * media block.
+ *
+ * iOS renders the signed-in user's thumbnail there as a **bottom-left**
+ * triangle (`AddForumPublishScreen.swift:175-179` with
+ * `TriangleImageView`'s default `type: .bottomLeft` at
+ * `kornerz/Kornerz/SwiftUI/Components/TriangleImageView.swift:16`),
+ * so the Android port asks [KornerzTriangleImage] for that corner
+ * instead of the component's own `TopRight` default.
+ *
+ * The account may have no thumbnail, so the avatar falls back to the
+ * shared `ic_user_placeholder` artwork — the same default the tab
+ * header uses — instead of rendering an empty shape.
+ */
+@Composable
+private fun PublisherAvatar(
+    avatarUrl: String?,
+    modifier: Modifier = Modifier,
+) {
+    KornerzTriangleImage(
+        imageUrl = avatarUrl,
+        size = PUBLISHER_AVATAR_SIZE,
+        cornerRadius = PUBLISHER_AVATAR_CORNER_RADIUS,
+        corner = TriangleCorner.BottomLeft,
+        fallbackAsset = USER_PLACEHOLDER_ASSET,
+        modifier = modifier,
+    )
 }
 
 /**
@@ -359,3 +380,16 @@ private fun StatCounter(
 
 /** iOS `ExpandableText` collapses the description to two lines. */
 private const val DESCRIPTION_LINE_LIMIT = 2
+
+/** iOS `TriangleImageView(image: user.thumbnailType, size: 55, radius: 8)`. */
+private val PUBLISHER_AVATAR_SIZE = 55.dp
+private val PUBLISHER_AVATAR_CORNER_RADIUS = 8.dp
+
+/**
+ * The shared "no avatar" artwork, resolved by name at runtime.
+ *
+ * The same asset the tab header falls back to
+ * (`core/ui/.../header/TabHeader.kt`), so a user without a thumbnail
+ * looks the same everywhere.
+ */
+private const val USER_PLACEHOLDER_ASSET = "ic_user_placeholder"
