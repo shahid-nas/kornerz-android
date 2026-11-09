@@ -1,17 +1,16 @@
 package com.kornerz.feature.community.admin.createforum
 
-import android.net.Uri
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -22,10 +21,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.kornerz.core.ui.components.KornerzCapsuleButton
 import com.kornerz.core.ui.components.KornerzUploadProgressView
 import com.kornerz.core.ui.theme.Spacing
 import com.kornerz.feature.community.R
@@ -67,13 +65,14 @@ fun CreateForumScreen(
 
     val state by viewModel.state.collectAsStateWithLifecycle()
     var showVideoPlayer by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(viewModel) {
         viewModel.navEvents.collect { event ->
             when (event) {
                 AddForumNavEvent.ForumCreated -> onFinished()
                 AddForumNavEvent.CloseWizard -> onFinished()
-                is AddForumNavEvent.ShowError -> Unit
+                is AddForumNavEvent.ShowError -> errorMessage = event.message
             }
         }
     }
@@ -178,6 +177,25 @@ fun CreateForumScreen(
             )
         }
     }
+
+    // iOS presents every publish failure through
+    // `showAlertController(message:alertTitle:okayButtonTitle:)`
+    // (`AddForumViewModel.swift:285-290` → `AppHelper`), which shows a
+    // titled alert with a single "OK" button. The Android port mirrors
+    // it with a Material alert dialog driven by
+    // [AddForumNavEvent.ShowError].
+    errorMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = { errorMessage = null },
+            title = { Text(text = stringResource(R.string.create_forum_error_title)) },
+            text = { Text(text = message) },
+            confirmButton = {
+                TextButton(onClick = { errorMessage = null }) {
+                    Text(text = stringResource(R.string.create_forum_ok))
+                }
+            },
+        )
+    }
 }
 
 /**
@@ -186,6 +204,11 @@ fun CreateForumScreen(
  * iOS pins a full-width capsule button to the bottom of the screen via
  * `.safeAreaInset(edge: .bottom)` and hides it while the upload runs
  * (`AddForumPublishScreen.swift:40-45` and `:192-206`).
+ *
+ * The button is the shared [KornerzCapsuleButton] — the Android twin of
+ * iOS's `.buttonStyle(.borderedProminent)` + `.buttonBorderShape(.capsule)`
+ * pair — tinted with the brand primary colour, which is what
+ * `.tint(Color(AppColor.C5D47ED))` resolves to on iOS.
  */
 @Composable
 private fun CreateForumPublishBar(
@@ -198,22 +221,12 @@ private fun CreateForumPublishBar(
             .fillMaxWidth()
             .padding(Spacing.space12),
     ) {
-        Text(
+        KornerzCapsuleButton(
             text = stringResource(R.string.create_forum_publish),
-            color = Color.White,
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    color = if (enabled) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)
-                    },
-                    shape = RoundedCornerShape(percent = 50),
-                )
-                .clickable(enabled = enabled, onClick = onPublish)
-                .padding(vertical = 12.dp),
+            onClick = onPublish,
+            enabled = enabled,
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = Color.White,
         )
     }
 }

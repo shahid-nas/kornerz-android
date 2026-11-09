@@ -13,13 +13,15 @@ import androidx.lifecycle.viewModelScope
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.StorageReference
 import com.kornerz.core.model.Loop
-import com.kornerz.core.network.community.CommunitiesRepository
 import com.kornerz.core.network.loops.LoopFirestoreApi
 import com.kornerz.core.storage.session.SessionRepository
 import com.kornerz.core.storage.session.SessionState
+import com.kornerz.feature.community.data.CommunitiesRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -29,6 +31,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
@@ -169,10 +172,7 @@ class AddForumViewModel @Inject constructor(
                 .filterNot { it is SessionState.Loading }
                 .map { state -> (state as? SessionState.Authenticated)?.user }
                 .first()
-            val communityName = communitiesRepository
-                .fetchByCommunityId(communityId)
-                ?.name
-                .orEmpty()
+            val communityName = resolveCommunityName(communityId)
             _state.update {
                 it.copy(
                     publisherNickname = publisher?.nickname.orEmpty(),
@@ -181,6 +181,25 @@ class AddForumViewModel @Inject constructor(
                 )
             }
         }
+    }
+
+    /**
+     * The community's display name for the publish preview.
+     *
+     * iOS already holds the whole `Community` model
+     * (`AddForumViewModel.init`), so the name is right there. Android
+     * only carries the id across the route, so the name is read back
+     * from Firestore.
+     *
+     * The lookup tries the `communityId` field first and the 6-char
+     * `idCommunity` code second, so it resolves for both the iOS-written
+     * schema and the Android-written one. A community that cannot be
+     * resolved leaves the preview's name empty rather than failing the
+     * publish — the id itself is what the loop is written under.
+     */
+    private suspend fun resolveCommunityName(communityId: String): String {
+        if (communityId.isBlank()) return ""
+        return communitiesRepository.fetchByCode(communityId)?.name.orEmpty()
     }
 
     fun onEvent(event: AddForumEvent) {
@@ -323,18 +342,47 @@ class AddForumViewModel @Inject constructor(
             }.getOrNull()
         }
 
+    /**
+     * Publishes the forum. 1:1 port of iOS
+     * `AddForumViewModel.publishForum()` (`AddForumViewModel.swift:80-99`),
+     * which splits into three paths depending on whether a video was
+     * attached:
+     *
+     * ```
+     * publishForum()
+     *   -> uploadVideoThenImage(videoURL:image:)   (video attached)
+     *   -> uploadImageOnly(image:)                 (no video)
+     *      -> uploadImage(image:videoHash:startProgress:)
+     *         -> createLoopWithHashes(...)
+     * ```
+     *
+     * The Android port keeps the same ordering and the same progress
+     * bands:
+     *
+     * | band | owner |
+     * |------|-------|
+     * | 0.00 – 0.40 | optional video upload |
+     * | 0.40 – 0.80 | cover-image upload (the thumbnail is uploaded in parallel and, like iOS, reports no progress of its own) |
+     * | 0.80 – 1.00 | Firestore loop creation (simulated, as on iOS) |
+     *
+     * Every failure surfaces through [AddForumNavEvent.ShowError] — iOS
+     * calls `showErrorMessage(error:)` (`AddForumViewModel.swift:285-290`)
+     * which presents an alert controller. Without that event the Android
+     * wizard failed silently: the user tapped "Publish" and nothing
+     * visible happened.
+     */
     private fun publish() {
         val s = _state.value
         if (s.title.isBlank()) {
-            _state.update { it.copy(error = ERROR_TITLE_REQUIRED) }
+            fail(ERROR_TITLE_REQUIRED)
             return
         }
         if (s.imageUri == null) {
-            _state.update { it.copy(error = ERROR_SELECT_IMAGE) }
+            fail(ERROR_SELECT_IMAGE)
             return
         }
         if (communityId.isNullOrBlank()) {
-            _state.update { it.copy(error = ERROR_COMMUNITY_MISSING) }
+            fail(ERROR_COMMUNITY_MISSING)
             return
         }
 
@@ -350,12 +398,10 @@ class AddForumViewModel @Inject constructor(
 
         viewModelScope.launch {
             val userCode = currentUserCode()
-                ?: run {
-                    _state.update {
-                        it.copy(isUploading = false, error = ERROR_SIGN_IN)
-                    }
-                    return@launch
-                }
+            if (userCode == null) {
+                fail(ERROR_SIGN_IN)
+                return@launch
+            }
 
             val forumId = generateCode(20)
             var videoUrl: String? = null
@@ -382,40 +428,42 @@ class AddForumViewModel @Inject constructor(
                 }
                 val imageBytes = readBytes(s.imageUri)
                 val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size)
-                    ?: run {
-                        _state.update {
-                            it.copy(isUploading = false, error = ERROR_LOAD_IMAGE)
-                        }
-                        return@launch
-                    }
+                if (bitmap == null) {
+                    fail(ERROR_LOAD_IMAGE)
+                    return@launch
+                }
                 val thumbnail = createThumbnail(bitmap)
 
                 val imageStart = if (s.videoUri != null) 0.4 else 0.0
                 val imageBytesJpeg = compressJpeg(bitmap, 0.8f)
                 val thumbBytesJpeg = compressJpeg(thumbnail, 0.3f)
 
-                val imageUrl = uploadBytes(
-                    storage.reference.child("loops/$forumId/images/image.jpg"),
-                    imageBytesJpeg,
-                ) { progress ->
-                    _state.update {
-                        it.copy(
-                            uploadProgress = imageStart + (progress * 0.4),
-                            uploadStepProgress = progress,
-                        )
+                // iOS uploads the cover image and its thumbnail **in
+                // parallel** inside a `DispatchGroup`
+                // (`AddForumViewModel.swift:160-199`) and waits for both
+                // before creating the loop. Only the cover image reports
+                // progress — the thumbnail upload is fired without a
+                // progress handler — so the step bar tracks the cover
+                // image alone and never jumps backwards.
+                val imageRef = storage.reference.child("loops/$forumId/images/image.jpg")
+                val thumbRef = storage.reference.child("loops/$forumId/images/thumb.jpg")
+
+                val imageUpload = async {
+                    uploadBytes(imageRef, imageBytesJpeg) { progress ->
+                        _state.update {
+                            it.copy(
+                                uploadProgress = imageStart + (progress * 0.4),
+                                uploadStepProgress = progress,
+                            )
+                        }
                     }
                 }
-                val thumbUrl = uploadBytes(
-                    storage.reference.child("loops/$forumId/images/thumb.jpg"),
-                    thumbBytesJpeg,
-                ) { progress ->
-                    _state.update {
-                        it.copy(
-                            uploadProgress = imageStart + 0.4 + (progress * 0.4),
-                            uploadStepProgress = progress,
-                        )
-                    }
+                val thumbUpload = async {
+                    uploadBytes(thumbRef, thumbBytesJpeg)
                 }
+
+                val imageUrl = imageUpload.await()
+                val thumbUrl = thumbUpload.await()
 
                 // Create the loop document (mirrors iOS createLoopWithHashes → repository.createLoop)
                 _state.update {
@@ -425,26 +473,48 @@ class AddForumViewModel @Inject constructor(
                         uploadStepProgress = 0.0,
                     )
                 }
-                val loop = Loop(
-                    id = forumId,
-                    communityId = communityId,
-                    publisherId = userCode,
-                    active = true,
-                    title = s.title,
-                    description = s.description.takeIf { it.isNotBlank() },
-                    descriptionHtml = s.descriptionHtml,
-                    imageHash = null,
-                    thumbnailHash = null,
-                    videoHash = null,
-                    firebaseImageUrl = imageUrl,
-                    firebaseThumbnailUrl = thumbUrl,
-                    firebaseVideoUrl = videoUrl,
-                    creationDate = Clock.System.now(),
-                )
-                loopFirestoreApi.createLoop(loop).onFailure { error ->
-                    _state.update {
-                        it.copy(isUploading = false, error = error.message ?: ERROR_CREATE)
+                val createJob = async {
+                    val loop = Loop(
+                        id = forumId,
+                        communityId = communityId,
+                        publisherId = userCode,
+                        active = true,
+                        title = s.title,
+                        description = s.description.takeIf { it.isNotBlank() },
+                        descriptionHtml = s.descriptionHtml,
+                        imageHash = null,
+                        thumbnailHash = null,
+                        videoHash = null,
+                        firebaseImageUrl = imageUrl,
+                        firebaseThumbnailUrl = thumbUrl,
+                        firebaseVideoUrl = videoUrl,
+                        creationDate = Clock.System.now(),
+                    )
+                    loopFirestoreApi.createLoop(loop)
+                }
+
+                // iOS animates the last 20% with a 0.1 s timer while the
+                // Firestore write is in flight
+                // (`AddForumViewModel.swift:242-258`) so the bar keeps
+                // moving instead of freezing on 80%.
+                val progressJob = launch {
+                    while (isActive) {
+                        delay(CREATE_PROGRESS_TICK_MS)
+                        _state.update {
+                            val next = (it.uploadStepProgress + CREATE_PROGRESS_TICK).coerceAtMost(1.0)
+                            it.copy(
+                                uploadStepProgress = next,
+                                uploadProgress = 0.8 + (next * 0.2),
+                            )
+                        }
                     }
+                }
+
+                val createResult = createJob.await()
+                progressJob.cancel()
+
+                createResult.onFailure { error ->
+                    fail(error.message ?: ERROR_CREATE)
                     return@launch
                 }
 
@@ -458,11 +528,23 @@ class AddForumViewModel @Inject constructor(
                 }
                 _navEvents.trySend(AddForumNavEvent.ForumCreated)
             } catch (e: Exception) {
-                _state.update {
-                    it.copy(isUploading = false, error = e.message ?: ERROR_CREATE)
-                }
+                fail(e.message ?: ERROR_CREATE)
             }
         }
+    }
+
+    /**
+     * Aborts the publish and surfaces [message] to the user.
+     *
+     * Mirrors iOS `showErrorMessage(error:)`
+     * (`AddForumViewModel.swift:285-290`): the upload flag is cleared so
+     * the progress card disappears, the message is kept on the state for
+     * the screen to render, and a [AddForumNavEvent.ShowError] event is
+     * emitted so the screen can present an alert.
+     */
+    private fun fail(message: String) {
+        _state.update { it.copy(isUploading = false, error = message) }
+        _navEvents.trySend(AddForumNavEvent.ShowError(message))
     }
 
     /** Signed-in user's identity as stored in loop `publisherId` (the user code). */
@@ -495,15 +577,28 @@ class AddForumViewModel @Inject constructor(
         return out.toByteArray()
     }
 
-    private suspend fun uploadBytes(ref: StorageReference, bytes: ByteArray, onProgress: (Double) -> Unit): String {
+    /**
+     * Uploads [bytes] to [ref] and returns its download URL.
+     *
+     * [onProgress] is optional: iOS fires the thumbnail upload without a
+     * progress handler (`AddForumViewModel.swift:181-189`) so only the
+     * cover image drives the progress bar.
+     */
+    private suspend fun uploadBytes(
+        ref: StorageReference,
+        bytes: ByteArray,
+        onProgress: ((Double) -> Unit)? = null,
+    ): String {
         val task = ref.putBytes(bytes)
-        task.addOnProgressListener { snapshot ->
-            val total = snapshot.totalByteCount
-            if (total > 0) {
-                val progress = snapshot.bytesTransferred.toDouble() / total
-                viewModelScope.launch {
-                    withContext(Dispatchers.Main) {
-                        onProgress(progress)
+        if (onProgress != null) {
+            task.addOnProgressListener { snapshot ->
+                val total = snapshot.totalByteCount
+                if (total > 0) {
+                    val progress = snapshot.bytesTransferred.toDouble() / total
+                    viewModelScope.launch {
+                        withContext(Dispatchers.Main) {
+                            onProgress(progress)
+                        }
                     }
                 }
             }
@@ -553,3 +648,16 @@ private const val VIDEO_TOO_LARGE_MESSAGE =
 
 /** The 1-second poster-frame mark, mirroring iOS's `CMTime(seconds: 1)`. */
 private const val THUMBNAIL_TIMESTAMP_US = 1_000_000L
+
+/**
+ * The interval between the simulated "Creating forum..." progress ticks.
+ * iOS drives the same animation with a `Timer.scheduledTimer` at a
+ * 0.1-second interval (`AddForumViewModel.swift:242-258`).
+ */
+private const val CREATE_PROGRESS_TICK_MS = 100L
+
+/**
+ * The step added to the "Creating forum..." progress on each tick.
+ * iOS adds 0.1 per tick, so the simulated band fills in one second.
+ */
+private const val CREATE_PROGRESS_TICK = 0.1

@@ -210,9 +210,23 @@ class CommunitiesFirestoreApi @Inject constructor(
             ?: (data[FIELD_COMMUNITY_OWNER] as? String)
             ?: ""
         val createdAt = (data[FIELD_CREATED_DATE] as? String)
+        // The community's **public** `communityId` — the value iOS writes
+        // into `Loop.communityId` when a forum is published
+        // (`AddForumViewModel.swift:227` uses `community.communityId`).
+        // It is a different identifier from the Firestore document id and
+        // from [code], so it has to be read from its own field.
+        //
+        // Android-created communities store the 6-char code in
+        // `idCommunity` and have no separate `communityId` field, so the
+        // code is the fallback for them. Without this the create-forum
+        // wizard received an empty community id and refused to publish.
+        val communityId = (data[FIELD_COMMUNITY_ID_IOS] as? String)
+            ?.takeIf { it.isNotBlank() }
+            ?: code
         return Community(
             id = code,
             code = code,
+            communityId = communityId,
             name = name,
             description = description,
             themeIdRaw = themeIdInt,

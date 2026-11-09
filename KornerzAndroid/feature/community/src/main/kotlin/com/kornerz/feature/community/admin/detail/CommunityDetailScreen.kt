@@ -195,7 +195,15 @@ private fun LoadedBody(
     onSurfaceTap: (String) -> Unit,
     onOpenCreateForum: (String) -> Unit,
 ) {
-    val communityId = stats.community.communityId.orEmpty()
+    // The identifier the new loop is written under. iOS passes
+    // `community.communityId` into `AddForumViewModel`
+    // (`CommunityDetailAsAdminVC.swift:333`), which writes it to
+    // `Loop.communityId` (`AddForumViewModel.swift:227`). The 6-char
+    // `code` is the fallback for communities that carry no separate
+    // `communityId` field, so the wizard always receives a non-empty id.
+    val communityId = stats.community.communityId
+        ?.takeIf { it.isNotBlank() }
+        ?: stats.community.code
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
