@@ -153,4 +153,8 @@ object KornerzColors {
     val SandLight get() = KornerzPalette.SandLight
     val CharcoalLight get() = KornerzPalette.CharcoalLight
     val CharcoalDark get() = KornerzPalette.CharcoalDark
+    // Cornflower is the top stop of the avatar gradient (`BCCFF3` on
+    // iOS); exposed for the avatar edit badge.
+    val CornflowerLight get() = KornerzPalette.CornflowerLight
+    val CornflowerDark get() = KornerzPalette.CornflowerDark
 }

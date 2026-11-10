@@ -5,23 +5,24 @@ import android.graphics.ImageDecoder
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -41,6 +42,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kornerz.core.model.AsyncValue
+import com.kornerz.core.ui.components.KornerzUploadProgressView
 import com.kornerz.core.ui.components.rememberKornerzImagePicker
 import com.kornerz.core.ui.theme.Satoshi
 import com.kornerz.feature.profile.accountdeletion.AccountDeletionConfirmDialog
@@ -92,10 +94,18 @@ fun ProfileScreen(
     }
     val currentUser = (state.user as? AsyncValue.Success)?.data
     val onAvatarPicked: (Bitmap) -> Unit = { bitmap ->
-        currentUser?.let { viewModel.uploadAvatar(it.id, bitmap) }
+        currentUser?.let { viewModel.uploadAvatar(it, bitmap) }
+    }
+    val snackbarHostState = remember { SnackbarHostState() }
+    // Surface a failed avatar upload. The key is the message itself,
+    // so the same failure is not shown twice.
+    LaunchedEffect(state.uploadError) {
+        val message = state.uploadError ?: return@LaunchedEffect
+        snackbarHostState.showSnackbar(message)
     }
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
@@ -169,6 +179,39 @@ fun ProfileContentPreview() {
     )
 }
 
+@androidx.compose.ui.tooling.preview.Preview(showBackground = true, widthDp = 360)
+@Composable
+fun ProfileContentUploadingPreview() {
+    val state = ProfileState(
+        user = com.kornerz.core.model.AsyncValue.Success(
+            com.kornerz.core.model.User(
+                id = "u1",
+                email = "satoshi@example.com",
+                displayName = "Satoshi Black",
+                nickname = "satoshi",
+                firebaseImageUrl = null,
+            ),
+        ),
+        adminCommunitiesCount = 3,
+        isUploadingImage = true,
+        uploadProgress = 0.45,
+        uploadStepProgress = 0.75,
+        uploadStep = "Uploading thumbnail...",
+    )
+    ProfileContent(
+        state = state,
+        premiumTrailingText = "Yearly",
+        onPremiumTap = {},
+        onNotificationsTap = {},
+        onEditBasicInfoTap = {},
+        onPrivacyPolicyTap = {},
+        onMyCommunitiesTap = {},
+        onLogoutTap = {},
+        onDeleteAccountTap = {},
+        onAvatarPicked = {},
+    )
+}
+
 @Composable
 fun ProfileContent(
     state: ProfileState,
@@ -205,20 +248,41 @@ fun ProfileContent(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 item {
+                    // `fillMaxSize()` inside a LazyColumn item would make
+                    // this Box fill the whole viewport, so the click
+                    // target would swallow the entire screen. The header
+                    // is sized by its content instead.
                     Box(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 16.dp)
-                            .clickable { picker.launch(
-                                androidx.activity.result.PickVisualMediaRequest(
-                                    androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly,
-                                ),
-                            ) },
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
                         contentAlignment = Alignment.Center,
                     ) {
                         UserInfoHeader(
                             user = current,
                             adminCommunitiesCount = state.adminCommunitiesCount,
+                            onEditAvatar = {
+                                picker.launch(
+                                    androidx.activity.result.PickVisualMediaRequest(
+                                        androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly,
+                                    ),
+                                )
+                            },
+                            isUploading = state.isUploadingImage,
+                        )
+                    }
+                }
+                // The shared upload-progress card, matching the one the
+                // create-forum wizard shows while its cover image
+                // uploads.
+                if (state.isUploadingImage) {
+                    item {
+                        KornerzUploadProgressView(
+                            isVisible = true,
+                            progress = state.uploadProgress,
+                            step = state.uploadStep,
+                            stepProgress = state.uploadStepProgress,
+                            modifier = Modifier.padding(horizontal = 16.dp),
                         )
                     }
                 }
@@ -280,18 +344,6 @@ fun ProfileContent(
                         onClick = onDeleteAccountTap,
                         modifier = Modifier.padding(horizontal = 16.dp),
                     )
-                }
-                if (state.isUploadingImage) {
-                    item {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(16.dp),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            CircularProgressIndicator()
-                        }
-                    }
                 }
             }
         }

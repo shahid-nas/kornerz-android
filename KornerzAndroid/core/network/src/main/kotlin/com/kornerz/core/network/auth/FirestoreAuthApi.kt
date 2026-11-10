@@ -153,6 +153,14 @@ class FirestoreAuthApi @Inject constructor(
                 fcmToken = data["tokenPush"] as? String,
                 isPremium = data["isUserPremium"] as? Boolean ?: false,
                 createdAt = null,
+                // The avatar projection fields. Without these the session
+                // user's `thumbnailURL` / `imageURL` resolve to null and
+                // the Profile screen always renders the placeholder.
+                firebaseImageUrl = data["firebaseImageUrl"] as? String,
+                firebaseThumbnailUrl = data["firebaseThumbnailUrl"] as? String,
+                image = data["image"] as? String,
+                thumbnail = data["thumbnail"] as? String,
+                thumbnailType = data["thumbnailType"] as? String,
             ),
         )
     }.getOrElse { mapError(it) }

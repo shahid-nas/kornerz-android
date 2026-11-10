@@ -64,9 +64,13 @@ class ProfileViewModel @Inject constructor(
             userRepository.observeSessionUser().collect { user ->
                 if (user != null && user.id.isNotEmpty()) {
                     _state.update { it.copy(user = AsyncValue.Success(user)) }
-                    userRepository.refresh(user.id)
-                    val userCode = user.userCode.orEmpty().ifEmpty { user.id }
-                    observeAdminCommunitiesCount(userCode)
+                    // `refresh` resolves the user by their `codeUser`.
+                    // `user.id` is the Firestore document id (the email),
+                    // so the two are interchangeable only when the code
+                    // is absent — pass whichever the session actually has.
+                    val lookupKey = user.userCode.orEmpty().ifEmpty { user.id }
+                    userRepository.refresh(lookupKey)
+                    observeAdminCommunitiesCount(lookupKey)
                 }
             }
         }
@@ -152,18 +156,71 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
-    fun uploadAvatar(userCode: String, bitmap: android.graphics.Bitmap) {
+    /**
+     * Uploads a new avatar for [user].
+     *
+     * The whole [User] is handed to the repository rather than a bare
+     * id: the Storage path needs the `codeUser` field, while the
+     * Firestore write needs the user's email. Passing the resolved user
+     * keeps those two identifiers from being mixed up.
+     */
+    fun uploadAvatar(user: User, bitmap: android.graphics.Bitmap) {
+        if (_state.value.isUploadingImage) return
         viewModelScope.launch {
-            _state.update { it.copy(isUploadingImage = true) }
-            val result = userRepository.uploadProfileImage(userCode, bitmap)
+            _state.update {
+                it.copy(
+                    isUploadingImage = true,
+                    uploadProgress = 0.0,
+                    uploadStepProgress = 0.0,
+                    uploadStep = STEP_UPLOADING_IMAGE,
+                    uploadError = null,
+                )
+            }
+            val result = userRepository.uploadProfileImage(user, bitmap) { step, progress ->
+                _state.update { current ->
+                    current.copy(
+                        uploadProgress = overallProgress(step, progress),
+                        uploadStepProgress = progress,
+                        uploadStep = if (step == STEP_THUMBNAIL) {
+                            STEP_UPLOADING_THUMBNAIL
+                        } else {
+                            STEP_UPLOADING_IMAGE
+                        },
+                    )
+                }
+            }
             _state.update {
                 it.copy(
                     isUploadingImage = false,
+                    uploadProgress = if (result.isSuccess) 1.0 else it.uploadProgress,
+                    uploadStepProgress = if (result.isSuccess) 1.0 else it.uploadStepProgress,
                     user = if (result.isSuccess) {
                         AsyncValue.Success(result.getOrThrow())
-                    } else it.user,
+                    } else {
+                        it.user
+                    },
+                    uploadError = result.exceptionOrNull()?.message,
                 )
             }
+            result.exceptionOrNull()?.let { error ->
+                Log.w(TAG, "uploadAvatar failed: ${error.message}")
+            }
+        }
+    }
+
+    /**
+     * The overall progress of the two-step avatar upload.
+     *
+     * The full image is worth 60% and the thumbnail 40%, so the bar
+     * reaches the end of each step and then continues into the next
+     * one without ever jumping backwards.
+     */
+    private fun overallProgress(step: Int, progress: Double): Double {
+        val clamped = progress.coerceIn(0.0, 1.0)
+        return if (step == STEP_THUMBNAIL) {
+            FULL_IMAGE_WEIGHT + (clamped * THUMBNAIL_WEIGHT)
+        } else {
+            clamped * FULL_IMAGE_WEIGHT
         }
     }
 
@@ -175,5 +232,20 @@ class ProfileViewModel @Inject constructor(
         const val PLAN_LABEL_MONTHLY = "Monthly"
         const val PLAN_LABEL_YEARLY = "Yearly"
         const val ACTIVE_UNTIL_PREFIX = "Active until "
+
+        /** Step index of the full-size image upload. */
+        const val STEP_FULL_IMAGE = 1
+
+        /** Step index of the thumbnail upload. */
+        const val STEP_THUMBNAIL = 2
+
+        /** The share of the overall bar owned by the full-image upload. */
+        const val FULL_IMAGE_WEIGHT = 0.6
+
+        /** The share of the overall bar owned by the thumbnail upload. */
+        const val THUMBNAIL_WEIGHT = 0.4
+
+        const val STEP_UPLOADING_IMAGE = "Uploading image..."
+        const val STEP_UPLOADING_THUMBNAIL = "Uploading thumbnail..."
     }
 }

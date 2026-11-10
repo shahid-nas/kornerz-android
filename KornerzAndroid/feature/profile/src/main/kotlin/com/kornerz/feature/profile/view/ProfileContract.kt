@@ -10,6 +10,29 @@ data class ProfileState(
     val user: AsyncValue<User> = AsyncValue.Loading,
     val adminCommunitiesCount: Int = 0,
     val isUploadingImage: Boolean = false,
+    /**
+     * The overall upload progress in the `0.0..1.0` range.
+     *
+     * The avatar upload runs in two steps — the full image and the
+     * thumbnail — so the bar is the weighted sum of the two, matching
+     * the `uploadProgress` / `uploadStepProgress` pair the create-forum
+     * wizard uses (see `AddForumUiState`).
+     */
+    val uploadProgress: Double = 0.0,
+    /**
+     * The progress of the step currently in flight, `0.0..1.0`.
+     */
+    val uploadStepProgress: Double = 0.0,
+    /**
+     * The label of the step currently in flight — e.g. "Uploading
+     * image...".
+     */
+    val uploadStep: String = "",
+    /**
+     * The failure message of a failed upload, or `null` when there is
+     * no error. The Profile screen surfaces it in a snackbar.
+     */
+    val uploadError: String? = null,
 )
 
 sealed interface ProfileEvent {

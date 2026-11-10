@@ -62,8 +62,20 @@ class UserProfileRepository @Inject constructor(
             }
         }.distinctUntilChanged()
 
+    /**
+     * Re-reads the user from Firestore and refreshes the in-memory
+     * cache.
+     *
+     * [userCode] is the `codeUser` field. When the user has no
+     * `codeUser` — or the code simply does not resolve — the lookup
+     * falls back to the email, which is the authoritative document key
+     * on both platforms. The previous behaviour returned `null` in that
+     * case and silently left the in-memory cache empty.
+     */
     suspend fun refresh(userCode: String): Result<User?> = runCatching {
         val user = userApi.fetchByCode(userCode)
+            ?: inMemoryUser.value?.email?.let { userApi.fetchByEmail(it) }
+            ?: userApi.fetchByEmail(userCode)
         inMemoryUser.value = user
         if (user != null) {
             // Mirror iOS `FireStoreServiceManager.updateRegistrationDateIfNeeded`
@@ -98,18 +110,45 @@ class UserProfileRepository @Inject constructor(
      * Mirrors iOS `UserProfileRepository.uploadUserProfileImage` (P6,
      * `phase-6-profile-and-notifications` task 3.4):
      *  1. Compress [bitmap] to full + 200-pt thumbnail JPEGs.
-     *  2. Upload both to `users/{userCode}/profile/avatar{,_thumb}.jpg`.
+     *  2. Upload both to `users/{userCode}/profile/{id}.jpg`.
      *  3. Write **four** fields to `Users/{email}`:
      *     `firebaseImageUrl`, `firebaseThumbnailUrl`, plus the legacy
      *     `image` / `thumbnail` fields (kept populated for the iOS
      *     `User.imageURL` / `User.thumbnailURL` IPFS branch).
+     *
+     * The two identifiers are deliberately kept apart, exactly as iOS
+     * does (`UserProfileRepository.swift:43` uses `userCode` for the
+     * Storage prefix and `:94` uses `userId` for the Firestore document):
+     *
+     * - the user's `codeUser` — the Storage path prefix. iOS falls back
+     *   to the user id when `codeUser` is absent.
+     * - the user's email — the `Users/{email}` document key.
+     *
+     * Passing the already-resolved [user] in means the caller cannot
+     * accidentally hand us the document id where the `codeUser` is
+     * expected.
+     *
+     * The new avatar is also written back into the DataStore session so
+     * it survives an app restart — iOS does the equivalent with
+     * `UserDefaults.standard.saveUserInfo(user)`.
+     *
+     * @param onProgress reports the `0.0..1.0` progress of each upload
+     *   step. The full image is step one and the thumbnail is step two;
+     *   the caller weights them into a single overall bar.
      */
-    suspend fun uploadProfileImage(userCode: String, bitmap: Bitmap): Result<User> = runCatching {
-        val email = requireEmailForUserCode(userCode)
+    suspend fun uploadProfileImage(
+        user: User,
+        bitmap: Bitmap,
+        onProgress: (step: Int, progress: Double) -> Unit = { _, _ -> },
+    ): Result<User> = runCatching {
+        val email = requireEmail(user)
+        val storagePrefix = user.userCode.orEmpty().ifEmpty { user.id }
         val jpeg = UserFirestoreApi.bitmapToJpegBytes(bitmap, FULL_QUALITY)
         val thumbnail = UserFirestoreApi.resizeForThumbnail(bitmap)
         val thumbJpeg = UserFirestoreApi.bitmapToJpegBytes(thumbnail, THUMB_QUALITY)
-        val (imageUrl, thumbUrl) = storageApi.uploadAvatar(userCode, jpeg, thumbJpeg).getOrThrow()
+        val (imageUrl, thumbUrl) = storageApi
+            .uploadAvatar(storagePrefix, jpeg, thumbJpeg, onProgress)
+            .getOrThrow()
         userApi.updateProfileImage(
             email = email,
             firebaseImageUrl = imageUrl,
@@ -126,6 +165,19 @@ class UserProfileRepository @Inject constructor(
             thumbnail = thumbUrl,
         )
         inMemoryUser.value = withImage
+        // Keep the persisted session in step with the new avatar.
+        sessionRepository.updateUser { sessionUser ->
+            if (sessionUser.id == withImage.id) {
+                sessionUser.copy(
+                    firebaseImageUrl = withImage.firebaseImageUrl,
+                    firebaseThumbnailUrl = withImage.firebaseThumbnailUrl,
+                    image = withImage.image,
+                    thumbnail = withImage.thumbnail,
+                )
+            } else {
+                sessionUser
+            }
+        }
         withImage
     }
 
@@ -173,6 +225,26 @@ class UserProfileRepository @Inject constructor(
         if (cached != null && cached.id == userCode) return cached.email
         val fetched = userApi.fetchByCode(userCode)
             ?: error("User $userCode not found in Firestore")
+        inMemoryUser.value = fetched
+        return fetched.email
+    }
+
+    /**
+     * Resolves the Firestore document key (the user's email) for an
+     * already-resolved [user].
+     *
+     * `Users/{email}` is the document-key convention shared by iOS
+     * (`FireStoreServiceManager.swift:21`) and Android
+     * (`FirestoreAuthApi.signUp`). The email is authoritative; the
+     * in-memory cache is only consulted so a user whose document was
+     * written under a different key can still be updated.
+     */
+    private suspend fun requireEmail(user: User): String {
+        if (user.email.isNotBlank()) return user.email
+        val cached = inMemoryUser.value
+        if (cached != null && cached.id == user.id) return cached.email
+        val fetched = userApi.fetchByEmail(user.id)
+            ?: error("User ${user.id} not found in Firestore")
         inMemoryUser.value = fetched
         return fetched.email
     }
