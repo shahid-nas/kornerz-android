@@ -254,10 +254,39 @@ class CommunitiesRepository @Inject constructor(
         return doc.id.takeIf { it.isNotBlank() }
     }
 
+    /**
+     * Finds the community that owns a forum.
+     *
+     * A forum (a post inside a community) lives in the `Loop` collection
+     * under a 20-character code — iOS `LoopRepository.createLoop`
+     * (`kornerz/Kornerz/Backend/Repositories/LoopRepository.swift:282-294`)
+     * and the Android create-forum wizard both write it there. The
+     * document's `communityId` field holds the community's **public**
+     * `communityId`, not its Firestore document id.
+     *
+     * The lookup exists for the deep-link resolver: a comment
+     * notification names the forum, so the forum is what has to be
+     * resolved to a community before the community can be resolved to a
+     * Korner detail.
+     *
+     * Returns `null` when no forum carries that id.
+     */
+    suspend fun fetchForumCommunityId(forumId: String): String? {
+        if (forumId.isBlank()) return null
+        return runCatching {
+            val snapshot = firestore.collection(FIELD_LOOP_COLLECTION)
+                .document(forumId)
+                .get()
+                .await()
+            snapshot.getString(FIELD_COMMUNITY_ID)
+        }.getOrNull()?.takeIf { it.isNotBlank() }
+    }
+
     private companion object {
         const val TAG = "CommunitiesRepository"
         const val FIELD_COMMUNITY_COLLECTION = "Communities"
         const val FIELD_COMMUNITY_ADM_COLLECTION = "CommunityAdm"
+        const val FIELD_LOOP_COLLECTION = "Loop"
         const val FIELD_COMMUNITY_ID = "communityId"
         const val FIELD_COMMUNITY_NAME = "communityName"
         const val FIELD_COMMUNITY_NAME_EN = "communityNameEn"

@@ -15,7 +15,6 @@ import com.kornerz.core.storage.interests.KornerInterestRepository
 import com.kornerz.core.ui.device.DeviceFormFactor
 import com.kornerz.core.ui.theme.KornerzTheme
 import com.kornerz.feature.shell.deeplink.DeepLinkManager
-import com.kornerz.kornerz.fcm.KornerzFcmService
 import dagger.hilt.android.AndroidEntryPoint
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.EntryPoint
@@ -84,16 +83,26 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         applyOrientationPolicy()
         // P6 (task 8.5) — register the Kornerz notification channel.
+        //
+        // The channel is created on **every** launch, not only the first
+        // one: `createNotificationChannel` is idempotent for an existing
+        // channel and updates its name, description and importance — so
+        // a change to the channel's configuration reaches installs that
+        // already have the channel. (The system does not let an app
+        // change a channel's sound or vibration pattern after creation,
+        // but importance and the user-visible labels are updatable.)
         val channel = NotificationChannelCompat.Builder(
-            KornerzFcmService.CHANNEL_ID,
+            getString(R.string.kornerz_notification_channel_id),
             NotificationManagerCompat.IMPORTANCE_HIGH,
         )
             .setName("Kornerz")
             .setDescription("Kornerz push notifications")
             .setLightsEnabled(true)
             .setVibrationEnabled(true)
+            .setShowBadge(true)
             .build()
-        NotificationManagerCompat.from(this).createNotificationChannel(channel)
+        NotificationManagerCompat.from(this)
+            .createNotificationChannel(channel)
 
         val entry = EntryPointAccessors.fromApplication(
             applicationContext,

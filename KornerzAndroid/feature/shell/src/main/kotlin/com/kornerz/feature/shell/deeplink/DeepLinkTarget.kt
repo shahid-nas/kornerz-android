@@ -36,10 +36,14 @@ sealed interface DeepLinkResolution {
     data class Routable(val target: DeepLinkTarget) : DeepLinkResolution
 
     /**
-     * The link targets a screen that is **excluded** from the Android
-     * port — Event Detail, Post Detail or Forum Detail
-     * (`docs/screen-inventory.md:229-237`) — or names a community that
-     * does not resolve.
+     * The link names a destination that could not be resolved — the
+     * community it belongs to does not exist, or the forum it names
+     * does not exist.
+     *
+     * The links whose dedicated screens are excluded from the Android
+     * port (Event Detail, Post Detail, Forum Detail —
+     * `docs/screen-inventory.md:229-233`) are **not** reported here:
+     * they resolve to the owning community's Korner detail instead.
      */
     data object NotRoutable : DeepLinkResolution
 }

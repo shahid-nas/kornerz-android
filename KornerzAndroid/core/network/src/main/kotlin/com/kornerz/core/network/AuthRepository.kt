@@ -6,16 +6,18 @@ import com.kornerz.core.network.auth.AuthError
 import com.kornerz.core.network.auth.AuthInterceptor
 import com.kornerz.core.network.auth.AuthResult
 import com.kornerz.core.network.auth.dto.ChangePasswordRequest
-import com.kornerz.core.network.auth.dto.ClearFcmTokenRequest
 import com.kornerz.core.network.auth.dto.ConfirmPasswordResetCodeRequest
 import com.kornerz.core.network.auth.dto.LoginRequest
 import com.kornerz.core.network.auth.dto.RequestPasswordResetRequest
 import com.kornerz.core.network.auth.dto.SignupRequest
-import com.kornerz.core.network.auth.dto.UpdateFcmTokenRequest
+import com.kornerz.core.network.fcm.DeviceIdProvider
+import com.kornerz.core.network.fcm.DeviceTokenStore
 import com.kornerz.core.storage.session.SessionRepository
+import com.kornerz.core.storage.session.SessionState
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.datetime.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -34,6 +36,8 @@ class AuthRepository @Inject constructor(
     private val authApi: AuthApi,
     private val sessionRepository: SessionRepository,
     private val interceptor: AuthInterceptor,
+    private val deviceTokenStore: DeviceTokenStore,
+    private val deviceIdProvider: DeviceIdProvider,
 ) {
 
     private val _sessionExpired = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -140,34 +144,48 @@ class AuthRepository @Inject constructor(
         }
     }
 
+    /**
+     * Uploads the device's FCM token.
+     *
+     * The write goes through [DeviceTokenStore] — the same place the
+     * FCM rotation handler writes — so the token always lands on
+     * `Users/{email}.tokenPush`, the field iOS writes and the backend
+     * reads. The earlier `AuthApi.updateFcmToken` path wrote
+     * `users/{firebaseAuthUid}` and required a Firebase Auth user that
+     * the port no longer creates, so it could never succeed.
+     */
     suspend fun updateFcmToken(token: String): AsyncValue<Unit> {
-        return when (
-            val result = authApi.updateFcmToken(UpdateFcmTokenRequest(token = token))
-        ) {
-            is AuthResult.Success -> AsyncValue.Success(Unit)
-            is AuthResult.Failure -> {
-                // FCM token rotation is a background task. A failure here must
-                // not wipe the persisted custom-auth session — that would force
-                // the user to log in again on every cold start while the
-                // anonymous Firebase Auth user is unavailable.
-                AsyncValue.Error(result.error.toThrowable())
-            }
-        }
+        val user = (sessionRepository.data.first() as? SessionState.Authenticated)?.user
+            ?: return AsyncValue.Error(
+                IllegalStateException("Cannot upload an FCM token without an authenticated user"),
+            )
+        val deviceId = deviceIdProvider.deviceId()
+        return deviceTokenStore.upsert(email = user.email, deviceId = deviceId, token = token)
+            .fold(
+                onSuccess = { AsyncValue.Success(Unit) },
+                onFailure = { error ->
+                    // FCM token rotation is a background task. A failure here must
+                    // not wipe the persisted custom-auth session — that would force
+                    // the user to log in again on every cold start.
+                    AsyncValue.Error(error)
+                },
+            )
     }
 
+    /**
+     * Removes the device's FCM token.
+     *
+     * The session is cleared either way: the user asked to sign out, so
+     * the local session must not survive a failed remote cleanup.
+     */
     suspend fun clearFcmToken(token: String): AsyncValue<Unit> {
-        return when (
-            val result = authApi.clearFcmToken(ClearFcmTokenRequest(token = token))
-        ) {
-            is AuthResult.Success -> {
-                sessionRepository.clearSession()
-                AsyncValue.Success(Unit)
-            }
-            is AuthResult.Failure -> {
-                sessionRepository.clearSession()
-                AsyncValue.Success(Unit)
-            }
+        val user = (sessionRepository.data.first() as? SessionState.Authenticated)?.user
+        if (user != null) {
+            val deviceId = deviceIdProvider.deviceId()
+            deviceTokenStore.clear(email = user.email, deviceId = deviceId, token = token)
         }
+        sessionRepository.clearSession()
+        return AsyncValue.Success(Unit)
     }
 
     private fun <T> AsyncValue<T>.map(transform: (T) -> Unit): AsyncValue<Unit> = when (this) {

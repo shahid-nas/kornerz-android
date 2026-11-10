@@ -9,8 +9,8 @@ import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
 /**
- * Provides the [FirebaseMessaging] singleton and a no-op handle for the
- * [FcmTokenRegistrar] when the Firebase SDK is unavailable (tests).
+ * Provides the [FirebaseMessaging] singleton used by the
+ * [FcmTokenRegistrar] and the FCM service.
  */
 @Module
 @InstallIn(SingletonComponent::class)

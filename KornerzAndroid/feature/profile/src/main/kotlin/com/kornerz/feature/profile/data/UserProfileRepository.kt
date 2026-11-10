@@ -2,6 +2,8 @@ package com.kornerz.feature.profile.data
 
 import android.graphics.Bitmap
 import com.kornerz.core.model.User
+import com.kornerz.core.network.fcm.DeviceIdProvider
+import com.kornerz.core.network.fcm.DeviceTokenStore
 import com.kornerz.core.storage.session.SessionRepository
 import com.kornerz.core.storage.session.SessionState
 import com.kornerz.feature.profile.data.network.CloudFunctionsApi
@@ -36,6 +38,8 @@ class UserProfileRepository @Inject constructor(
     private val storageApi: UserStorageApi,
     private val cloudFunctionsApi: CloudFunctionsApi,
     private val sessionRepository: SessionRepository,
+    private val deviceTokenStore: DeviceTokenStore,
+    private val deviceIdProvider: DeviceIdProvider,
 ) {
 
     private val inMemoryUser = MutableStateFlow<User?>(null)
@@ -125,14 +129,33 @@ class UserProfileRepository @Inject constructor(
         withImage
     }
 
+    /**
+     * Registers the device's FCM token for the signed-in user.
+     *
+     * The write goes through [DeviceTokenStore] — the same writer the
+     * token-rotation handler uses — so the token always lands on
+     * `Users/{email}.tokenPush` plus the per-device `devices` subdocument.
+     */
     suspend fun updateFcmToken(userCode: String, token: String): Result<Unit> = runCatching {
         val email = requireEmailForUserCode(userCode)
-        userApi.updateFcmToken(email, token)
+        val deviceId = deviceIdProvider.deviceId()
+        deviceTokenStore.upsert(email = email, deviceId = deviceId, token = token).getOrThrow()
     }
 
-    suspend fun removeFcmToken(userCode: String): Result<Unit> = runCatching {
+    /**
+     * Removes the device's FCM token.
+     *
+     * The `tokenPush` field is only cleared when it still holds this
+     * device's token, so signing out of one device does not wipe a token
+     * another device on the same account has registered. When [token] is
+     * `null` the stored token is used as the comparison value, which
+     * still only clears a token that belongs to this device's user
+     * document.
+     */
+    suspend fun removeFcmToken(userCode: String, token: String? = null): Result<Unit> = runCatching {
         val email = requireEmailForUserCode(userCode)
-        userApi.removeFcmToken(email)
+        val deviceId = deviceIdProvider.deviceId()
+        deviceTokenStore.clear(email = email, deviceId = deviceId, token = token).getOrThrow()
     }
 
     suspend fun deleteAccount(): Result<Unit> = cloudFunctionsApi.deleteUserAccount()

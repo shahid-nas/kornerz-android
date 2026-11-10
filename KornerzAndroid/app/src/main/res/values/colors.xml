@@ -1,3 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!--
+        The brand purple, mirroring `KornerzPalette.PurpleLight`
+        (`core/ui/.../theme/Color.kt:20`). It is the accent color the
+        system tints the status-bar notification icon with, and the
+        small-icon color for the notification channel.
+    -->
+    <color name="kornerz_notification_accent">#FF5D47ED</color>
 </resources>

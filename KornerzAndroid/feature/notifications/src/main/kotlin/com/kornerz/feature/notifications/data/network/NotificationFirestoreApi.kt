@@ -3,6 +3,7 @@ package com.kornerz.feature.notifications.data.network
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.SetOptions
 import com.kornerz.core.model.UserNotification
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject
@@ -69,11 +70,58 @@ class NotificationFirestoreApi @Inject constructor(
         items to next
     }
 
+    /**
+     * Persists a notification delivered through an FCM **data** payload.
+     *
+     * The backend writes the `Notifications` collection for the
+     * notifications it originates. A push that originates *inside* the
+     * app — or one that arrives while the process was not alive — has no
+     * such document, so the app writes it itself. Without this the
+     * notification exists only in an in-memory cache and is lost the
+     * moment the process dies.
+     *
+     * The document is written under the notification's own id, so a
+     * repeated delivery of the same notification is idempotent rather
+     * than duplicated.
+     */
+    suspend fun persist(notification: UserNotification): Result<Unit> = runCatching {
+        require(notification.id.isNotBlank()) { "Cannot persist a notification without an id" }
+        require(!notification.userId.isNullOrBlank()) {
+            "Cannot persist a notification without a recipient"
+        }
+        firestore.collection(NOTIFICATIONS_COLLECTION)
+            .document(notification.id)
+            .set(
+                mapOf(
+                    FIELD_ID to notification.id,
+                    FIELD_TITLE to notification.title,
+                    FIELD_DESCRIPTION to notification.description,
+                    FIELD_CONTENT to notification.content,
+                    FIELD_IMAGE to notification.image,
+                    FIELD_DATE to notification.date
+                        ?.let { com.google.firebase.Timestamp(java.time.Instant.ofEpochMilli(it.toEpochMilliseconds())) },
+                    FIELD_REFERENCE to notification.reference,
+                    FIELD_TYPE to notification.type,
+                    FIELD_USER_ID to notification.userId,
+                    FIELD_COMMUNITY_ID to notification.communityId,
+                ),
+                SetOptions.merge(),
+            )
+            .await()
+    }
+
     private companion object {
         const val NOTIFICATIONS_COLLECTION = "Notifications"
+        const val FIELD_ID = "notificationId"
+        const val FIELD_TITLE = "notificationTitle"
+        const val FIELD_DESCRIPTION = "notificationDescription"
+        const val FIELD_CONTENT = "notificationContent"
+        const val FIELD_IMAGE = "notificationCommunityImage"
+        const val FIELD_DATE = "dateNotification"
+        const val FIELD_REFERENCE = "notificationReferenceId"
+        const val FIELD_TYPE = "notificationType"
         const val FIELD_USER_ID = "notificationUserId"
         const val FIELD_COMMUNITY_ID = "notificationCommunityId"
-        const val FIELD_DATE = "dateNotification"
         const val PAGE_SIZE = 10L
     }
 }

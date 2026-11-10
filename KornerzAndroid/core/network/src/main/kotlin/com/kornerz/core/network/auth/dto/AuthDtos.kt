@@ -47,18 +47,6 @@ data class ChangePasswordRequest(
 data class ChangePasswordResponse(val updated: Boolean)
 
 @Serializable
-data class UpdateFcmTokenRequest(val token: String)
-
-@Serializable
-data class UpdateFcmTokenResponse(val updated: Boolean)
-
-@Serializable
-data class ClearFcmTokenRequest(val token: String)
-
-@Serializable
-data class ClearFcmTokenResponse(val updated: Boolean)
-
-@Serializable
 data class GetUserResponse(
     val id: String,
     val email: String,

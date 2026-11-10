@@ -3,8 +3,6 @@ package com.kornerz.core.network.auth
 import com.kornerz.core.model.User
 import com.kornerz.core.network.auth.dto.ChangePasswordRequest
 import com.kornerz.core.network.auth.dto.ChangePasswordResponse
-import com.kornerz.core.network.auth.dto.ClearFcmTokenRequest
-import com.kornerz.core.network.auth.dto.ClearFcmTokenResponse
 import com.kornerz.core.network.auth.dto.ConfirmPasswordResetCodeRequest
 import com.kornerz.core.network.auth.dto.ConfirmPasswordResetCodeResponse
 import com.kornerz.core.network.auth.dto.LoginRequest
@@ -13,8 +11,6 @@ import com.kornerz.core.network.auth.dto.RequestPasswordResetRequest
 import com.kornerz.core.network.auth.dto.RequestPasswordResetResponse
 import com.kornerz.core.network.auth.dto.SignupRequest
 import com.kornerz.core.network.auth.dto.SignupResponse
-import com.kornerz.core.network.auth.dto.UpdateFcmTokenRequest
-import com.kornerz.core.network.auth.dto.UpdateFcmTokenResponse
 import kotlinx.datetime.Instant
 
 /**
@@ -45,14 +41,6 @@ interface AuthApi {
     suspend fun changePassword(
         request: ChangePasswordRequest,
     ): AuthResult<ChangePasswordResponse>
-
-    suspend fun updateFcmToken(
-        request: UpdateFcmTokenRequest,
-    ): AuthResult<UpdateFcmTokenResponse>
-
-    suspend fun clearFcmToken(
-        request: ClearFcmTokenRequest,
-    ): AuthResult<ClearFcmTokenResponse>
 
     /**
      * Fetches the canonical [User] document after a sign-up or login. The

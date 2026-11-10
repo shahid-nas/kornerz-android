@@ -5,8 +5,6 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.kornerz.core.model.User
 import com.kornerz.core.network.auth.dto.ChangePasswordRequest
 import com.kornerz.core.network.auth.dto.ChangePasswordResponse
-import com.kornerz.core.network.auth.dto.ClearFcmTokenRequest
-import com.kornerz.core.network.auth.dto.ClearFcmTokenResponse
 import com.kornerz.core.network.auth.dto.ConfirmPasswordResetCodeRequest
 import com.kornerz.core.network.auth.dto.ConfirmPasswordResetCodeResponse
 import com.kornerz.core.network.auth.dto.LoginRequest
@@ -15,8 +13,6 @@ import com.kornerz.core.network.auth.dto.RequestPasswordResetRequest
 import com.kornerz.core.network.auth.dto.RequestPasswordResetResponse
 import com.kornerz.core.network.auth.dto.SignupRequest
 import com.kornerz.core.network.auth.dto.SignupResponse
-import com.kornerz.core.network.auth.dto.UpdateFcmTokenRequest
-import com.kornerz.core.network.auth.dto.UpdateFcmTokenResponse
 import kotlinx.coroutines.tasks.await
 import kotlinx.datetime.Clock
 import kotlinx.datetime.DateTimeUnit
@@ -135,38 +131,6 @@ class FirestoreAuthApi @Inject constructor(
             .update("password", request.newPassword)
             .await()
         AuthResult.Success(ChangePasswordResponse(updated = true))
-    }.getOrElse { mapError(it) }
-
-    override suspend fun updateFcmToken(
-        request: UpdateFcmTokenRequest,
-    ): AuthResult<UpdateFcmTokenResponse> = runCatching {
-        val user = firebaseAuth.currentUser
-        if (user == null) {
-            // No anonymous Firebase Auth user yet (or it was cleared). The custom
-            // auth session in DataStore is independent — the FCM token rotation
-            // is a background nicety, not a session-expiry signal, so we report
-            // an Unknown error and let the caller decide what to do.
-            return AuthResult.Failure(
-                AuthError.Unknown("Skipped FCM token upload: no Firebase Auth user"),
-            )
-        }
-        firestore.collection("users")
-            .document(user.uid)
-            .update("tokenPush", request.token)
-            .await()
-        AuthResult.Success(UpdateFcmTokenResponse(updated = true))
-    }.getOrElse { mapError(it) }
-
-    override suspend fun clearFcmToken(
-        request: ClearFcmTokenRequest,
-    ): AuthResult<ClearFcmTokenResponse> = runCatching {
-        val user = firebaseAuth.currentUser
-            ?: return AuthResult.Success(ClearFcmTokenResponse(updated = false))
-        firestore.collection("users")
-            .document(user.uid)
-            .update("tokenPush", null)
-            .await()
-        AuthResult.Success(ClearFcmTokenResponse(updated = true))
     }.getOrElse { mapError(it) }
 
     override suspend fun fetchUser(userId: String): AuthResult<User> = runCatching {

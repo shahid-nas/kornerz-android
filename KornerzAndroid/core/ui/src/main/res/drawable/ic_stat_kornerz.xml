@@ -2,9 +2,15 @@
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="24"
-    android:viewportHeight="24"
-    android:tint="?attr/colorControlNormal">
+    android:viewportHeight="24">
+    <!--
+        A status-bar icon is drawn as an alpha-only mask: the system
+        tints it with the notification accent color. The drawable must
+        therefore be solid white with no `android:tint` — a theme
+        attribute (`?attr/colorControlNormal`) resolves to a dark
+        color under a dark theme, which renders the icon invisible.
+    -->
     <path
-        android:fillColor="@android:color/white"
+        android:fillColor="#FFFFFFFF"
         android:pathData="M12,2L3,7l9,5 9,-5 -9,-5zM3,17l9,5 9,-5M3,12l9,5 9,-5" />
 </vector>

@@ -139,6 +139,14 @@ fun AppShell(
 
     val applicationContext = LocalContext.current.applicationContext
 
+    // P6 — the `POST_NOTIFICATIONS` runtime permission (Android 13+).
+    // Without it the system silently drops every FCM notification, so
+    // the prompt is raised here: the shell is only composed for a
+    // signed-in user, which is the context where notifications make
+    // sense. A denial is not fatal — the notifications screen still
+    // lists the notifications the backend recorded.
+    RequestPostNotificationsPermission()
+
     // P10 — the shell owns the deep-link lifecycle. The manager is a
     // process-scoped singleton (it has to be: a cold-start deep link
     // arrives before the shell exists), so it is reached through the
@@ -581,11 +589,11 @@ fun AppShell(
                         )
                     },
                     onOpenForumComment = { forumId ->
-                        // Forum Detail is excluded from the Android
-                        // port, so this link is not routable — it goes
-                        // through the one resolver, which reports it as
-                        // not routable and surfaces the shared failure
-                        // alert.
+                        // Forum Detail is excluded from the Android port,
+                        // so this link resolves to the **owning
+                        // community's** Korner detail — the forum's
+                        // community is looked up through the `Loop`
+                        // document, and the community is then opened.
                         routeDeepLink(DeepLink.NewComment(forumId = forumId))
                     },
                     onOpenDeeplink = { deeplink -> routeDeepLink(deeplink) },

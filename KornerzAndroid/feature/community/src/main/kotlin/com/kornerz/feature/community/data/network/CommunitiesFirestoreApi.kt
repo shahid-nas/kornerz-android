@@ -78,7 +78,7 @@ class CommunitiesFirestoreApi @Inject constructor(
                 .flatMap { batch ->
                     val snapshot = collection
                         .whereIn(FIELD_COMMUNITY_ID_IOS, batch)
-//                        .whereEqualTo(FIELD_COMMUNITY_APPROVED, true)
+                        .whereEqualTo(FIELD_COMMUNITY_APPROVED, true)
                         .get()
                         .await()
                     snapshot.documents.mapNotNull { it.toCommunityOrNull() }

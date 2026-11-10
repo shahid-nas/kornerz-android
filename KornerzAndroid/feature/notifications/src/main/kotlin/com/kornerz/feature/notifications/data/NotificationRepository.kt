@@ -14,6 +14,13 @@ import javax.inject.Singleton
  * [NotificationFirestoreApi] and exposes an in-memory
  * `recentDataMessages` cache for FCM data-payload injection
  * (P6, task 4.3 — `notifications-push-display` spec).
+ *
+ * **The in-memory cache is a cache, not the record.** Every pushed
+ * data message is also written to the `Notifications` collection, so a
+ * notification that arrives while the process was dead — or that is
+ * delivered while the app is in the background, where FCM handles the
+ * display itself and never calls `onMessageReceived` — is still in the
+ * list the next time the screen is opened.
  */
 @Singleton
 class NotificationRepository @Inject constructor(
@@ -41,8 +48,17 @@ class NotificationRepository @Inject constructor(
         cursor = null
     }
 
-    fun pushDataMessage(notification: UserNotification) {
-        _recentDataMessages.value = listOf(notification) + _recentDataMessages.value
+    /**
+     * Records a notification delivered through an FCM data payload.
+     *
+     * The notification is written to the `Notifications` collection
+     * **and** pushed into the in-memory cache, so it shows up in the
+     * list immediately and survives a process death.
+     */
+    suspend fun pushDataMessage(notification: UserNotification) {
+        api.persist(notification)
+        _recentDataMessages.value =
+            listOf(notification) + _recentDataMessages.value.filterNot { it.id == notification.id }
     }
 
     fun clearRecentDataMessages() {

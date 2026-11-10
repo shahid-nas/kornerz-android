@@ -57,6 +57,23 @@
             </intent-filter>
         </activity>
 
+        <!--
+            The FCM service. `exported="false"` because the service is
+            only ever addressed by the Firebase SDK, which runs in the
+            same process.
+
+            The three `com.google.firebase.messaging.default_*`
+            meta-data entries are what Firebase uses when it displays a
+            notification **itself** — i.e. when the app is in the
+            background or killed and `onMessageReceived` is never
+            called. Without them the system falls back to a default
+            channel that has neither the app's sound nor the app's
+            importance, and the notification is shown in a channel the
+            user cannot configure.
+
+            `default_notification_channel_id` must match the channel
+            `MainActivity.onCreate` creates — `KornerzFcmService.CHANNEL_ID`.
+        -->
         <service
             android:name=".fcm.KornerzFcmService"
             android:exported="false">
@@ -64,6 +81,16 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
         </service>
+
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="@string/kornerz_notification_channel_id" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_kornerz" />
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_color"
+            android:resource="@color/kornerz_notification_accent" />
 
         <!--
             The create-forum wizard's camera capture writes the frame

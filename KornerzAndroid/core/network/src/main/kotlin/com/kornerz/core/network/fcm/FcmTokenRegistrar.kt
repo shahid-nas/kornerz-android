@@ -3,7 +3,7 @@ package com.kornerz.core.network.fcm
 import android.util.Log
 import com.google.firebase.messaging.FirebaseMessaging
 import com.kornerz.core.model.AsyncValue
-import com.kornerz.core.network.AuthRepository
+import com.kornerz.core.model.User
 import com.kornerz.core.storage.session.SessionRepository
 import com.kornerz.core.storage.session.SessionState
 import kotlinx.coroutines.CoroutineScope
@@ -22,17 +22,26 @@ import javax.inject.Singleton
 
 /**
  * Silently registers the device's Firebase Cloud Messaging token against
- * the signed-in user document. No POST_NOTIFICATIONS prompt is shown in
- * P1 — that lands in P6 when notifications UI ships.
+ * the signed-in user document.
  *
  * Lifecycle:
  * 1. `registerOnStart()` is called from `Application.onCreate()` and tries
- *    to read a token (with 3 retries on `null`); if a session is
- *    restored from DataStore, the token is uploaded via [AuthRepository].
- * 2. [observeToken] is collected while the user is signed in; rotation
- *    triggers another `updateFcmToken` call.
- * 3. `clearOnLogout()` is called by `AuthRepository.logout()` (via the
- *    `clearFcmToken` Cloud Function) to stop server-side targeting.
+ *    to read a token (with 3 retries on `null`); if a session is restored
+ *    from DataStore, the token is uploaded via [DeviceTokenStore].
+ * 2. [observeRotation] is collected while the app is running; a rotation
+ *    triggers another upload.
+ * 3. `clearOnLogout()` is called by the shell's logout handler to stop
+ *    server-side targeting.
+ *
+ * **The token is always uploaded to the same place the iOS app writes
+ * it** — `Users/{email}.tokenPush` — through [DeviceTokenStore]. The
+ * earlier split, where the startup path wrote `users/{firebaseAuthUid}`
+ * and the rotation path wrote `Users/{email}`, meant the backend could
+ * not find the token for a device whose startup upload had won the race.
+ *
+ * **A token that rotates while the user is signed out is not dropped.**
+ * The pending token is held in [pendingToken] and uploaded by the next
+ * `registerOnStart()` / rotation upload once a session exists.
  *
  * `@Singleton` scope (architecture §2.6).
  */
@@ -40,7 +49,8 @@ import javax.inject.Singleton
 class FcmTokenRegistrar @Inject constructor(
     private val messaging: FirebaseMessaging,
     private val sessionRepository: SessionRepository,
-    private val authRepository: AuthRepository,
+    private val deviceTokenStore: DeviceTokenStore,
+    private val deviceIdProvider: DeviceIdProvider,
 ) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -48,6 +58,12 @@ class FcmTokenRegistrar @Inject constructor(
     val state: SharedFlow<AsyncValue<String?>> = _state.asSharedFlow()
 
     private var lastUploadedToken: String? = null
+
+    /**
+     * The most recent token that could not be uploaded because no
+     * session was active. Uploaded on the next opportunity.
+     */
+    private var pendingToken: String? = null
 
     /**
      * Hooks into `Application.onCreate()`. Awaits the first FCM token
@@ -62,10 +78,7 @@ class FcmTokenRegistrar @Inject constructor(
                 return@launch
             }
             _state.tryEmit(AsyncValue.Success(token))
-            if (sessionRepository.data.first() is SessionState.Authenticated) {
-                lastUploadedToken = token
-                authRepository.updateFcmToken(token)
-            }
+            upload(token)
         }
         scope.launch { observeRotation() }
     }
@@ -80,25 +93,58 @@ class FcmTokenRegistrar @Inject constructor(
             .addOnSuccessListener { next ->
                 if (next.isNullOrEmpty() || next == lastUploadedToken) return@addOnSuccessListener
                 lastUploadedToken = next
-                scope.launch {
-                    if (sessionRepository.data.first() is SessionState.Authenticated) {
-                        authRepository.updateFcmToken(next)
-                    }
-                }
+                scope.launch { upload(next) }
             }
             .addOnFailureListener { error ->
                 Log.w(TAG, "FCM token rotation failed", error)
             }
     }
 
-    /** Called from `AuthRepository.clearFcmToken(...)` via the UI layer. */
+    /** Called from the shell's logout handler. */
     suspend fun clearOnLogout() {
-        val token = lastUploadedToken ?: fetchTokenWithRetry()
-        if (token != null) {
-            authRepository.clearFcmToken(token)
+        val token = lastUploadedToken ?: pendingToken ?: fetchTokenWithRetry()
+        val user = authenticatedUser()
+        if (token != null && user != null) {
+            val deviceId = deviceIdProvider.deviceId()
+            deviceTokenStore.clear(user.email, deviceId, token)
+                .onFailure { Log.w(TAG, "Could not clear the FCM token", it) }
         }
         lastUploadedToken = null
+        pendingToken = null
     }
+
+    /**
+     * Uploads [token] for the signed-in user.
+     *
+     * When no session is active the token is **kept** in [pendingToken]
+     * rather than discarded: a token that rotates before the user signs
+     * in still has to reach the backend once they do.
+     */
+    private suspend fun upload(token: String) {
+        val user = authenticatedUser()
+        if (user == null) {
+            pendingToken = token
+            Log.i(TAG, "No active session; holding the FCM token until sign-in")
+            return
+        }
+        val deviceId = deviceIdProvider.deviceId()
+        deviceTokenStore.upsert(email = user.email, deviceId = deviceId, token = token)
+            .onSuccess {
+                lastUploadedToken = token
+                pendingToken = null
+            }
+            .onFailure { error ->
+                Log.w(TAG, "Could not upload the FCM token", error)
+                pendingToken = token
+            }
+    }
+
+    /**
+     * The signed-in user, or `null` when the session is not (or not yet)
+     * authenticated.
+     */
+    private suspend fun authenticatedUser(): User? =
+        (sessionRepository.data.first() as? SessionState.Authenticated)?.user
 
     private suspend fun fetchTokenWithRetry(): String? {
         repeat(MAX_ATTEMPTS) { attempt ->

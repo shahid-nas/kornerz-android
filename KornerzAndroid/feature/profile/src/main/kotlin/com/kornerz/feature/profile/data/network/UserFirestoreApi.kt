@@ -75,20 +75,6 @@ class UserFirestoreApi @Inject constructor(
             .await()
     }
 
-    suspend fun updateFcmToken(email: String, token: String): Result<Unit> = runCatching {
-        firestore.collection(USERS_COLLECTION)
-            .document(email)
-            .set(mapOf(FIELD_TOKEN_PUSH to token), SetOptions.merge())
-            .await()
-    }
-
-    suspend fun removeFcmToken(email: String): Result<Unit> = runCatching {
-        firestore.collection(USERS_COLLECTION)
-            .document(email)
-            .set(mapOf(FIELD_TOKEN_PUSH to null), SetOptions.merge())
-            .await()
-    }
-
     /**
      * Writes the `firebaseImageUrl` + `firebaseThumbnailUrl` + legacy
      * `image` + `thumbnail` fields in one batch (mirrors iOS

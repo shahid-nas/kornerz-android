@@ -108,11 +108,13 @@ enum class UserNotificationDeeplinkType {
  * | `newLoop` | reference + community id | [DeepLink.NewLoop] |
  * | `loopComment` | reference | [DeepLink.NewLoopComment] |
  *
- * **This deliberately does not port iOS's `newComment` bug.** iOS
- * `Models/UserNotification.swift:65–67` returns `.videoCall(...)` for
- * the `.newComment` case; that branch is unreachable in iOS because
- * `NotificationsViewModel.notificationOpened` short-circuits
- * `.newComment` before calling `deeplink(with:)`. Android resolves
+ * **The `newComment` bug is fixed on both platforms.** iOS
+ * `Models/UserNotification.swift:65–67` returned `.videoCall(...)` for
+ * the `.newComment` case — a copy-paste error that sent the user to the
+ * community's call screen instead of the comment's forum. The branch was
+ * unreachable in iOS because `NotificationsViewModel.notificationOpened`
+ * short-circuits `.newComment` before calling `deeplink(with:)`, but the
+ * wrong mapping is now gone from iOS too. Android resolves
  * `.newComment` to [DeepLink.NewComment].
  *
  * The community id is read from [Community.communityId], falling back
