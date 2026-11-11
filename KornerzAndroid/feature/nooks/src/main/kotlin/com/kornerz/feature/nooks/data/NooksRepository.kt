@@ -4,8 +4,10 @@ import android.util.Log
 import com.google.firebase.firestore.DocumentSnapshot
 import com.kornerz.core.model.Korner
 import com.kornerz.core.model.NookDetail
+import com.kornerz.core.model.SessionInfo
 import com.kornerz.core.model.UpcomingNookItem
 import com.kornerz.core.network.nooks.NookFirestoreApi
+import com.kornerz.core.network.nooks.SessionInfoApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import javax.inject.Inject
@@ -25,6 +27,7 @@ import javax.inject.Singleton
 @Singleton
 class NooksRepository @Inject constructor(
     private val api: NookFirestoreApi,
+    private val sessionInfoApi: SessionInfoApi,
 ) {
 
     /**
@@ -109,10 +112,25 @@ class NooksRepository @Inject constructor(
                     if (sessionId != null) korner.copy(sessionId = sessionId) else korner
                 }
 
+                // iOS parity — the live card shows who is in the room
+                // and how many spots are left. iOS fetches
+                // `getSessionsInfo` for every community session id
+                // alongside the community page
+                // (`NooksTabViewModel.fetchKornerz()`, line 112) and
+                // attaches the roster to the wrapper.
+                val sessionsById = sessionInfoApi.fetchSessionsInfo(
+                    enriched.mapNotNull { it.sessionId },
+                )
+
+                val withSessionInfo = enriched.map { korner ->
+                    val info = korner.sessionId?.let { sessionsById[it] }
+                    korner.copy(sessionInfo = info)
+                }
+
                 emit(
                     Result.success(
                         NookFirestoreApi.KornerPage(
-                            items = enriched,
+                            items = withSessionInfo,
                             lastSnapshot = page.lastSnapshot,
                             hasMore = page.hasMore,
                         ),
@@ -128,6 +146,12 @@ class NooksRepository @Inject constructor(
      * joins each with its parent Korner and publisher. Mirrors iOS
      * `fetchUpcommingNooks()` end-to-end (the 3 parallel `async let`
      * joins are implemented inside [NookFirestoreApi.joinUpcoming]).
+     *
+     * The live roster of each nook's room is fetched from the
+     * `getSessionsInfo` Cloud Function so the card can show the real
+     * "X spots left" count — iOS does the same in parallel with the
+     * user / community / session-info joins
+     * (`NooksTabViewModel.fetchUpcommingNooks()`, lines 218-224).
      */
     fun fetchUpcomingPage(
         after: DocumentSnapshot?,
@@ -139,10 +163,20 @@ class NooksRepository @Inject constructor(
                 val joined = api.joinUpcoming(page.items).getOrElse {
                     return@flow emit(Result.failure(it))
                 }
+                val sessionsById = sessionInfoApi.fetchSessionsInfo(
+                    joined.mapNotNull { it.nook.sessionId },
+                )
+                val withSessionInfo = joined.map { item ->
+                    val info = item.nook.sessionId?.let { sessionsById[it] }
+                    item.copy(
+                        nook = item.nook.copy(sessionInfo = info),
+                        sessionInfo = info,
+                    )
+                }
                 emit(
                     Result.success(
                         NooksUpcomingPage(
-                            items = joined,
+                            items = withSessionInfo,
                             lastSnapshot = page.lastSnapshot,
                             hasMore = page.hasMore,
                         ),

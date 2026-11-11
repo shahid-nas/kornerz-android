@@ -43,6 +43,10 @@ import com.kornerz.core.ui.theme.Satoshi
  *  - Right: 80dp `TriangleImageView` with the top-right corner
  *    clipped (iOS `type: .topRight`) showing the parent Korner
  *    cover.
+ *
+ * The "X spots left" line reflects the live roster of the nook's room,
+ * resolved from the `getSessionsInfo` Cloud Function — iOS renders
+ * `"\(9 - (nook.sessionInfo?.connections ?? 0)) spots left"`.
  */
 @Composable
 fun ScheduledNookCard(
@@ -112,7 +116,7 @@ fun ScheduledNookCard(
             )
             Spacer(modifier = Modifier.size(4.dp))
             Text(
-                text = "9 spots left",
+                text = "${MAX_SESSION_SPOTS - (nook.sessionInfo?.connections ?: 0)} spots left",
                 color = Color.White,
                 style = TextStyle(
                     fontFamily = Satoshi,

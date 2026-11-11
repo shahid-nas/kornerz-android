@@ -29,12 +29,15 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kornerz.core.model.Korner
 import com.kornerz.core.model.Nook
+import com.kornerz.core.model.SessionInfo
 import com.kornerz.core.ui.R
 import com.kornerz.core.ui.components.KornerzMiniCapsuleButton
 import com.kornerz.core.ui.components.KornerzTriangleImage
 import com.kornerz.core.ui.components.TriangleCorner
 import com.kornerz.core.ui.components.header.KornerzSectionTabHeader
+import com.kornerz.core.ui.components.nooks.MAX_SESSION_SPOTS
 import com.kornerz.core.ui.components.nooks.formatNookStartDate
 import com.kornerz.core.ui.theme.KornerzTheme
 import com.kornerz.core.ui.theme.Spacing
@@ -76,6 +79,7 @@ import kotlinx.datetime.Instant
  */
 @Composable
 fun KornerDetailNooksSection(
+    korner: Korner,
     nooks: List<Nook>,
     selectedTab: KornerDetailNookTab,
     onTabSelected: (KornerDetailNookTab) -> Unit,
@@ -105,7 +109,13 @@ fun KornerDetailNooksSection(
                         // iOS always renders the card, even when the
                         // Korner has no live session — it then shows
                         // the "no user in session" message.
-                        nook = liveNook,
+                        //
+                        // `korner.sessionInfo` is resolved by the
+                        // repository from the **live nook's** room
+                        // (falling back to the Korner's community
+                        // room) — the same room this card's "Join"
+                        // capsule opens.
+                        sessionInfo = korner.sessionInfo,
                         color = themeColor,
                         onJoin = { onJoinClick(liveNook?.id.orEmpty()) },
                         modifier = Modifier
@@ -155,16 +165,28 @@ fun KornerDetailNooksSection(
 /**
  * The live-nook card. 1:1 port of iOS `KornerCurrentNookView`
  * (`SwiftUI/Dashboard/Korner/Sections/KornerCurrentNookView.swift`):
- * a rounded 12-dp block in the theme colour with the session title on
+ * a rounded 12-dp block in the theme colour with the session line on
  * top, the Join capsule and the "spots left" counter underneath.
+ *
+ * **The headline is the session line, not the nook title.** iOS renders
+ * `session?.nookTitle` — who is in the room — and falls back to the
+ * "No one is attending the session. Be the first to join!" copy when
+ * the Korner has no session. The "LIVE" badge and the "X spots left"
+ * counter both appear only while the room actually has people in it
+ * (`connections > 0`).
+ *
+ * The session is the **Korner's own** room (`korner.sessionID` via
+ * `sessionsInfo`), not the live nook's — iOS
+ * `KornerDetailViewModel.currentSessionInfo`.
  */
 @Composable
 private fun KornerCurrentNookCard(
-    nook: Nook?,
+    sessionInfo: SessionInfo?,
     color: Color,
     onJoin: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val connections = sessionInfo?.connections ?: 0
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
@@ -173,7 +195,7 @@ private fun KornerCurrentNookCard(
     ) {
         Row(verticalAlignment = Alignment.Top) {
             Text(
-                text = nook?.title ?: "No user in session",
+                text = sessionInfo?.nookTitle ?: SessionInfo.NO_USER_IN_SESSION_MSG,
                 style = MaterialTheme.typography.labelMedium.copy(
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Normal,
@@ -182,7 +204,7 @@ private fun KornerCurrentNookCard(
                 maxLines = 1,
             )
             Spacer(modifier = Modifier.weight(1f))
-            if (nook?.isLive == true) {
+            if (connections > 0) {
                 LiveBadge()
             }
         }
@@ -190,14 +212,16 @@ private fun KornerCurrentNookCard(
         Row(verticalAlignment = Alignment.CenterVertically) {
             KornerzMiniCapsuleButton(text = "Join", onClick = onJoin)
             Spacer(modifier = Modifier.weight(1f))
-            Text(
-                text = "9 spots left",
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Normal,
-                ),
-                color = Color.White,
-            )
+            if (connections > 0) {
+                Text(
+                    text = "${MAX_SESSION_SPOTS - connections} spots left",
+                    style = MaterialTheme.typography.labelMedium.copy(
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Normal,
+                    ),
+                    color = Color.White,
+                )
+            }
         }
     }
 }
@@ -207,6 +231,12 @@ private fun KornerCurrentNookCard(
  * (`SwiftUI/Dashboard/Korner/Sections/KornerNookView.swift`): the
  * publisher thumbnail and the Join capsule on the leading edge, the
  * start date, the title and the session line on the trailing edge.
+ *
+ * The session line is `session?.nookTitle` — who is in that nook's
+ * room — falling back to the "No one is attending the session. Be the
+ * first to join!" copy. The "LIVE" badge appears only while the room
+ * actually has people in it (`connections > 0`), not merely because
+ * the event is flagged live.
  *
  * Note the card has **no** parent-Korner cover column — that column
  * belongs to the Nooks tab's `ScheduledNookView`, not to the Korner
@@ -220,6 +250,7 @@ private fun KornerNookCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val connections = nook.sessionInfo?.connections ?: 0
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
@@ -251,7 +282,7 @@ private fun KornerNookCard(
                     maxLines = 1,
                 )
                 Spacer(modifier = Modifier.weight(1f))
-                if (nook.isLive) {
+                if (connections > 0) {
                     LiveBadge()
                 }
             }
@@ -265,7 +296,7 @@ private fun KornerNookCard(
                 maxLines = 2,
             )
             Text(
-                text = "No user in session",
+                text = nook.sessionInfo?.nookTitle ?: SessionInfo.NO_USER_IN_SESSION_MSG,
                 style = MaterialTheme.typography.labelMedium.copy(
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Normal,
@@ -316,6 +347,15 @@ private val KORNER_DETAIL_CARD_HEIGHT = 100.dp
 private fun KornerDetailNooksSectionCurrentPreview() {
     KornerzTheme(darkTheme = false) {
         KornerDetailNooksSection(
+            korner = Korner(
+                id = "c1",
+                name = "Design Korner",
+                themeColor = "#E27D5A",
+                sessionInfo = SessionInfo(
+                    connections = 2,
+                    attendeeNames = listOf("Ada", "Bob"),
+                ),
+            ),
             nooks = listOf(
                 Nook(
                     id = "n1",
@@ -339,6 +379,11 @@ private fun KornerDetailNooksSectionCurrentPreview() {
 private fun KornerDetailNooksSectionUpcomingPreview() {
     KornerzTheme(darkTheme = false) {
         KornerDetailNooksSection(
+            korner = Korner(
+                id = "c1",
+                name = "Design Korner",
+                themeColor = "#E27D5A",
+            ),
             nooks = listOf(
                 Nook(
                     id = "n1",

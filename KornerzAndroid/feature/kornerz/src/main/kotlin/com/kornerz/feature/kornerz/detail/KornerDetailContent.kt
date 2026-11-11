@@ -93,6 +93,7 @@ fun KornerDetailContent(
         )
         SectionGap()
         KornerDetailNooksSection(
+            korner = korner,
             nooks = detail.nooks,
             selectedTab = state.selectedNookTab,
             onTabSelected = { onEvent(KornerDetailEvent.NookTabSelected(it)) },

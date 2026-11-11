@@ -11,6 +11,9 @@ import kotlinx.serialization.Serializable
  *    `Events.{nook.publisherId}` → `Users.{userCode}`
  *  - [parentKorner] — the parent Korner, looked up by
  *    `Events.{nook.communityId}` → `Communities.{communityId}` field
+ *  - [sessionInfo] — the live roster of the nook's room, resolved from
+ *    the `getSessionsInfo` Cloud Function. Drives the "X spots left"
+ *    line. Mirrors iOS `NookCommunityWrapper.sessionInfo`.
  *
  * Publisher is optional because iOS silently drops events whose
  * publisher is missing (see `NookCommunityWrapper` build loop).
@@ -20,4 +23,5 @@ data class UpcomingNookItem(
     val nook: Nook,
     val publisher: User?,
     val parentKorner: Korner,
+    val sessionInfo: SessionInfo? = null,
 )

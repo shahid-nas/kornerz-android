@@ -29,4 +29,10 @@ data class Korner(
     // Firestore document id). P9 uses this to join the Korner with
     // the matching live `Events/{nookId}` document's `sessionId`.
     @SerialName("communityId") val communityId: String? = null,
+    // Live-session roster for the Korner's active room, resolved from
+    // the `getSessionsInfo` Cloud Function. `null` when the Korner has
+    // no session or the lookup failed — the card then falls back to the
+    // iOS "nobody is attending" copy. Mirrors iOS
+    // `KornerWrapper.sessionInfo`.
+    val sessionInfo: SessionInfo? = null,
 )

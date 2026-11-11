@@ -416,6 +416,7 @@ fun SignupInterestsStep(
     BrandedSignupScaffold(
         title = "Pick your Kornerz. Which topics are you interested in?",
         onBack = onBack,
+        imageHeader = true,
         bottomBar = {
             Column(
                 modifier = Modifier

@@ -37,4 +37,8 @@ data class Nook(
     @SerialName("eventType") val type: String? = null,
     @SerialName("sessionId") val sessionId: String? = null,
     @SerialName("publisherId") val publisherId: String? = null,
+    // Live-session roster for the nook's room, resolved from the
+    // `getSessionsInfo` Cloud Function. Mirrors iOS
+    // `NookCommunityWrapper.sessionInfo`.
+    val sessionInfo: SessionInfo? = null,
 )

@@ -78,6 +78,12 @@ private val DisabledFg = Color(0xFF9E9EAE)
  * When [bottomBar] is provided it is pinned to the bottom of the screen
  * — mirrors iOS `VStack { ScrollView { … }; actionView }` so the CTA
  * stays visible even when the content scrolls past the fold.
+ *
+ * When [imageHeader] is true the title is lifted out of the scroll area
+ * and rendered inside a fixed-height header built like the Privacy
+ * Policy screen: the `bg-clouds-light` artwork as the back layer with
+ * the title laid on top of it. The scrolling body then only holds the
+ * step content.
  */
 @Composable
 fun BrandedSignupScaffold(
@@ -85,6 +91,7 @@ fun BrandedSignupScaffold(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     showCloudHeader: Boolean = true,
+    imageHeader: Boolean = false,
     bottomBar: @Composable (() -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
@@ -93,7 +100,27 @@ fun BrandedSignupScaffold(
             .fillMaxSize()
             .background(Aqua),
     ) {
-        if (bottomBar == null) {
+        if (imageHeader) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                BrandedSignupImageHeader(title)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 32.dp, vertical = 32.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        content()
+                    }
+                }
+                bottomBar?.invoke()
+            }
+        } else if (bottomBar == null) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -150,6 +177,41 @@ fun BrandedSignupScaffold(
                     .padding(8.dp),
             )
         }
+    }
+}
+
+/**
+ * Fixed-height header used by the "Pick your Kornerz" step. Mirrors the
+ * Privacy Policy screen header: a compact Box with the `bg-clouds-light`
+ * artwork as the back layer and the step title laid on top of it,
+ * bottom-aligned inside the header.
+ */
+@Composable
+private fun BrandedSignupImageHeader(title: String) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(140.dp),
+        contentAlignment = Alignment.BottomCenter,
+    ) {
+        androidx.compose.foundation.Image(
+            painter = painterResource(
+                com.kornerz.feature.auth.R.drawable.bg_clouds_light,
+            ),
+            contentDescription = null,
+            modifier = Modifier.fillMaxWidth(),
+            contentScale = ContentScale.Crop,
+        )
+        Text(
+            text = title,
+            color = Color.White,
+            fontFamily = Satoshi,
+            fontWeight = FontWeight.Medium,
+            fontSize = 24.sp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 32.dp, end = 32.dp, bottom = 12.dp),
+        )
     }
 }
 

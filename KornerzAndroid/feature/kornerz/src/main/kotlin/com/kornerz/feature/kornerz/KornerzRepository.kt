@@ -1,5 +1,6 @@
 package com.kornerz.feature.kornerz
 
+import android.util.Log
 import com.kornerz.core.model.Korner
 import com.kornerz.core.model.KornerDetail
 import com.kornerz.core.model.Loop
@@ -7,11 +8,13 @@ import com.kornerz.core.model.User
 import com.kornerz.core.network.fellow.FellowRepository
 import com.kornerz.core.network.kornerz.KornerFirestoreApi
 import com.kornerz.core.network.loops.LoopFirestoreApi
+import com.kornerz.core.network.nooks.SessionInfoApi
 import com.kornerz.core.storage.session.SessionRepository
 import com.kornerz.core.storage.session.SessionState
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
+import kotlinx.datetime.Clock
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -35,6 +38,7 @@ class KornerzRepository @Inject constructor(
     private val loopApi: LoopFirestoreApi,
     private val fellowRepository: FellowRepository,
     private val sessionRepository: SessionRepository,
+    private val sessionInfoApi: SessionInfoApi,
 ) {
 
     /**
@@ -87,13 +91,103 @@ class KornerzRepository @Inject constructor(
      * community's public `communityId` field — the Home tab's "Your
      * Kornerz" carousel carries the latter, the Kornerz tab the former.
      * The API resolves both.
+     *
+     * The live roster of every session on the screen is resolved from
+     * the `getSessionsInfo` Cloud Function — one batched call for the
+     * Korner's own session plus every nook's session, exactly as iOS
+     * does (`KornerDetailViewModel.sessionIds` + `fetchSessionsInfo`).
      */
     fun fetchKornerDetail(kornerId: String): Flow<Result<KornerDetail>> = flow {
         val userCode = sessionRepository.data.first()
             .let { it as? SessionState.Authenticated }
             ?.user?.userCode
             ?.takeIf { it.isNotBlank() }
-        emit(api.fetchKornerDetail(kornerId, userCode))
+        val result = api.fetchKornerDetail(kornerId, userCode)
+        val detail = result.getOrElse { error ->
+            emit(Result.failure(error))
+            return@flow
+        }
+        emit(Result.success(detail.withSessionInfo()))
+    }
+
+/**
+     * Attaches the live-session roster to the Korner and to every nook.
+     *
+     * iOS resolves the rosters in a single batched `getSessionsInfo`
+     * call addressed by `sessionIds` — the Korner's own `sessionID`
+     * plus every upcoming nook's `sessionID`
+     * (`KornerDetailViewModel.sessionIds`, lines 57-63). The "Current"
+     * card then reads `sessionsInfo?[korner.sessionID]` and each
+     * upcoming card reads `sessionsInfo?[nook.sessionID]`.
+     *
+     * **The "Current" card reads the room it will actually join.**
+     * iOS resolves the Current card's session from the *community* room
+     * (`korner.sessionID` → `communitySessionId`), which is a different
+     * room from a live nook's own `sessionId` — and the community room
+     * only exists while a community call is running. Reading it alone
+     * left the card permanently empty, with no attendee line and no
+     * "spots left" counter, even when a nook in the same Korner had a
+     * live room with people in it.
+     *
+     * So the Current card resolves the **live nook's** session first and
+     * falls back to the community room — the same precedence the Nooks
+     * tab applies to its live card, and the same room the screen's
+     * "Join" capsule opens (`KornerDetailViewModel.joinCall`).
+     *
+     * A failed lookup leaves every roster `null`; the cards fall back
+     * to the "no one is attending" copy, the way iOS does when
+     * `sessionsInfo` is nil.
+     */
+    private suspend fun KornerDetail.withSessionInfo(): KornerDetail {
+        val currentSessionId = currentSessionId()
+        val sessionIds = buildList {
+            currentSessionId?.let(::add)
+            korner.sessionId?.takeIf { it.isNotBlank() }?.let(::add)
+            nooks.mapNotNull { it.sessionId }.forEach(::add)
+        }.distinct()
+        if (sessionIds.isEmpty()) return this
+
+        val sessionsById = sessionInfoApi.fetchSessionsInfo(sessionIds)
+        Log.i(
+            TAG,
+            "Korner detail sessions: requested=${sessionIds.size} " +
+                "current='${currentSessionId}' korner='${korner.sessionId}' " +
+                "resolved=${sessionsById.size} " +
+                "currentConnections=${currentSessionId?.let { sessionsById[it]?.connections }}",
+        )
+        return copy(
+            korner = korner.copy(
+                sessionInfo = currentSessionId?.let { sessionsById[it] },
+            ),
+            nooks = nooks.map { nook ->
+                nook.copy(sessionInfo = nook.sessionId?.let { sessionsById[it] })
+            },
+        )
+    }
+
+    /**
+     * The session the "Current" card shows: the live nook's own room,
+     * falling back to the Korner's community room.
+     *
+     * **Liveness is decided by the start date, not by `eventType`.** No
+     * Event in the production Firestore carries `eventType == "live"` —
+     * the types in use are `open`, `closed`, `payed` and `free` — so the
+     * `Nook.isLive` flag (which tests `eventType == "live"`) is false for
+     * every community event. The Nooks tab already treats a **started**
+     * event as live for exactly this reason
+     * (`NookFirestoreApi.fetchLiveEvents`: `eventDateInit <= now`), and
+     * that is the same test used here.
+     *
+     * A nook with no session id has no room to show, so it is skipped.
+     */
+    private fun KornerDetail.currentSessionId(): String? {
+        val now = Clock.System.now()
+        val liveNook = nooks.firstOrNull { nook ->
+            !nook.sessionId.isNullOrBlank() &&
+                nook.eventDateInit?.let { it <= now } == true
+        }
+        return liveNook?.sessionId?.takeIf { it.isNotBlank() }
+            ?: korner.sessionId?.takeIf { it.isNotBlank() }
     }
 
     /**
@@ -157,4 +251,8 @@ class KornerzRepository @Inject constructor(
         ?.user
         ?.userCode
         ?.takeIf { it.isNotBlank() }
+
+    private companion object {
+        const val TAG = "KornerDetailSessions"
+    }
 }

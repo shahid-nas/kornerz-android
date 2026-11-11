@@ -24,9 +24,18 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.kornerz.core.model.Korner
 import com.kornerz.core.model.Nook
+import com.kornerz.core.model.SessionInfo
 import com.kornerz.core.ui.components.TriangleClippedShape
 import com.kornerz.core.ui.components.TriangleCorner
 import com.kornerz.core.ui.theme.Satoshi
+
+/**
+ * Maximum participants in a nook session. Mirrors the iOS
+ * `session_spots_left` copy, which renders
+ * `"\(9 - (sessionInfo?.connections ?? 0)) spots left"` — the room
+ * capacity is 9.
+ */
+const val MAX_SESSION_SPOTS = 9
 
 /**
  * Live-tab row — 1:1 port of iOS `NookView.swift` (live card):
@@ -38,11 +47,16 @@ import com.kornerz.core.ui.theme.Satoshi
  *  - Right: 80dp `TriangleImageView` with the top-right corner
  *    clipped (iOS `type: .topRight`).
  *
+ * The second line shows **who is in the session** — iOS renders
+ * `SessionInfo.nookTitle` (`"<Ada, Bob> are attending the session"`,
+ * or the "No one is attending the session. Be the first to join!"
+ * copy when the room is empty). The roster comes from the
+ * `getSessionsInfo` Cloud Function and is attached to
+ * [korner.sessionInfo] by the Nooks repository.
+ *
  * The "Join" button is a static capsule (no navigation wired — the
  * join action requires the `joinVideoCall` flow that lives in the
- * P9 video calling phase). Spots-left text is also static for the
- * same reason — Android does not yet model the iOS REST
- * `ApiService.getSessionsInfoAsync` payload.
+ * P9 video calling phase).
  */
 @Composable
 fun LiveKornerCard(
@@ -52,6 +66,7 @@ fun LiveKornerCard(
     onJoin: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    val sessionInfo = korner.sessionInfo
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -80,8 +95,7 @@ fun LiveKornerCard(
                 maxLines = 1,
             )
             Text(
-                text = korner.description?.takeIf { it.isNotBlank() }
-                    ?: "Live session in progress",
+                text = sessionInfo?.nookTitle ?: SessionInfo.NO_USER_IN_SESSION_MSG,
                 color = Color.White,
                 style = androidx.compose.ui.text.TextStyle(
                     fontFamily = Satoshi,
@@ -99,7 +113,7 @@ fun LiveKornerCard(
                     JoinLabel()
                 }
                 Text(
-                    text = "9 spots left",
+                    text = "${MAX_SESSION_SPOTS - (sessionInfo?.connections ?: 0)} spots left",
                     color = Color.White,
                     style = androidx.compose.ui.text.TextStyle(
                         fontFamily = Satoshi,
@@ -199,7 +213,7 @@ fun LiveKornerCard(
                     JoinLabel()
                 }
                 Text(
-                    text = "9 spots left",
+                    text = "${MAX_SESSION_SPOTS - (nook.sessionInfo?.connections ?: 0)} spots left",
                     color = Color.White,
                     style = androidx.compose.ui.text.TextStyle(
                         fontWeight = FontWeight.Bold,
