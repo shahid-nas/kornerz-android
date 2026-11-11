@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The "Upcoming Nooks" section header icon.
+
+  Ported from the iOS asset
+  `kornerz/Kornerz/Resources/Assets.xcassets/Home/nook-icon.imageset/
+  nook-icon.svg`. The SVG's `viewBox` is `0 0 36 36`; the artwork is
+  carried over verbatim — the filled `#EBE1D3` (Sand) hexagon badge and
+  the two `#2E2F3E` (Charcoal) stroked bookmark glyphs. The SVG's
+  `stroke-miterlimit="10"` becomes `android:strokeLineJoin="miter"` and
+  the default `stroke-width` of 1 user unit stays 1.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="36dp"
+    android:height="36dp"
+    android:viewportWidth="36"
+    android:viewportHeight="36">
+
+    <!-- Sand badge -->
+    <path
+        android:fillColor="#EBE1D3"
+        android:pathData="M27.1425 14.1425L20.9997 7.99966C18.7907 5.79071 15.2093 5.79071 13.0003 7.99966L6.85753 14.1425C4.64857 16.3514 4.64857 19.9328 6.85753 22.1418L13.0003 28.2846C15.2093 30.4936 18.7907 30.4936 20.9997 28.2846L27.1425 22.1418C29.3514 19.9328 29.3514 16.3514 27.1425 14.1425Z" />
+
+    <!-- Left bookmark -->
+    <path
+        android:strokeColor="#2E2F3E"
+        android:strokeWidth="1"
+        android:strokeLineJoin="miter"
+        android:fillColor="#00000000"
+        android:pathData="M12.4057 31.8667L12.4057 4.13333C12.4057 2.95513 11.4506 2 10.2724 2L3.13333 2C1.95513 2 1 2.95513 1 4.13333L1 31.8667C1 33.0449 1.95513 34 3.13333 34H10.2724C11.4506 34 12.4057 33.0449 12.4057 31.8667Z" />
+
+    <!-- Right bookmark -->
+    <path
+        android:strokeColor="#2E2F3E"
+        android:strokeWidth="1"
+        android:strokeLineJoin="miter"
+        android:fillColor="#00000000"
+        android:pathData="M30.0819 33.1695L16.5505 19.6381C15.88 18.9676 15.88 17.8857 16.5505 17.2152L30.0819 3.67615C31.1638 2.59425 33.0076 3.36377 33.0076 4.88758V31.9581C33.0076 33.4819 31.1638 34.2514 30.0819 33.1695Z" />
+
+</vector>

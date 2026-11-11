@@ -23,6 +23,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kornerz.core.model.Nook
+import com.kornerz.core.ui.R
 import com.kornerz.core.ui.components.HomeSectionHeader
 import com.kornerz.core.ui.components.HomeShimmerPlaceholder
 import com.kornerz.core.ui.components.KornerzErrorState
@@ -46,6 +47,7 @@ fun UpcomingNooksContent(
     Column(modifier = modifier.fillMaxWidth()) {
         HomeSectionHeader(
             title = "Upcoming Nooks",
+            iconRes = R.drawable.ic_home_section_nook,
             modifier = Modifier.padding(horizontal = Spacing.space8, vertical = Spacing.space2),
         )
         LazyRow(
@@ -93,6 +95,7 @@ fun UpcomingNooksShimmerSection() {
     Column(modifier = Modifier.fillMaxWidth()) {
         HomeSectionHeader(
             title = "Upcoming Nooks",
+            iconRes = R.drawable.ic_home_section_nook,
             modifier = Modifier.padding(horizontal = Spacing.space8, vertical = Spacing.space2),
         )
         HomeShimmerPlaceholder(modifier = Modifier.padding(Spacing.space8)) {
@@ -111,6 +114,7 @@ fun UpcomingNooksRetrySection(onRetry: () -> Unit) {
     Column(modifier = Modifier.fillMaxWidth()) {
         HomeSectionHeader(
             title = "Upcoming Nooks",
+            iconRes = R.drawable.ic_home_section_nook,
             modifier = Modifier.padding(horizontal = Spacing.space8, vertical = Spacing.space2),
         )
         KornerzErrorState(message = "Upcoming nooks failed to load", onRetry = onRetry)

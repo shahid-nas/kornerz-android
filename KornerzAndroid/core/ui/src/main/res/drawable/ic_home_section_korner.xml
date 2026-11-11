@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The "Your Kornerz" section header icon.
+
+  Ported from the iOS asset
+  `kornerz/Kornerz/Resources/Assets.xcassets/Home/korner-icon.imageset/
+  korner-icon.svg`. The SVG's `viewBox` is `0 0 36 36`; the artwork is
+  carried over verbatim — the filled `#EBE1D3` (Sand) hexagon badge and
+  the four `#2E2F3E` (Charcoal) stroked pinwheel quadrants. The SVG's
+  `stroke-miterlimit="10"` becomes `android:strokeLineJoin="miter"` and
+  the default `stroke-width` of 1 user unit stays 1.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="36dp"
+    android:height="36dp"
+    android:viewportWidth="36"
+    android:viewportHeight="36">
+
+    <!-- Sand badge -->
+    <path
+        android:fillColor="#EBE1D3"
+        android:pathData="M28.1425 14.1425L21.9997 7.99966C19.7907 5.79071 16.2093 5.79071 14.0003 7.99966L7.85753 14.1425C5.64857 16.3514 5.64857 19.9328 7.85753 22.1418L14.0003 28.2846C16.2093 30.4936 19.7907 30.4936 21.9997 28.2846L28.1425 22.1418C30.3514 19.9328 30.3514 16.3514 28.1425 14.1425Z" />
+
+    <!-- Lower-left quadrant -->
+    <path
+        android:strokeColor="#2E2F3E"
+        android:strokeWidth="1"
+        android:strokeLineJoin="miter"
+        android:fillColor="#00000000"
+        android:pathData="M15.2089 20.1265H2.23448C1.14008 20.1265 0.592884 21.4513 1.36328 22.2217L14.3377 35.1961C15.1153 35.9737 16.4329 35.4193 16.4329 34.3249V21.3505C16.4329 20.6737 15.8857 20.1193 15.2017 20.1193L15.2089 20.1265Z" />
+
+    <!-- Upper-left quadrant -->
+    <path
+        android:strokeColor="#2E2F3E"
+        android:strokeWidth="1"
+        android:strokeLineJoin="miter"
+        android:fillColor="#00000000"
+        android:pathData="M14.3377 1.36326L1.36328 14.3449C0.585685 15.1225 1.14008 16.4401 2.23448 16.4401H15.2089C15.8857 16.4401 16.4401 15.8929 16.4401 15.2089V2.23446C16.4401 1.14006 15.1153 0.592861 14.3449 1.36326H14.3377Z" />
+
+    <!-- Upper-right quadrant -->
+    <path
+        android:strokeColor="#2E2F3E"
+        android:strokeWidth="1"
+        android:strokeLineJoin="miter"
+        android:fillColor="#00000000"
+        android:pathData="M21.3577 16.4401H34.3321C35.4265 16.4401 35.9737 15.1153 35.2033 14.3449L22.2217 1.36328C21.4441 0.585685 20.1265 1.14008 20.1265 2.23448V15.2089C20.1265 15.8857 20.6737 16.4401 21.3577 16.4401Z" />
+
+    <!-- Lower-right quadrant -->
+    <path
+        android:strokeColor="#2E2F3E"
+        android:strokeWidth="1"
+        android:strokeLineJoin="miter"
+        android:fillColor="#00000000"
+        android:pathData="M20.1265 21.3577V34.3321C20.1265 35.4265 21.4513 35.9737 22.2217 35.2033L35.1961 22.2289C35.9737 21.4513 35.4193 20.1337 34.3249 20.1337H21.3505C20.6737 20.1337 20.1193 20.6809 20.1193 21.3649L20.1265 21.3577Z" />
+
+</vector>

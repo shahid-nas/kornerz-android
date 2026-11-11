@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
 import com.kornerz.core.model.Loop
+import com.kornerz.core.ui.R
 import com.kornerz.core.ui.components.HomeSectionHeader
 import com.kornerz.core.ui.components.HomeShimmerPlaceholder
 import com.kornerz.core.ui.components.KornerzDiamondImage
@@ -51,6 +52,7 @@ fun LoopOfDayContent(
     Column(modifier = modifier.fillMaxWidth()) {
         HomeSectionHeader(
             title = "Loop of the day",
+            iconRes = R.drawable.ic_home_section_loop,
             modifier = Modifier.padding(horizontal = Spacing.space8, vertical = Spacing.space2),
         )
         LoopItem(
@@ -190,6 +192,7 @@ fun LoopOfDayShimmerSection() {
     Column(modifier = Modifier.fillMaxWidth()) {
         HomeSectionHeader(
             title = "Loop of the day",
+            iconRes = R.drawable.ic_home_section_loop,
             modifier = Modifier.padding(horizontal = Spacing.space8, vertical = Spacing.space2),
         )
         HomeShimmerPlaceholder(modifier = Modifier.padding(Spacing.space8)) {
@@ -208,6 +211,7 @@ fun LoopOfDayRetrySection(onRetry: () -> Unit) {
     Column(modifier = Modifier.fillMaxWidth()) {
         HomeSectionHeader(
             title = "Loop of the day",
+            iconRes = R.drawable.ic_home_section_loop,
             modifier = Modifier.padding(horizontal = Spacing.space8, vertical = Spacing.space2),
         )
         KornerzErrorState(message = "Loop of the day failed to load", onRetry = onRetry)

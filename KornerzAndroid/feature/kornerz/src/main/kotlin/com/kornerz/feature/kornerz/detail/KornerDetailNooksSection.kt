@@ -16,8 +16,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,6 +30,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kornerz.core.model.Nook
+import com.kornerz.core.ui.R
 import com.kornerz.core.ui.components.KornerzMiniCapsuleButton
 import com.kornerz.core.ui.components.KornerzTriangleImage
 import com.kornerz.core.ui.components.TriangleCorner
@@ -88,7 +87,7 @@ fun KornerDetailNooksSection(
     Column(modifier = modifier.fillMaxWidth()) {
         KornerzSectionTabHeader(
             title = "Nooks",
-            icon = Icons.Filled.Groups,
+            iconRes = R.drawable.ic_home_section_nook,
             tabs = KornerDetailNookTab.entries.map { it.title },
             selectedTabIndex = KornerDetailNookTab.entries.indexOf(selectedTab),
             onTabSelected = { index -> onTabSelected(KornerDetailNookTab.entries[index]) },

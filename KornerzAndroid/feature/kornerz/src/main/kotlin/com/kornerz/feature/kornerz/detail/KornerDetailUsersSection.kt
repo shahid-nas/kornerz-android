@@ -12,8 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Diamond
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,6 +24,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kornerz.core.model.User
+import com.kornerz.core.ui.R
 import com.kornerz.core.ui.components.KornerzDiamondImage
 import com.kornerz.core.ui.components.KornerzTriangleImage
 import com.kornerz.core.ui.components.TriangleCorner
@@ -66,7 +65,7 @@ fun KornerDetailUsersSection(
     Column(modifier = modifier.fillMaxWidth()) {
         KornerzSectionTabHeader(
             title = selectedTab.title,
-            icon = Icons.Filled.Diamond,
+            iconRes = R.drawable.ic_kornerstones,
             tabs = KornerDetailUserTab.entries.map { it.title },
             selectedTabIndex = KornerDetailUserTab.entries.indexOf(selectedTab),
             onTabSelected = { index -> onTabSelected(KornerDetailUserTab.entries[index]) },

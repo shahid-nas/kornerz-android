@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The "Loop of the day" section header icon.
+
+  Ported from the iOS asset
+  `kornerz/Kornerz/Resources/Assets.xcassets/Home/loop-icon.imageset/
+  loop-icon.svg`. The SVG's `viewBox` is `0 0 36 36`; the artwork is
+  carried over verbatim — the filled `#EBE1D3` (Sand) hexagon badge and
+  the `#2E2F3E` (Charcoal) stroked hexagonal loop glyph. The SVG's
+  `stroke-miterlimit="10"` becomes `android:strokeLineJoin="miter"` and
+  the default `stroke-width` of 1 user unit stays 1.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="36dp"
+    android:height="36dp"
+    android:viewportWidth="36"
+    android:viewportHeight="36">
+
+    <!-- Sand badge -->
+    <path
+        android:fillColor="#EBE1D3"
+        android:pathData="M28.1425 14.1425L21.9997 7.99966C19.7907 5.79071 16.2093 5.79071 14.0003 7.99966L7.85753 14.1425C5.64857 16.3514 5.64857 19.9328 7.85753 22.1418L14.0003 28.2846C16.2093 30.4936 19.7907 30.4936 21.9997 28.2846L28.1425 22.1418C30.3514 19.9328 30.3514 16.3514 28.1425 14.1425Z" />
+
+    <!-- Upper-left half of the loop glyph -->
+    <path
+        android:strokeColor="#2E2F3E"
+        android:strokeWidth="1"
+        android:strokeLineJoin="miter"
+        android:fillColor="#00000000"
+        android:pathData="M18.2536 18.3043H3.44323C1.26883 18.3043 0.181633 15.6678 1.72243 14.1293L14.092 1.72001C15.6256 0.181486 18.2536 1.27218 18.2536 3.44633V14.3677" />
+
+    <!-- Lower-right half of the loop glyph -->
+    <path
+        android:strokeColor="#2E2F3E"
+        android:strokeWidth="1"
+        android:strokeLineJoin="miter"
+        android:fillColor="#00000000"
+        android:pathData="M18.3112 18.2538H33.1144C35.2888 18.2538 36.376 20.8902 34.8352 22.4287L22.4656 34.8381C20.932 36.3766 18.304 35.2859 18.304 33.1117V22.5732" />
+
+</vector>

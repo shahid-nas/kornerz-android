@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import com.kornerz.core.model.Community
+import com.kornerz.core.ui.R
 import com.kornerz.core.ui.components.HomeSectionHeader
 import com.kornerz.core.ui.components.KornerzCarouselShimmer
 import com.kornerz.core.ui.components.KornerzErrorState
@@ -28,6 +29,7 @@ fun YourKornerzContent(
     Column(modifier = modifier.fillMaxWidth()) {
         HomeSectionHeader(
             title = "Your Kornerz",
+            iconRes = R.drawable.ic_home_section_korner,
             modifier = Modifier.padding(horizontal = Spacing.space8, vertical = Spacing.space2),
         )
         KornerzCarousel(
@@ -44,6 +46,7 @@ fun YourKornerzShimmerSection() {
     Column(modifier = Modifier.fillMaxWidth()) {
         HomeSectionHeader(
             title = "Your Kornerz",
+            iconRes = R.drawable.ic_home_section_korner,
             modifier = Modifier.padding(horizontal = Spacing.space8, vertical = Spacing.space2),
         )
         KornerzCarouselShimmer()
@@ -55,6 +58,7 @@ fun YourKornerzRetrySection(onRetry: () -> Unit) {
     Column(modifier = Modifier.fillMaxWidth()) {
         HomeSectionHeader(
             title = "Your Kornerz",
+            iconRes = R.drawable.ic_home_section_korner,
             modifier = Modifier.padding(horizontal = Spacing.space8, vertical = Spacing.space2),
         )
         KornerzErrorState(message = "Your Kornerz failed to load", onRetry = onRetry)

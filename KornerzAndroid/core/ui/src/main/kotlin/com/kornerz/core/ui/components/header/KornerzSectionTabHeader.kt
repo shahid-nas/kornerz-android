@@ -1,5 +1,7 @@
 package com.kornerz.core.ui.components.header
 
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,10 +22,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kornerz.core.ui.R
 import com.kornerz.core.ui.theme.KornerzColors
 import com.kornerz.core.ui.theme.KornerzTheme
 import com.kornerz.core.ui.theme.Spacing
@@ -62,6 +66,14 @@ import com.kornerz.core.ui.theme.Spacing
  * label — iOS behaviour, and the tabs stay on screen.
  *
  * Modifier is the last parameter (architecture §4).
+ *
+ * The iOS artwork is multi-colour (a Sand `#EBE1D3` badge behind a
+ * Charcoal `#2E2F3E` glyph), so it is supplied via the `@DrawableRes`
+ * overload and painted with `Image`, **not** `Icon`. `Icon` applies a
+ * `ColorFilter` tint across the whole painted output — defaulting to
+ * `LocalContentColor` — which collapses the two-colour artwork into a
+ * single flat colour and turns the pale Sand badge into a solid dark
+ * blob. `Image` never tints.
  */
 @Composable
 fun KornerzSectionTabHeader(
@@ -70,7 +82,76 @@ fun KornerzSectionTabHeader(
     selectedTabIndex: Int,
     onTabSelected: (Int) -> Unit,
     modifier: Modifier = Modifier,
-    icon: ImageVector? = null,
+) {
+    SectionTabHeaderRow(
+        title = title,
+        tabs = tabs,
+        selectedTabIndex = selectedTabIndex,
+        onTabSelected = onTabSelected,
+        modifier = modifier,
+        iconContent = null,
+    )
+}
+
+@Composable
+fun KornerzSectionTabHeader(
+    title: String,
+    tabs: List<String>,
+    selectedTabIndex: Int,
+    onTabSelected: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    @DrawableRes iconRes: Int,
+) {
+    SectionTabHeaderRow(
+        title = title,
+        tabs = tabs,
+        selectedTabIndex = selectedTabIndex,
+        onTabSelected = onTabSelected,
+        modifier = modifier,
+        iconContent = {
+            Image(
+                painter = painterResource(id = iconRes),
+                contentDescription = null,
+                modifier = Modifier.size(SectionTabHeaderIconSize),
+            )
+        },
+    )
+}
+
+@Composable
+fun KornerzSectionTabHeader(
+    title: String,
+    tabs: List<String>,
+    selectedTabIndex: Int,
+    onTabSelected: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    icon: ImageVector,
+) {
+    SectionTabHeaderRow(
+        title = title,
+        tabs = tabs,
+        selectedTabIndex = selectedTabIndex,
+        onTabSelected = onTabSelected,
+        modifier = modifier,
+        iconContent = {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.size(SectionTabHeaderIconSize),
+            )
+        },
+    )
+}
+
+@Composable
+private fun SectionTabHeaderRow(
+    title: String,
+    tabs: List<String>,
+    selectedTabIndex: Int,
+    onTabSelected: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    iconContent: (@Composable () -> Unit)? = null,
 ) {
     Row(
         modifier = modifier
@@ -79,13 +160,8 @@ fun KornerzSectionTabHeader(
         verticalAlignment = Alignment.Bottom,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            if (icon != null) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.size(35.dp),
-                )
+            if (iconContent != null) {
+                iconContent()
                 Spacer(modifier = Modifier.width(Spacing.space2))
             }
             Text(
@@ -136,6 +212,8 @@ fun KornerzSectionTabHeader(
     }
 }
 
+private val SectionTabHeaderIconSize = 35.dp
+
 @Preview(showBackground = true, name = "Section tab header — light")
 @Composable
 private fun KornerzSectionTabHeaderLightPreview() {
@@ -146,6 +224,7 @@ private fun KornerzSectionTabHeaderLightPreview() {
             selectedTabIndex = 0,
             onTabSelected = {},
             modifier = Modifier.padding(vertical = Spacing.space8),
+            iconRes = R.drawable.ic_home_section_nook,
         )
     }
 }
@@ -160,6 +239,7 @@ private fun KornerzSectionTabHeaderDarkPreview() {
             selectedTabIndex = 1,
             onTabSelected = {},
             modifier = Modifier.padding(vertical = Spacing.space8),
+            iconRes = R.drawable.ic_kornerstones,
         )
     }
 }

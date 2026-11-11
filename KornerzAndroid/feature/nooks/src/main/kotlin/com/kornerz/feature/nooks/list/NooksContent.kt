@@ -22,6 +22,7 @@ import com.kornerz.core.model.Korner
 import com.kornerz.core.model.Nook
 import com.kornerz.core.model.UpcomingNookItem
 import com.kornerz.core.model.User
+import com.kornerz.core.ui.R
 import com.kornerz.core.ui.components.HomeShimmerPlaceholder
 import com.kornerz.core.ui.components.KornerzEmptyState
 import com.kornerz.core.ui.components.KornerzErrorState
@@ -74,6 +75,7 @@ fun NooksContent(
             title = state.selectedType.titleNooks,
             selectedType = state.selectedType,
             onSelect = { type -> onEvent(NooksEvent.SelectType(type)) },
+            leadingIconRes = R.drawable.ic_home_section_nook,
         )
         // The section's `verticalScroll` is the single scrollable
         // surface inside the parent `PullToRefreshBox`, so the

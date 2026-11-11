@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The "Kornerstones" section header icon on the Korner detail screen.
+
+  Ported from the iOS asset
+  `kornerz/Kornerz/Resources/Assets.xcassets/Home/kornerstones.imageset/
+  kornerstones.svg`, used by iOS `KornerUsersView.swift:30-32` via
+  `TabHeaderView(image: .init("kornerstones"), ...)`.
+
+  The SVG's `viewBox` is `0 0 26 29` — narrower and taller than the
+  36x36 section icons — so the artwork is carried over verbatim into a
+  matching viewport. The filled `#EBE1D3` (Sand) hexagon badge and the
+  `#2E2F3E` (Charcoal) stroked stone/arc glyph are unchanged; the SVG's
+  `stroke-miterlimit="10"` becomes `android:strokeLineJoin="miter"` and
+  the default `stroke-width` of 1 user unit stays 1.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="26dp"
+    android:height="29dp"
+    android:viewportWidth="26"
+    android:viewportHeight="29">
+
+    <!-- Sand badge -->
+    <path
+        android:fillColor="#EBE1D3"
+        android:pathData="M20.9006 12.8258L15.9892 7.91442C14.2231 6.14829 11.3596 6.14829 9.59352 7.91442L4.68213 12.8258C2.916 14.5919 2.916 17.4554 4.68213 19.2215L9.59352 24.1329C11.3596 25.8991 14.2231 25.8991 15.9892 24.1329L20.9006 19.2215C22.6668 17.4554 22.6668 14.5919 20.9006 12.8258Z" />
+
+    <!-- Stone head -->
+    <path
+        android:strokeColor="#2E2F3E"
+        android:strokeWidth="1"
+        android:strokeLineJoin="miter"
+        android:fillColor="#00000000"
+        android:pathData="M16.3891 10.1965C18.2662 8.31933 18.2662 5.27589 16.3891 3.39875C14.5119 1.52161 11.4685 1.52161 9.59136 3.39875C7.71422 5.27589 7.71422 8.31933 9.59136 10.1965C11.4685 12.0736 14.5119 12.0736 16.3891 10.1965Z" />
+
+    <!-- Shoulders / base arc -->
+    <path
+        android:strokeColor="#2E2F3E"
+        android:strokeWidth="1"
+        android:strokeLineJoin="miter"
+        android:fillColor="#00000000"
+        android:pathData="M2.24932 21.0647L7.69728 15.6167C10.6241 12.6899 15.3759 12.6899 18.3027 15.6167L23.7507 21.0647C26.4199 23.7339 24.529 28.2994 20.7527 28.2994H5.24734C1.47104 28.2994 -0.419853 23.7339 2.24932 21.0647Z" />
+
+</vector>

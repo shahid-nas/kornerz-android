@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.kornerz.core.model.Loop
+import com.kornerz.core.ui.R
 import com.kornerz.core.ui.components.HomeSectionHeader
 import com.kornerz.core.ui.components.HomeShimmerPlaceholder
 import com.kornerz.core.ui.components.KornerzErrorState

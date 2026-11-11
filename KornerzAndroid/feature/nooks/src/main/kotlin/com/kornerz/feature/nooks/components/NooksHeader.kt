@@ -1,5 +1,7 @@
 package com.kornerz.feature.nooks.components
 
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -20,9 +22,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.kornerz.core.ui.R
 import com.kornerz.core.ui.theme.KornerzColors
 import com.kornerz.core.ui.theme.KornerzTheme
 import com.kornerz.feature.nooks.list.NooksType
@@ -35,6 +39,12 @@ import com.kornerz.feature.nooks.list.NooksType
  *    below is the Android mirror) + leading icon
  *  - right-aligned Live/Upcoming toggle with an underline on the
  *    selected tab (the iOS underline color is `AppColor.CEBE1D3`).
+ *
+ * iOS passes the `nook-icon` artwork as the leading image, so the
+ * tab's header carries the same badge-and-glyph mark the Home tab's
+ * "Upcoming Nooks" and the Korner detail's "Nooks" section use. Use
+ * the `leadingIconRes` overload for that artwork — see its KDoc for
+ * why it must not be painted through `Icon`.
  *
  * Tapping a tab forwards [onSelect] with the new [NooksType] — the
  * screen-level VM updates `state.selectedType` and
@@ -56,19 +66,74 @@ fun NooksHeader(
     modifier: Modifier = Modifier,
     leadingIcon: ImageVector? = null,
 ) {
+    NooksHeaderRow(
+        title = title,
+        selectedType = selectedType,
+        onSelect = onSelect,
+        modifier = modifier,
+        iconContent = leadingIcon?.let { icon ->
+            {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(NooksHeaderIconSize),
+                    tint = MaterialTheme.colorScheme.onBackground,
+                )
+            }
+        },
+    )
+}
+
+/**
+ * Drawable-resource overload, matching iOS `TabHeaderView(image:
+ * .init("nook-icon"), ...)` (`NooksTabView.swift:51`).
+ *
+ * The iOS artwork is multi-colour (a Sand `#EBE1D3` badge behind a
+ * Charcoal `#2E2F3E` glyph), so it is painted with `Image`, **not**
+ * `Icon`. `Icon` applies a `ColorFilter` tint across the whole painted
+ * output — defaulting to `LocalContentColor` — which collapses the
+ * two-colour artwork into a single flat colour and turns the pale Sand
+ * badge into a solid dark blob. `Image` never tints.
+ */
+@Composable
+fun NooksHeader(
+    title: String,
+    selectedType: NooksType,
+    onSelect: (NooksType) -> Unit,
+    modifier: Modifier = Modifier,
+    @DrawableRes leadingIconRes: Int,
+) {
+    NooksHeaderRow(
+        title = title,
+        selectedType = selectedType,
+        onSelect = onSelect,
+        modifier = modifier,
+        iconContent = {
+            Image(
+                painter = painterResource(id = leadingIconRes),
+                contentDescription = null,
+                modifier = Modifier.size(NooksHeaderIconSize),
+            )
+        },
+    )
+}
+
+@Composable
+private fun NooksHeaderRow(
+    title: String,
+    selectedType: NooksType,
+    onSelect: (NooksType) -> Unit,
+    modifier: Modifier = Modifier,
+    iconContent: (@Composable () -> Unit)? = null,
+) {
     Row(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.Bottom,
     ) {
-        if (leadingIcon != null) {
-            Icon(
-                imageVector = leadingIcon,
-                contentDescription = null,
-                modifier = Modifier.size(28.dp),
-                tint = MaterialTheme.colorScheme.onBackground,
-            )
+        if (iconContent != null) {
+            iconContent()
             Spacer(modifier = Modifier.size(8.dp))
         }
         Text(
@@ -82,6 +147,9 @@ fun NooksHeader(
         NooksTypeToggle(selected = selectedType, onSelect = onSelect)
     }
 }
+
+/** iOS `TabHeaderView.titleContent` renders the icon in a 35x35 frame. */
+private val NooksHeaderIconSize = 35.dp
 
 /**
  * Mirrors iOS `TabHeaderView.tabView`: `HStack(alignment: .top,
@@ -152,6 +220,7 @@ private fun NooksHeaderLivePreview() {
             title = NooksType.Live.titleNooks,
             selectedType = NooksType.Live,
             onSelect = {},
+            leadingIconRes = R.drawable.ic_home_section_nook,
         )
     }
 }
@@ -164,6 +233,7 @@ private fun NooksHeaderUpcomingPreview() {
             title = NooksType.Upcoming.titleNooks,
             selectedType = NooksType.Upcoming,
             onSelect = {},
+            leadingIconRes = R.drawable.ic_home_section_nook,
         )
     }
 }
