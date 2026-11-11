@@ -9,9 +9,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationManagerCompat
 import com.kornerz.core.model.DeepLink
+import com.kornerz.core.network.community.CommunitiesRepository
 import com.kornerz.core.network.videocall.VonageSessionController
 import com.kornerz.core.storage.country.CountryCodesRepository
-import com.kornerz.core.storage.interests.KornerInterestRepository
 import com.kornerz.core.ui.device.DeviceFormFactor
 import com.kornerz.core.ui.theme.KornerzTheme
 import com.kornerz.feature.shell.deeplink.DeepLinkManager
@@ -33,7 +33,7 @@ class MainActivity : ComponentActivity() {
     @InstallIn(SingletonComponent::class)
     interface RepositoryEntryPoint {
         fun countryCodesRepository(): CountryCodesRepository
-        fun kornerInterestRepository(): KornerInterestRepository
+        fun communitiesRepository(): CommunitiesRepository
     }
 
     /**
@@ -109,7 +109,7 @@ class MainActivity : ComponentActivity() {
             RepositoryEntryPoint::class.java,
         )
         val countryRepository = entry.countryCodesRepository()
-        val interestsRepository = entry.kornerInterestRepository()
+        val communitiesRepository = entry.communitiesRepository()
 
         deepLinkManager = EntryPointAccessors.fromApplication(
             applicationContext,
@@ -125,7 +125,7 @@ class MainActivity : ComponentActivity() {
             KornerzTheme {
                 AppRoot(
                     countryRepository = countryRepository,
-                    interestsRepository = interestsRepository,
+                    communitiesRepository = communitiesRepository,
                 )
             }
         }

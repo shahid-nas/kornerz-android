@@ -45,9 +45,8 @@ import androidx.compose.ui.unit.sp
 import com.kornerz.core.model.AsyncValue
 import com.kornerz.core.model.Community
 import com.kornerz.core.model.Country
-import com.kornerz.core.model.KornerInterest
+import com.kornerz.core.network.community.CommunitiesRepository
 import com.kornerz.core.storage.country.CountryCodesRepository
-import com.kornerz.core.storage.interests.KornerInterestRepository
 import com.kornerz.core.ui.components.AsyncValueContent
 import com.kornerz.core.ui.components.KornerzSquareTile
 import com.kornerz.core.ui.components.KornerzSquareTileDefaults
@@ -404,11 +403,12 @@ fun SignupInterestsStep(
     state: SignupWizardState,
     onEvent: (SignupEvent) -> Unit,
     onBack: () -> Unit,
-    repository: KornerInterestRepository,
+    repository: CommunitiesRepository,
 ) {
-    var loaded by remember { mutableStateOf<AsyncValue<List<KornerInterest>>>(AsyncValue.Loading) }
-    LaunchedEffect(Unit) {
-        loaded = repository.getAll().fold(
+    var loaded by remember { mutableStateOf<AsyncValue<List<Community>>>(AsyncValue.Loading) }
+    LaunchedEffect(repository) {
+        loaded = AsyncValue.Loading
+        loaded = runCatching { repository.fetchApprovedCommunities() }.fold(
             onSuccess = { AsyncValue.Success(it) },
             onFailure = { AsyncValue.Error(it) },
         )
@@ -444,11 +444,11 @@ fun SignupInterestsStep(
         AsyncValueContent(
             value = loaded,
             onRetry = { loaded = AsyncValue.Loading },
-        ) { interests ->
+        ) { communities ->
             KornerzCardGrid(
-                items = interests,
-                isSelected = { state.interests.contains(it.slug) },
-                onToggle = { onEvent(SignupEvent.InterestToggled(it.slug)) },
+                items = communities,
+                isSelected = { state.interests.contains(it.name) },
+                onToggle = { onEvent(SignupEvent.InterestToggled(it.name)) },
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -457,9 +457,9 @@ fun SignupInterestsStep(
 
 @Composable
 private fun KornerzCardGrid(
-    items: List<KornerInterest>,
-    isSelected: (KornerInterest) -> Boolean,
-    onToggle: (KornerInterest) -> Unit,
+    items: List<Community>,
+    isSelected: (Community) -> Boolean,
+    onToggle: (Community) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val gap = 16.dp
@@ -482,10 +482,7 @@ private fun KornerzCardGrid(
                         val globalIndex = items.indexOf(item)
                         val selected = isSelected(item)
                         KornerzSquareTile(
-                            community = Community(
-                                id = item.slug,
-                                name = item.title,
-                            ),
+                            community = item,
                             index = globalIndex,
                             onClick = { onToggle(item) },
                             modifier = Modifier.kornerzSelectionStroke(selected),
@@ -532,6 +529,21 @@ fun SignupPhotoStep(
                 onTap = { picker.launch(pickImageOnly) },
             )
         }
+
+        // The picked image is copied into the app's cache so the upload
+        // can still read it on the final step. A failed copy leaves the
+        // step without a photo, so the error is shown here.
+        state.photoError?.let { message ->
+            Text(
+                text = message,
+                color = Color.White,
+                fontFamily = Satoshi,
+                fontWeight = FontWeight.Normal,
+                fontSize = 14.sp,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(16.dp),

@@ -109,7 +109,15 @@ class ShellViewModel @Inject constructor(
             // `premium-gate` spec names for `reset()`, so the next login
             // re-evaluates from scratch.
             premiumGate.reset()
+            // The FCM cleanup runs before the session is torn down: it
+            // needs the still-authenticated user to find the token to
+            // remove on the backend.
             fcmTokenRegistrar.clearOnLogout()
+            // Tear the persisted session down. Without this the
+            // DataStore record survives the navigation, the cold-start
+            // gate reads it as `Authenticated` on the next launch, and
+            // the user is silently logged back in.
+            authRepository.logout()
             _navEvents.trySend(ShellNavEvent.Logout)
         }
     }

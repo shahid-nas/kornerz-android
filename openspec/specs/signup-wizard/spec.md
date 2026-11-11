@@ -101,7 +101,9 @@ Step 6 SHALL render the title "Which languages are you able to communicate easil
 - **AND** the "Next" capsule stays disabled until at least one language is selected
 
 ### Requirement: Step 7 — Interests match the iOS design
-Step 7 SHALL render the title "Pick your Korners. Which topics are you interested in?" in white Satoshi Medium 24sp, a 2-column `SelectableCapsuleGrid` of `KornerInterest` items loaded from the bundled `KornerInterestRepository` (rendered through `AsyncValueContent`), and a "Next" `BlackCapsuleButton` enabled when `state.interests.isNotEmpty() && state.interests.size <= 5`. The "You can pick up to 5 favorites" hint SHALL appear in white Satoshi 12sp when `state.interestsError` is true.
+Step 7 SHALL render the title "Pick your Korners. Which topics are you interested in?" in white Satoshi Medium 24sp, a 2-column grid of `KornerzSquareTile` cards rendered from the approved Kornerz loaded from the `Communities` collection (rendered through `AsyncValueContent`), and a "Next" `BlackCapsuleButton` enabled when `state.interests.isNotEmpty() && state.interests.size <= 5`. The "You can pick up to 5 favorites" hint SHALL appear in white Satoshi 12sp when `state.interestsError` is true.
+
+Step 7 SHALL load the same set of Kornerz the Kornerz tab lists — the `Communities` collection filtered by `communityApproved == true`, ordered by `communityName` descending, limited to 30 — so only approved/active Kornerz are offered and each card renders the community's own cover image (`firebaseImageUrl`, falling back to `communityImage`) and theme colour (`communityTheme`). This mirrors iOS `SignupViewModel.fetchCommunities()`, which calls `CommunitiesRepository.fetchCommunities(after: nil)` against the same collection. Tapping a card SHALL dispatch `SignupEvent.InterestToggled(name)`, where `name` is the community's `communityName`, and the selected names SHALL be written to the user's `interests` field on sign-up.
 
 #### Scenario: Step 7 multi-select with 5-item cap
 - **WHEN** the user has selected 5 interests and taps a sixth
@@ -109,8 +111,14 @@ Step 7 SHALL render the title "Pick your Korners. Which topics are you intereste
 - **AND** the "You can pick up to 5 favorites" hint becomes visible
 - **AND** the "Next" capsule remains enabled because at least one interest is selected
 
+#### Scenario: Step 7 lists approved Kornerz only
+- **WHEN** the user opens step 7
+- **THEN** only communities with `communityApproved == true` are listed
+- **AND** each card shows the community's cover image and theme colour
+- **AND** an unapproved community is never offered
+
 ### Requirement: Step 8 — Photo matches the iOS design
-Step 8 SHALL render the title "Add a photo" in white Satoshi Medium 24sp, a centered 150dp × 150dp black `RoundedCornerShape(32.dp)` square containing the text "Add Photo" (or "Photo selected" after a pick) in white Satoshi Medium 16sp, and a CTA row with "Skip" and "Next" `BorderedCapsuleButton` (black) and `BlackCapsuleButton`. Tapping the photo tile SHALL launch `ActivityResultContracts.PickVisualMedia.ImageOnly`; on success, the selected `Uri` is dispatched via `SignupEvent.PhotoSelected(uri)`. The "Next" capsule SHALL be enabled when `state.isStep8Valid` is true (photo upload `AsyncValue.Success`).
+Step 8 SHALL render the title "Add a photo" in white Satoshi Medium 24sp, a centered 150dp × 150dp black `RoundedCornerShape(32.dp)` square containing the text "Add Photo" (or "Photo selected" after a pick) in white Satoshi Medium 16sp, and a CTA row with "Skip" and "Next" `BorderedCapsuleButton` (black) and `BlackCapsuleButton`. Tapping the photo tile SHALL launch `ActivityResultContracts.PickVisualMedia.ImageOnly`; on success, the selected `Uri` is dispatched via `SignupEvent.PhotoSelected(uri)`. The "Next" capsule SHALL be enabled when a photo is selected (`state.isPhotoValid`). Picking a photo SHALL NOT start an upload — the upload runs on the final step (see "Photo upload on the final wizard step").
 
 #### Scenario: Step 8 photo parity
 - **WHEN** the user opens step 8 without a selected photo
@@ -121,7 +129,7 @@ Step 8 SHALL render the title "Add a photo" in white Satoshi Medium 24sp, a cent
 - **THEN** the tile text changes to "Photo selected" and the "Next" capsule becomes black
 
 ### Requirement: User can sign up through a 9-step wizard
-The app SHALL provide a sign-up wizard reachable from the Welcome screen's "Sign Up" action via the standalone Privacy Policy screen. Once the policy is accepted, the wizard SHALL collect, in this exact order across 9 screens: (1) full name, (2) nickname, (3) email, (4) password, (5) phone number, (6) country code (dial code), (7) preferred language, (8) Kornerz interests (multi-select from a bundled catalog of Korner slugs), (9) profile photo. The single `SignupViewModel` SHALL be Hilt-scoped (per `architecture.md` §2.6) and SHALL expose `state: StateFlow<SignupWizardState>` and `navEvents: Flow<NavEvent>` (per §2.4 — never reference `NavController` directly). All Compose screens SHALL use the shared `KornerzTextField`, `KornerzPasswordField`, `KornerzImagePicker`, `KornerzButton`, and `KornerzEmptyState` / `KornerzErrorState` from `core/ui/components/` (per §5). Each step SHALL validate its input locally before allowing navigation to the next step. The wizard SHALL persist its current state across configuration changes and process death for all fields using `SavedStateHandle`. The wizard SHALL NOT call the auth backend until step 9 is confirmed; instead, all collected data SHALL be sent in a single sign-up Cloud Function call through `AuthRepository.signup(...)`. After successful sign-up, `SignupViewModel` SHALL emit `NavEvent.NavigateToShell` over `Channel<NavEvent>`, and the root NavHost SHALL swap from `auth_graph` to `shell_graph` clearing the back-stack.
+The app SHALL provide a sign-up wizard reachable from the Welcome screen's "Sign Up" action via the standalone Privacy Policy screen. Once the policy is accepted, the wizard SHALL collect, in this exact order across 9 screens: (1) full name, (2) nickname, (3) email, (4) password, (5) phone number, (6) country code (dial code), (7) preferred language, (8) Kornerz interests (multi-select from the approved Kornerz in the `Communities` collection), (9) profile photo. The single `SignupViewModel` SHALL be Hilt-scoped (per `architecture.md` §2.6) and SHALL expose `state: StateFlow<SignupWizardState>` and `navEvents: Flow<NavEvent>` (per §2.4 — never reference `NavController` directly). All Compose screens SHALL use the shared `KornerzTextField`, `KornerzPasswordField`, `KornerzImagePicker`, `KornerzButton`, and `KornerzEmptyState` / `KornerzErrorState` from `core/ui/components/` (per §5). Each step SHALL validate its input locally before allowing navigation to the next step. The wizard SHALL persist its current state across configuration changes and process death for all fields using `SavedStateHandle`. The wizard SHALL NOT call the auth backend until step 9 is confirmed; instead, all collected data SHALL be sent in a single sign-up Cloud Function call through `AuthRepository.signup(...)`. After successful sign-up, `SignupViewModel` SHALL emit `NavEvent.NavigateToShell` over `Channel<NavEvent>`, and the root NavHost SHALL swap from `auth_graph` to `shell_graph` clearing the back-stack.
 
 #### Scenario: Successful sign-up end to end
 - **WHEN** a user completes all 9 steps and confirms the final step
@@ -163,12 +171,18 @@ The app SHALL present a dedicated `PrivacyPolicyScreen` immediately after the us
 - **AND** no wizard state is created
 
 ### Requirement: Final wizard step submits without a re-confirmation gate
-Step 9 of the wizard SHALL submit the sign-up request when the user taps "Create account" (the step-9 button label), provided the photo upload has completed successfully. There SHALL NOT be a second Privacy Policy gate at step 9 because the user already accepted the policy on the standalone Privacy Policy screen.
+Step 9 of the wizard SHALL submit the sign-up request when the user taps "Create account" (the step-9 button label). The picked profile photo SHALL be uploaded at this point, immediately before the sign-up request, and the resulting URL SHALL be included in the request payload. There SHALL NOT be a second Privacy Policy gate at step 9 because the user already accepted the policy on the standalone Privacy Policy screen.
 
 #### Scenario: Step 9 submits
-- **WHEN** the user has uploaded a profile photo and taps "Create account" on step 9
-- **THEN** the sign-up Cloud Function is called
+- **WHEN** the user has picked a profile photo and taps "Create account" on step 9
+- **THEN** the profile photo is uploaded first
+- **AND** the sign-up Cloud Function is called with the uploaded photo's URL
 - **AND** the app navigates to the shell graph
+
+#### Scenario: Upload failure aborts the registration
+- **WHEN** the profile photo upload fails
+- **THEN** the sign-up request is NOT sent
+- **AND** the failure is surfaced on step 9 so the user can retry
 
 ### Requirement: Wizard step navigation controls
 Each wizard step SHALL provide a "Back" control (disabled on step 1) and a "Continue" control (disabled until the step's local validation passes). Step 9 SHALL replace "Continue" with "Create account" (no privacy gate at step 9).
@@ -205,12 +219,23 @@ Step 8 SHALL show a multi-select grid of Korner interests fetched from a bundled
 - **THEN** the selection is rejected with a visible message "You can pick up to 5 favorites"
 
 ### Requirement: Photo upload on the final wizard step
-Step 9 SHALL allow the user to pick a profile photo via the shared `KornerzImagePicker` Composable from `core/ui/components/` (which wraps `ActivityResultContracts.PickVisualMedia` and `ActivityResultContracts.TakePicture`). The selected image SHALL be uploaded via the Firebase Storage v4 signed-URL Cloud Function before the sign-up request is sent. Upload progress SHALL be exposed in `SignupWizardState.photoUpload: AsyncValue<PhotoUrl>` (per `architecture.md` §2.2 — `Loading` / `Success` / `Error`), rendered by `KornerzLoadingView` / preview / `KornerzErrorState`. If the photo upload fails, the wizard SHALL allow the user to retry without losing the other 8 steps' data.
+Step 9 SHALL allow the user to pick a profile photo via the shared `KornerzImagePicker` Composable from `core/ui/components/` (which wraps `ActivityResultContracts.PickVisualMedia` and `ActivityResultContracts.TakePicture`). Picking a photo SHALL only record the selection — SHALL NOT trigger an upload.
+
+The picked image SHALL be copied into the app's private cache directory at selection time, and the wizard SHALL hold the resulting `file://` URI rather than the Photo Picker's content URI. The Photo Picker's read grant is short-lived, while the wizard holds the selection until the final step — copying the bytes at selection time guarantees the upload always has a readable source. The copied file SHALL be deleted when the selection is replaced, when the photo step is skipped, and after a successful sign-up.
+
+The upload SHALL run on the final step, immediately before the sign-up request is sent, via the Firebase Storage v4 signed-URL Cloud Function. This mirrors iOS `SignupViewModel.signup()`, which JPEG-encodes the picked image, uploads it to `users/{userCode}/profile/{uuid}.jpg`, and only then calls `registerUser` (`kornerz/Kornerz/SwiftUI/OnBoarding/Signup/SignupViewModel.swift:174-208`). The resulting public download URL SHALL be carried into the sign-up request and written to the user's `firebaseImageUrl` field. If the upload fails, the registration SHALL be aborted and the failure surfaced on the final step through the `submit` error, so the user can retry without losing the other steps' data.
 
 #### Scenario: Gallery pick
 - **WHEN** the user taps "Choose from gallery" and picks an image
 - **THEN** a preview thumbnail is displayed
-- **AND** the chosen URI is stored in wizard state
+- **AND** the chosen image is copied into the app's private cache
+- **AND** the wizard holds the cached copy's `file://` URI
+- **AND** no upload is started
+
+#### Scenario: The picked photo stays readable until the upload
+- **WHEN** the user picks a photo on the photo step and completes the wizard
+- **THEN** the upload reads the cached copy, not the Photo Picker's URI
+- **AND** the upload succeeds even though the Photo Picker's read grant has expired
 
 #### Scenario: Upload retry
 - **WHEN** the signed-URL upload fails on the first attempt

@@ -6,8 +6,8 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import androidx.navigation.navigation
+import com.kornerz.core.network.community.CommunitiesRepository
 import com.kornerz.core.storage.country.CountryCodesRepository
-import com.kornerz.core.storage.interests.KornerInterestRepository
 import com.kornerz.feature.auth.login.LoginScreen
 import com.kornerz.feature.auth.privacy.PrivacyPolicyScreen
 import com.kornerz.feature.auth.recovery.ChangePasswordScreen
@@ -33,7 +33,7 @@ import com.kornerz.feature.auth.welcome.WelcomeScreen
 fun NavGraphBuilder.authGraph(
     navController: NavHostController,
     countryRepository: CountryCodesRepository,
-    interestsRepository: KornerInterestRepository,
+    communitiesRepository: CommunitiesRepository,
     onNavigateToShellGraph: () -> Unit,
 ) {
     navigation(
@@ -61,7 +61,7 @@ fun NavGraphBuilder.authGraph(
             SignupScreen(
                 navController = navController,
                 countryRepository = countryRepository,
-                interestsRepository = interestsRepository,
+                communitiesRepository = communitiesRepository,
                 onNavigateToShellGraph = onNavigateToShellGraph,
             )
         }

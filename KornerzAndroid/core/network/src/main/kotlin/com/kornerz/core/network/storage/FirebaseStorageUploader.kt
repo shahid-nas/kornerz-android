@@ -89,7 +89,7 @@ class FirebaseStorageUploader @Inject constructor(
         path = path,
         contentType = contentType,
         fileSize = bytes.size.toLong(),
-        body = ByteArrayRequestBody(bytes, contentType),
+        body = ByteArrayRequestBody(bytes, contentType, onProgress),
         onProgress = onProgress,
     )
 
@@ -108,7 +108,7 @@ class FirebaseStorageUploader @Inject constructor(
         path = path,
         contentType = contentType,
         fileSize = file.length(),
-        body = FileRequestBody(file, contentType),
+        body = FileRequestBody(file, contentType, onProgress),
         onProgress = onProgress,
     )
 

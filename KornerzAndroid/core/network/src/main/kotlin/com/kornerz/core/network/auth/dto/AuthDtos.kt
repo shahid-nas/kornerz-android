@@ -18,7 +18,22 @@ data class SignupRequest(
     val countryCode: String? = null,
     val language: String? = null,
     val interests: List<String> = emptyList(),
+    /**
+     * The public download URL of the uploaded profile photo. Written to
+     * the user's `firebaseImageUrl` field. `null` when the user skipped
+     * the photo step.
+     */
     val photoUrl: String? = null,
+    /**
+     * The user's `codeUser` value.
+     *
+     * The signup wizard generates this up front so the profile photo can
+     * be uploaded to `users/{userCode}/profile/...` **before** the
+     * account is created — iOS does the same
+     * (`kornerz/Kornerz/SwiftUI/OnBoarding/Signup/SignupViewModel.swift:167,182`).
+     * When `null` the backend generates one.
+     */
+    val userCode: String? = null,
 )
 
 @Serializable

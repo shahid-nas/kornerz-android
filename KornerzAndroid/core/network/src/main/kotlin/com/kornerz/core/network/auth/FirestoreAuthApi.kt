@@ -73,7 +73,7 @@ class FirestoreAuthApi @Inject constructor(
             "id" to docRef.id,
             "name" to request.displayName,
             "nickname" to request.nickname,
-            "codeUser" to generateUserCode(),
+            "codeUser" to (request.userCode ?: generateUserCode()),
             "email" to request.email,
             "number" to request.phone,
             "countryCode" to request.countryCode,

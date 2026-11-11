@@ -3,6 +3,7 @@ package com.kornerz.core.network.community
 import android.util.Log
 import com.google.firebase.firestore.AggregateSource
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Query
 import com.kornerz.core.model.Community
 import com.kornerz.core.model.FollowMember
 import kotlinx.coroutines.CancellationException
@@ -135,6 +136,67 @@ class CommunitiesRepository @Inject constructor(
                 firebaseImageURL = data[FIELD_FIREBASE_IMAGE_URL] as? String,
             )
         }
+    }
+
+    /**
+     * Fetches every **approved** community — the same set the Kornerz
+     * tab lists, filtered by `communityApproved == true`.
+     *
+     * Mirrors iOS `CommunitiesRepository.fetchCommunities(after:)`
+     * (`kornerz/Kornerz/Backend/Repositories/CommunitiesRepository.swift:171`)
+     * and `SignupViewModel.fetchCommunities()`
+     * (`kornerz/Kornerz/SwiftUI/OnBoarding/Signup/SignupViewModel.swift:239`),
+     * which loads the identical collection for the signup Kornerz
+     * picker.
+     *
+     * The query is ordered by `communityName` descending and limited to
+     * [APPROVED_COMMUNITIES_LIMIT] documents. When the composite index
+     * for `whereEqualTo(communityApproved).orderBy(communityName)` is
+     * missing the query fails and falls back to a client-side sort so
+     * the list stays populated (same fallback as
+     * `KornerFirestoreApi.fetchAllKornerz()`).
+     *
+     * Unlike the other reads in this repository, the mapping keeps the
+     * **document id** in [Community.id] and populates the cover image
+     * and theme colour — the signup picker renders the real cover art
+     * and the community's own accent, and the selection is stored by
+     * name.
+     */
+    suspend fun fetchApprovedCommunities(): List<Community> {
+        val documents = try {
+            collection
+                .whereEqualTo(FIELD_COMMUNITY_APPROVED, true)
+                .orderBy(FIELD_COMMUNITY_NAME, Query.Direction.DESCENDING)
+                .limit(APPROVED_COMMUNITIES_LIMIT)
+                .get()
+                .await()
+                .documents
+        } catch (t: Throwable) {
+            Log.w(TAG, "fetchApprovedCommunities index missing, falling back to client-side sort: ${t.message}")
+            collection
+                .whereEqualTo(FIELD_COMMUNITY_APPROVED, true)
+                .limit(APPROVED_COMMUNITIES_LIMIT)
+                .get()
+                .await()
+                .documents
+        }
+        return documents.mapNotNull { doc ->
+            val data = doc.data ?: return@mapNotNull null
+            val name = (data[FIELD_COMMUNITY_NAME] as? String)
+                ?: (data[FIELD_COMMUNITY_NAME_EN] as? String)
+                ?: return@mapNotNull null
+            Community(
+                id = doc.id,
+                code = doc.id,
+                communityId = data[FIELD_COMMUNITY_ID] as? String,
+                name = name,
+                description = (data[FIELD_COMMUNITY_DESCRIPTION] as? String)
+                    ?: (data[FIELD_COMMUNITY_DESCRIPTION_EN] as? String),
+                firebaseImageURL = data[FIELD_FIREBASE_IMAGE_URL] as? String,
+                imageURL = data[FIELD_COMMUNITY_IMAGE] as? String,
+                themeColor = data[FIELD_COMMUNITY_THEME] as? String,
+            )
+        }.sortedByDescending { it.name.lowercase() }
     }
 
     /**
@@ -291,7 +353,12 @@ class CommunitiesRepository @Inject constructor(
         const val FIELD_COMMUNITY_NAME = "communityName"
         const val FIELD_COMMUNITY_NAME_EN = "communityNameEn"
         const val FIELD_COMMUNITY_APPROVED = "communityApproved"
+        const val FIELD_COMMUNITY_DESCRIPTION = "communityDescription"
+        const val FIELD_COMMUNITY_DESCRIPTION_EN = "communityDescriptionEn"
+        const val FIELD_COMMUNITY_IMAGE = "communityImage"
+        const val FIELD_COMMUNITY_THEME = "communityTheme"
         const val FIELD_FIREBASE_IMAGE_URL = "firebaseImageUrl"
         const val FIELD_ADMIN_USER_ID = "userId"
+        const val APPROVED_COMMUNITIES_LIMIT = 30L
     }
 }

@@ -14,10 +14,10 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.kornerz.core.network.community.CommunitiesRepository
 import com.kornerz.core.network.forceupdate.ForceUpdateRepository
 import com.kornerz.core.network.forceupdate.ForceUpdateState
 import com.kornerz.core.storage.country.CountryCodesRepository
-import com.kornerz.core.storage.interests.KornerInterestRepository
 import com.kornerz.core.storage.session.SessionRepository
 import com.kornerz.core.storage.session.SessionState
 import com.kornerz.core.ui.components.ForceUpdateSheet
@@ -55,7 +55,7 @@ import javax.inject.Inject
 fun AppRoot(
     navController: NavHostController = rememberNavController(),
     countryRepository: CountryCodesRepository,
-    interestsRepository: KornerInterestRepository,
+    communitiesRepository: CommunitiesRepository,
     forceUpdateViewModel: ForceUpdateOverlayViewModel = hiltViewModel(),
     sessionGateViewModel: SessionGateViewModel = hiltViewModel(),
 ) {
@@ -98,7 +98,7 @@ fun AppRoot(
             authGraph(
                 navController = navController,
                 countryRepository = countryRepository,
-                interestsRepository = interestsRepository,
+                communitiesRepository = communitiesRepository,
                 onNavigateToShellGraph = navigateToShellGraph,
             )
             composable(Routes.SHELL_GRAPH) {

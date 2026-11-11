@@ -1,5 +1,6 @@
 package com.kornerz.feature.auth.signup
 
+import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -7,6 +8,7 @@ import com.kornerz.core.model.AsyncValue
 import com.kornerz.core.network.AuthException
 import com.kornerz.core.network.AuthRepository
 import com.kornerz.core.network.auth.dto.SignupRequest
+import com.kornerz.core.network.storage.SignupPhotoStorage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -27,6 +29,8 @@ import javax.inject.Inject
 @HiltViewModel
 class SignupViewModel @Inject constructor(
     private val authRepository: AuthRepository,
+    private val photoStorage: SignupPhotoStorage,
+    private val imageDecoder: SignupImageDecoder,
     private val savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
 
@@ -66,21 +70,17 @@ class SignupViewModel @Inject constructor(
             }
             is SignupEvent.InterestToggled -> _state.update {
                 val next = it.interests.toMutableSet()
-                if (next.contains(event.slug)) {
-                    next.remove(event.slug)
+                if (next.contains(event.name)) {
+                    next.remove(event.name)
                     it.copy(interests = next, interestsError = false)
                 } else if (next.size < 5) {
-                    next.add(event.slug)
+                    next.add(event.name)
                     it.copy(interests = next, interestsError = false)
                 } else {
                     it.copy(interestsError = true)
                 }
             }
-            is SignupEvent.PhotoSelected -> {
-                _state.update { it.copy(photoUri = event.uri) }
-                uploadPhoto()
-            }
-            SignupEvent.PhotoUploadRetry -> uploadPhoto()
+            is SignupEvent.PhotoSelected -> selectPhoto(event.uri)
             SignupEvent.Continue -> advance()
             SignupEvent.SkipStep -> skipStep()
             SignupEvent.Back -> back()
@@ -227,10 +227,28 @@ class SignupViewModel @Inject constructor(
      * Advance to the next step bypassing the per-step validation gate.
      * Only the phone (step 3) and photo (step 7) steps expose a Skip
      * button in iOS, so the handler is a no-op everywhere else.
+     *
+     * Skipping the photo step drops the selection, so the account is
+     * created without an avatar and no upload runs on the final step.
      */
     private fun skipStep() {
         val current = _state.value
         if (current.step != 3 && current.step != 7) return
+        if (current.step == 7) {
+            // The photo is dropped, so the cached copy is deleted and
+            // the account is created without an avatar.
+            val cached = current.photoUri
+            val next = current.copy(
+                step = current.step + 1,
+                photoUri = null,
+                photoUrl = null,
+                photoError = null,
+            )
+            _state.update { next }
+            persist(next)
+            viewModelScope.launch { imageDecoder.discardCached(cached) }
+            return
+        }
         val next = current.copy(step = current.step + 1)
         _state.update { next }
         persist(next)
@@ -247,11 +265,40 @@ class SignupViewModel @Inject constructor(
         persist(next)
     }
 
+    /**
+     * Registers the account.
+     *
+     * The picked profile photo is uploaded **first** and the resulting
+     * URL is carried into the registration payload — mirroring iOS,
+     * where `signup()` uploads the avatar and only then calls
+     * `userRepository.registerUser(newUser)`
+     * (`kornerz/Kornerz/SwiftUI/OnBoarding/Signup/SignupViewModel.swift:174-208`).
+     * A failed upload aborts the registration with a visible error
+     * rather than silently creating an account with no avatar.
+     */
     private fun submit() {
         val current = _state.value
         if (!current.isPasswordValid) return
         _state.update { it.copy(submit = AsyncValue.Loading) }
         viewModelScope.launch {
+            // The upload runs first and its failure short-circuits the
+            // registration. `authRepository.signup` never throws — it
+            // returns an `AsyncValue.Error` — so the upload is the only
+            // step that needs a `runCatching` here.
+            val photoUrl = runCatching { uploadPhoto() }
+                .onFailure { error ->
+                    _state.update {
+                        it.copy(
+                            submit = AsyncValue.Error(error),
+                            photoError = error.message ?: "Could not upload the selected photo",
+                        )
+                    }
+                }
+                .getOrNull()
+                ?: return@launch
+
+            _state.update { it.copy(photoUrl = photoUrl.takeIf(String::isNotEmpty)) }
+
             val result = authRepository.signup(
                 SignupRequest(
                     displayName = current.fullName,
@@ -267,7 +314,13 @@ class SignupViewModel @Inject constructor(
                     // be widened to `List<String>` in a follow-up.
                     language = current.languages.firstOrNull() ?: "en",
                     interests = current.interests.toList(),
-                    photoUrl = null,
+                    // The URL of the avatar uploaded just above. It
+                    // is written to the user's `firebaseImageUrl`.
+                    photoUrl = photoUrl.takeIf(String::isNotEmpty),
+                    // The same code is used for the Storage path
+                    // (`users/{userCode}/profile/...`) so the avatar
+                    // and the Firestore document agree.
+                    userCode = _state.value.userCode,
                 ),
             )
             _state.update {
@@ -289,17 +342,105 @@ class SignupViewModel @Inject constructor(
                 )
             }
             if (result is AsyncValue.Success) {
+                // The avatar now lives in Cloud Storage, so the local
+                // copy is no longer needed.
+                imageDecoder.discardCached(_state.value.photoUri)
                 _navEvents.trySend(SignupNavEvent.NavigateToShell)
             }
         }
     }
 
-    private fun uploadPhoto() {
-        // No-op placeholder for P1: the photo upload Cloud Function path
-        // lands in P2 (signed URL flow). For P1 we accept the local URI as
-        // a future-upload marker.
-        _state.update { it.copy(photoUpload = AsyncValue.Success("local-uri")) }
+    /**
+     * Takes a newly picked photo and copies it into the app's private
+     * cache.
+     *
+     * The Photo Picker hands back a content URI whose read grant is
+     * short-lived, but the wizard holds the selection until the final
+     * step, where the upload runs — by then the grant may have
+     * expired. Copying the bytes at selection time gives the wizard a
+     * `file://` URI it fully controls, so the upload always has
+     * readable source bytes.
+     *
+     * The upload itself is deferred to the final step, where it runs
+     * immediately before the account is registered — mirroring iOS,
+     * which uploads the avatar inside `signup()`
+     * (`kornerz/Kornerz/SwiftUI/OnBoarding/Signup/SignupViewModel.swift:174-208`).
+     */
+    private fun selectPhoto(sourceUri: Uri) {
+        viewModelScope.launch {
+            val previous = _state.value.photoUri
+            val copied = runCatching { imageDecoder.copyToCache(sourceUri) }
+            copied.exceptionOrNull()?.let { error ->
+                _state.update {
+                    it.copy(
+                        photoUri = null,
+                        photoUrl = null,
+                        photoError = error.message ?: "Could not read the selected photo",
+                    )
+                }
+                persist(_state.value)
+                // The failed pick replaced the previous selection, so
+                // its cached copy is no longer referenced.
+                imageDecoder.discardCached(previous)
+                return@launch
+            }
+            val localUri = copied.getOrThrow()
+            _state.update {
+                it.copy(
+                    photoUri = localUri,
+                    // A new pick invalidates the previous upload
+                    // result and any error from it.
+                    photoUrl = null,
+                    photoError = null,
+                    // The Storage path is keyed by the user's code,
+                    // so the code is generated as soon as a photo
+                    // exists. iOS does the same.
+                    userCode = it.userCode ?: generateUserCode(),
+                )
+            }
+            persist(_state.value)
+            // The replaced copy is no longer needed.
+            if (previous != localUri) imageDecoder.discardCached(previous)
+        }
     }
+
+    /**
+     * Uploads the picked profile photo and returns its public download
+     * URL, or an empty string when no photo was picked.
+     *
+     * This runs on the **final** step, inside [submit], immediately
+     * before the account is written to the database — mirroring iOS,
+     * where the avatar is uploaded inside `signup()` and a failed
+     * upload aborts the registration
+     * (`kornerz/Kornerz/SwiftUI/OnBoarding/Signup/SignupViewModel.swift:174-208`).
+     *
+     * The upload path is `users/{userCode}/profile/{uuid}.jpg`, where
+     * `userCode` is the user's `codeUser` value. The code is generated
+     * when the photo is picked, so the Storage object and the Firestore
+     * document agree.
+     *
+     * @throws Throwable the upload failure — the caller turns it into
+     *   the `submit` error the password step renders.
+     */
+    private suspend fun uploadPhoto(): String {
+        val uri = _state.value.photoUri ?: return ""
+        val userCode = _state.value.userCode
+            ?: generateUserCode().also { code -> _state.update { it.copy(userCode = code) } }
+        val bitmap = imageDecoder.decode(uri)
+        return photoStorage.uploadAvatar(userCode, bitmap).getOrThrow()
+    }
+
+    /**
+     * Generates the user's `codeUser` value.
+     *
+     * iOS uses `AppHelper.createCodeForTheUser()`
+     * (`kornerz/Kornerz/Helper/AppHelper.swift:198-201`): ten characters
+     * drawn from `A-Z0-9`. Android's Firestore layer generates a
+     * lowercase eight-character code; this mirrors the iOS format so
+     * both clients produce the same shape.
+     */
+    private fun generateUserCode(): String =
+        (1..USER_CODE_LENGTH).map { USER_CODE_ALPHABET.random() }.joinToString("")
 
     private fun persist(state: SignupWizardState) {
         savedStateHandle[KEY_STEP] = state.step
@@ -313,6 +454,13 @@ class SignupViewModel @Inject constructor(
         savedStateHandle[KEY_COUNTRY_ISO] = state.countryIso
         savedStateHandle[KEY_LANGUAGES] = state.languages.toTypedArray()
         savedStateHandle[KEY_INTERESTS] = state.interests.toTypedArray()
+        savedStateHandle[KEY_USER_CODE] = state.userCode
+        savedStateHandle[KEY_PHOTO_URL] = state.photoUrl
+        // The picked photo is a content URI, which `SavedStateHandle`
+        // cannot hold directly — it is persisted as a string and parsed
+        // back on restore. The selection outlives the wizard's process
+        // because the upload happens on the final step.
+        savedStateHandle[KEY_PHOTO_URI] = state.photoUri?.toString()
     }
 
     private fun restoreOrInit(): SignupWizardState {
@@ -329,6 +477,9 @@ class SignupViewModel @Inject constructor(
             countryIso = savedStateHandle.get<String>(KEY_COUNTRY_ISO) ?: "US",
             languages = (savedStateHandle.get<Array<String>>(KEY_LANGUAGES)?.toSet() ?: emptySet()),
             interests = (savedStateHandle.get<Array<String>>(KEY_INTERESTS)?.toSet() ?: emptySet()),
+            userCode = savedStateHandle.get<String>(KEY_USER_CODE),
+            photoUrl = savedStateHandle.get<String>(KEY_PHOTO_URL),
+            photoUri = savedStateHandle.get<String>(KEY_PHOTO_URI)?.let(Uri::parse),
         )
     }
 
@@ -344,5 +495,14 @@ class SignupViewModel @Inject constructor(
         const val KEY_COUNTRY_ISO = "signup.countryIso"
         const val KEY_LANGUAGES = "signup.languages"
         const val KEY_INTERESTS = "signup.interests"
+        const val KEY_USER_CODE = "signup.userCode"
+        const val KEY_PHOTO_URL = "signup.photoUrl"
+        const val KEY_PHOTO_URI = "signup.photoUri"
+
+        /** Mirrors iOS `AppHelper.createCodeForTheUser()` — 10 characters. */
+        const val USER_CODE_LENGTH = 10
+
+        /** Mirrors iOS `AppHelper.createCodeForTheUser()` — `A-Z0-9`. */
+        const val USER_CODE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
     }
 }

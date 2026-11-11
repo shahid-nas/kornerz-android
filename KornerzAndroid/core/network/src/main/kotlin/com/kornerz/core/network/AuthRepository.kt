@@ -173,6 +173,23 @@ class AuthRepository @Inject constructor(
     }
 
     /**
+     * Ends the session: clears the persisted [SessionRecord] so the
+     * cold-start gate reads [SessionState.Anonymous] and opens the auth
+     * graph instead of silently restoring the previous user.
+     *
+     * Mirrors iOS `UserProfileVC` line 230-231 (`setUserAsLoggedIn(false)`
+     * + `deleteUserInfo()`), which tears the session down before the root
+     * view is reset to the login screen.
+     *
+     * The remote FCM-token cleanup is **not** done here — it needs the
+     * still-authenticated user, so the caller must run it *before*
+     * calling this method (see `ShellViewModel.onLogout`).
+     */
+    suspend fun logout() {
+        sessionRepository.clearSession()
+    }
+
+    /**
      * Removes the device's FCM token.
      *
      * The session is cleared either way: the user asked to sign out, so
