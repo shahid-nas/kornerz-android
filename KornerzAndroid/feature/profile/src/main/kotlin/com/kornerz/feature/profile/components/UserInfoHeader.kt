@@ -80,9 +80,9 @@ fun UserInfoHeader(
         // the button, but tapping the avatar is the more natural
         // gesture, so the whole circle is clickable too.
         //
-        // The Box is larger than the avatar so the badge — which hangs
-        // off the circle's edge — has its own space to occupy and does
-        // not overlap the name below it.
+        // The Box is larger than the avatar so the badge — which
+        // overlaps the circle's rim — has its own space to occupy and
+        // does not overlap the name below it.
         Box(
             modifier = Modifier.size(AVATAR_BOX_SIZE),
             contentAlignment = Alignment.Center,
@@ -157,9 +157,17 @@ fun UserInfoHeader(
                 }
             }
             if (onEditAvatar != null) {
-                // Anchored to the bottom-right of the box and pushed
-                // outward, so the badge straddles the circle's edge
-                // instead of sitting below it.
+                // The badge's bottom-right corner sits on the avatar's
+                // bottom-right corner, so the badge straddles the rim
+                // from the inside — the same layering as iOS
+                // `ProfileUserInfoCell`, where the edit button's
+                // trailing/bottom edges are pinned to the avatar
+                // container's trailing/bottom edges and the button
+                // itself extends up and to the left over the image.
+                //
+                // It is a sibling of the avatar circle — not a child —
+                // because the circle is clipped to `CircleShape` and
+                // would otherwise crop the badge.
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
@@ -171,12 +179,12 @@ fun UserInfoHeader(
                         .clickable(onClick = onEditAvatar),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.CameraAlt,
-                        contentDescription = "Change profile photo",
-                        tint = KornerzColors.SlateLight,
-                        modifier = Modifier.size(18.dp),
-                    )
+                        Icon(
+                            imageVector = Icons.Filled.CameraAlt,
+                            contentDescription = "Change profile photo",
+                            tint = KornerzColors.SlateLight,
+                            modifier = Modifier.size(20.dp),
+                        )
                 }
             }
         }
@@ -220,25 +228,27 @@ private val AVATAR_INNER_SIZE = 108.dp
 /**
  * The size of the Box that holds the avatar and its camera badge.
  *
- * The badge is [AVATAR_BADGE_SIZE] wide and hangs off the circle's
- * bottom-right edge, so the Box has to be wider and taller than the
- * avatar itself — otherwise the badge would spill over the name below.
+ * The badge overlaps the circle's bottom-right rim, so the Box has to
+ * be slightly wider and taller than the avatar itself — otherwise the
+ * badge would spill over the name below.
  */
 private val AVATAR_BOX_SIZE = 132.dp
 
 /** The size of the camera badge that overlaps the avatar's edge. */
-private val AVATAR_BADGE_SIZE = 34.dp
+private val AVATAR_BADGE_SIZE = 40.dp
 
 /**
- * How far the badge hangs off the avatar's bottom-right edge.
+ * How far the badge's bottom-right corner is pulled in from the
+ * avatar's bottom-right corner.
  *
- * The avatar is [AVATAR_OUTER_SIZE] wide and sits centred in the
- * [AVATAR_BOX_SIZE] box, so its right edge is at
- * `(132 - 118) / 2 = 7dp` from the box's right side. The badge is
- * anchored to the box's bottom-right corner and offset inward by this
- * amount, which places roughly half of it over the avatar's rim.
+ * iOS (`ProfileUserInfoCell.xib`) pins the edit button's trailing and
+ * bottom edges to the avatar container's trailing and bottom edges, so
+ * the button overlaps the image from the inside. A negative offset
+ * pulls the badge a little further into the image — the badge's
+ * bottom-right corner ends up just inside the avatar's rim, which is
+ * what the iOS layout shows.
  */
-private val AVATAR_BADGE_OVERHANG = 10.dp
+private val AVATAR_BADGE_OVERHANG = (-8).dp
 
 @Composable
 private fun StatPill(label: String, value: String, modifier: Modifier = Modifier) {
