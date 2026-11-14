@@ -35,6 +35,27 @@ sealed interface KornerDetailEvent {
     /** The "Kornerstones" / "Klouders" tab of the users section was selected. */
     data class UserTabSelected(val tab: KornerDetailUserTab) : KornerDetailEvent
 
+    /**
+     * The carousel's "View All" tile was tapped — opens the sheet
+     * listing every member of [tab].
+     *
+     * Mirrors iOS `KornerUsersView.viewAllButton(tab:)`, which sets
+     * `viewModel.usersSheet = tab.sheet`.
+     */
+    data class ViewAllClicked(val tab: KornerDetailUserTab) : KornerDetailEvent
+
+    /** The "View All" sheet was dismissed. */
+    data object UsersSheetDismissed : KornerDetailEvent
+
+    /**
+     * The "View All" sheet scrolled to its end — the next page of
+     * members is requested.
+     *
+     * Mirrors iOS `KornerUsersListViewModel.loadNextPage()`, which the
+     * sheet's trailing load-more trigger calls.
+     */
+    data object UsersSheetLoadMore : KornerDetailEvent
+
     /** A nook card was tapped — opens the nook detail. */
     data class NookTileClicked(val nookId: String) : KornerDetailEvent
 

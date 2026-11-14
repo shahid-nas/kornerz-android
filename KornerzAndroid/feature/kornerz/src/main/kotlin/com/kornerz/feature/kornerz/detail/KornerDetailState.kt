@@ -35,6 +35,17 @@ data class KornerDetailState(
     /** Whether the iOS-style "About" bottom sheet is presented. */
     val isAboutSheetVisible: Boolean = false,
     /**
+     * The state of the "View All" sheet — the full vertical list of a
+     * tab's members — or `null` when the sheet is not presented.
+     *
+     * iOS holds the presented sheet in `KornerDetailViewModel.usersSheet`
+     * (a `KornerUsersSheet?`) and the sheet's own paging in a separate
+     * `KornerUsersListViewModel`. Android keeps the paging state here
+     * and nulls it out when the sheet is dismissed, the way the About
+     * sheet's flag works.
+     */
+    val usersSheet: KornerUsersSheetState? = null,
+    /**
      * Whether a **pull-to-refresh** read is in flight. Distinct from
      * `detail is Loading`, which also covers the very first load — the
      * initial load renders the shimmer, a refresh keeps the content on

@@ -85,6 +85,17 @@ fun KornerDetailScreen(
             onDismiss = { viewModel.onEvent(KornerDetailEvent.AboutDismissed) },
         )
     }
+
+    // The "View All" sheet — the full vertical list of a tab's members.
+    // Mirrors iOS `KornerDetailView`'s `.sheet(item: $viewModel.usersSheet)`.
+    state.usersSheet?.let { sheet ->
+        KornerUsersSheet(
+            state = sheet,
+            onLoadMore = { viewModel.onEvent(KornerDetailEvent.UsersSheetLoadMore) },
+            onUserClick = { viewModel.onEvent(KornerDetailEvent.MemberTileClicked(it)) },
+            onDismiss = { viewModel.onEvent(KornerDetailEvent.UsersSheetDismissed) },
+        )
+    }
 }
 
 /**

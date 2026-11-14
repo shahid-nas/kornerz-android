@@ -106,6 +106,9 @@ class KornerDetailViewModel @Inject constructor(
                 _state.update { it.copy(selectedNookTab = event.tab) }
             is KornerDetailEvent.UserTabSelected ->
                 _state.update { it.copy(selectedUserTab = event.tab) }
+            is KornerDetailEvent.ViewAllClicked -> openUsersSheet(event.tab)
+            KornerDetailEvent.UsersSheetDismissed -> _state.update { it.copy(usersSheet = null) }
+            KornerDetailEvent.UsersSheetLoadMore -> loadNextUsersPage()
             is KornerDetailEvent.NookTileClicked -> emit(KornerDetailNavEvent.NavigateToNookDetail(event.nookId))
             is KornerDetailEvent.MemberTileClicked -> emit(KornerDetailNavEvent.NavigateToMemberProfile(event.userId))
             is KornerDetailEvent.LoopTileClicked -> emit(
@@ -133,6 +136,99 @@ class KornerDetailViewModel @Inject constructor(
                             it.copy(detail = AsyncValue.Error(error), isRefreshing = false)
                         }
                     }
+            }
+        }
+    }
+
+    /**
+     * Opens the "View All" sheet for [tab] — the full vertical list of
+     * the tab's members.
+     *
+     * Mirrors iOS `KornerUsersView.viewAllButton(tab:)`, which sets
+     * `viewModel.usersSheet = tab.sheet`; iOS's
+     * `KornerUsersListView` then loads its first page on appear. The
+     * Android port opens the sheet straight away and resolves the
+     * roster inside it, so the sheet appears at once — with a spinner
+     * — rather than after the roster read.
+     *
+     * The roster is the full, de-duplicated, sorted list of user
+     * **codes** — iOS's `leadersIds` / `followersIds`. The pages of
+     * users are then resolved from it, which is exactly iOS's
+     * `fetchUsers(ids: Array(ids.prefix(Self.usersPageSize)))`.
+     */
+    private fun openUsersSheet(tab: KornerDetailUserTab) {
+        val sheet = KornerUsersSheetState(
+            title = tab.title,
+            isLeader = tab == KornerDetailUserTab.Kornerstones,
+            isRosterLoading = true,
+        )
+        _state.update { it.copy(usersSheet = sheet) }
+
+        viewModelScope.launch {
+            val codes = when (tab) {
+                KornerDetailUserTab.Kornerstones -> repository.fetchKornerAdminCodes(kornerId)
+                KornerDetailUserTab.Klouders -> repository.fetchKornerFollowerCodes(kornerId)
+            }.getOrDefault(emptyList())
+
+            _state.update { state ->
+                state.copy(
+                    usersSheet = state.usersSheet?.copy(
+                        codes = codes,
+                        isRosterLoading = false,
+                    ),
+                )
+            }
+            loadNextUsersPage()
+        }
+    }
+
+    /**
+     * Resolves the next page of the sheet's roster and appends it.
+     *
+     * Mirrors iOS `KornerUsersListViewModel.loadNextPage()`, which
+     * slices the id list by `pageSize` and hands the chunk to
+     * `UsersRepository.fetchUsers(in:)`.
+     *
+     * A page is only fetched while another one is available and no
+     * read is already in flight, so a fast scroll cannot queue the
+     * same page twice.
+     */
+    private fun loadNextUsersPage() {
+        val sheet = _state.value.usersSheet ?: return
+        // One page at a time — a fast scroll must not queue the same
+        // page twice.
+        if (sheet.isLoading) return
+        if (!sheet.hasMore) {
+            // The roster is exhausted. Mark the read as done so an
+            // empty roster shows the empty state rather than a spinner
+            // that never resolves.
+            if (!sheet.hasLoaded) {
+                _state.update { state ->
+                    state.copy(usersSheet = state.usersSheet?.copy(hasLoaded = true))
+                }
+            }
+            return
+        }
+
+        val start = sheet.offset
+        val end = minOf(start + USERS_PAGE_SIZE, sheet.codes.size)
+        val chunk = sheet.codes.subList(start, end)
+
+        _state.update { state ->
+            state.copy(usersSheet = state.usersSheet?.copy(isLoading = true))
+        }
+        viewModelScope.launch {
+            val users = repository.fetchUsersByCodes(chunk).getOrDefault(emptyList())
+            _state.update { state ->
+                val current = state.usersSheet ?: return@update state
+                state.copy(
+                    usersSheet = current.copy(
+                        users = current.users + users,
+                        offset = end,
+                        isLoading = false,
+                        hasLoaded = true,
+                    ),
+                )
             }
         }
     }
@@ -255,5 +351,15 @@ class KornerDetailViewModel @Inject constructor(
          * the value is the six hex digits **without** the `#`.
          */
         const val ARG_THEME_COLOR_HEX = "themeColorHex"
+
+        /**
+         * How many users the "View All" sheet resolves per page.
+         *
+         * Firestore's `in` clause caps at 30 values — the same reason
+         * iOS uses 30 (`KornerDetailViewModel.usersPageSize`: "Firestore
+         * `in` queries are limited to 30 values, so users are fetched in
+         * pages of this size").
+         */
+        const val USERS_PAGE_SIZE = 30
     }
 }

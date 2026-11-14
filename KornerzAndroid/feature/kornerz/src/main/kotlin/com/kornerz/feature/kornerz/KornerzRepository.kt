@@ -9,6 +9,7 @@ import com.kornerz.core.network.fellow.FellowRepository
 import com.kornerz.core.network.kornerz.KornerFirestoreApi
 import com.kornerz.core.network.loops.LoopFirestoreApi
 import com.kornerz.core.network.nooks.SessionInfoApi
+import com.kornerz.core.network.user.UsersRepository
 import com.kornerz.core.storage.session.SessionRepository
 import com.kornerz.core.storage.session.SessionState
 import kotlinx.coroutines.flow.Flow
@@ -37,6 +38,7 @@ class KornerzRepository @Inject constructor(
     private val api: KornerFirestoreApi,
     private val loopApi: LoopFirestoreApi,
     private val fellowRepository: FellowRepository,
+    private val usersRepository: UsersRepository,
     private val sessionRepository: SessionRepository,
     private val sessionInfoApi: SessionInfoApi,
 ) {
@@ -197,6 +199,48 @@ class KornerzRepository @Inject constructor(
      */
     fun fetchKornerAdmins(kornerId: String): Flow<Result<List<User>>> = flow {
         emit(api.fetchCommunityAdmins(kornerId))
+    }
+
+    /**
+     * The `codeUser` of every one of the Korner's admins — the full
+     * "Kornerstones" roster, before the carousel's 30-user cut.
+     *
+     * Mirrors iOS `KornerDetailViewModel.fetchLeaders()`
+     * (`kornerz/Kornerz/SwiftUI/Dashboard/Korner/KornerDetail/KornerDetailViewModel.swift:175`),
+     * which keeps the whole de-duplicated, sorted id list in
+     * `leadersIds` so the "View All" sheet can paginate through it.
+     */
+    suspend fun fetchKornerAdminCodes(kornerId: String): Result<List<String>> =
+        api.fetchCommunityAdminCodes(kornerId)
+
+    /**
+     * The `codeUser` of every follower of the Korner — the full
+     * "Klouders" roster, before the carousel's 30-user cut.
+     *
+     * Mirrors iOS `KornerDetailViewModel.fetchFollowers()`
+     * (`KornerDetailViewModel.swift:149`), which keeps the whole
+     * de-duplicated, sorted id list in `followersIds`.
+     */
+    suspend fun fetchKornerFollowerCodes(kornerId: String): Result<List<String>> =
+        api.fetchCommunityFollowerCodes(kornerId)
+
+    /**
+     * Resolves a page of user codes into the matching `Users`
+     * documents.
+     *
+     * The "View All" sheet pages through the member roster with this
+     * call — one page per 30 codes, matching iOS
+     * `KornerUsersListViewModel.loadNextPage()`, which slices the id
+     * list by `pageSize` and hands the chunk to
+     * `UsersRepository.fetchUsers(in:)`.
+     *
+     * The returned users keep the order of [codes], so the sheet's
+     * rows appear in the same order as the roster.
+     */
+    suspend fun fetchUsersByCodes(codes: List<String>): Result<List<User>> {
+        if (codes.isEmpty()) return Result.success(emptyList())
+        val byCode = usersRepository.fetchUsersByCodes(codes).getOrDefault(emptyMap())
+        return Result.success(codes.mapNotNull { byCode[it] })
     }
 
     /**

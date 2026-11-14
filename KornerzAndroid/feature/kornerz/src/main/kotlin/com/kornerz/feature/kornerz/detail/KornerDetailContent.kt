@@ -108,6 +108,8 @@ fun KornerDetailContent(
             selectedTab = state.selectedUserTab,
             onTabSelected = { onEvent(KornerDetailEvent.UserTabSelected(it)) },
             onUserClick = { onEvent(KornerDetailEvent.MemberTileClicked(it)) },
+            onViewAllClick = { onEvent(KornerDetailEvent.ViewAllClicked(it)) },
+            themeColor = themeColor,
         )
         SectionGap()
         KornerDetailRecentSection(

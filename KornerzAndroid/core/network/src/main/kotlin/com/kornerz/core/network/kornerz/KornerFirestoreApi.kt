@@ -275,6 +275,19 @@ class KornerFirestoreApi @Inject constructor(
      * key the community is known by (`communityId`, `communityName`,
      * `communityNameEn`).
      *
+     * The admins are resolved from the **sorted** roster's first
+     * [USERS_PAGE_SIZE] entries, mirroring iOS
+     * `fetchLeaders()`:
+     *
+     * ```swift
+     * let ids = Array(Set(leaders.compactMap({ $0.userId }))).filter({ !$0.isEmpty }).sorted()
+     * self.leadersIds = ids
+     * self.fetchUsers(ids: Array(ids.prefix(Self.usersPageSize))) { … self.leaders = users }
+     * ```
+     *
+     * so the carousel and the "View All" sheet — which pages through
+     * the same roster — agree on both the order and the cut.
+     *
      * A failed read degrades to an empty list so the screen still
      * renders (iOS prints the error and keeps the screen alive).
      */
@@ -286,28 +299,83 @@ class KornerFirestoreApi @Inject constructor(
     }
 
     private suspend fun fetchCommunityAdminsByKeys(lookupKeys: List<String>): List<User> {
-        if (lookupKeys.isEmpty()) return emptyList()
+        val userCodes = fetchCommunityAdminCodes(lookupKeys)
+        if (userCodes.isEmpty()) return emptyList()
         return try {
-            val admins = firestore.collection(COLLECTION_COMMUNITY_ADM)
-                .whereIn(FIELD_ADMIN_COMMUNITY_ID, lookupKeys.take(MAX_WHERE_IN))
-                .get()
-                .await()
-                .documents
-            // iOS `CommunityAdmin.userId` carries the user's **code** —
-            // the same value `Users.codeUser` is keyed by.
-            val userCodes = admins.mapNotNull { it.data?.get(FIELD_ADMIN_USER_ID) as? String }
-                .filter { it.isNotBlank() }
-                .distinct()
-            if (userCodes.isEmpty()) return emptyList()
             firestore.collection(COLLECTION_USERS)
-                .whereIn(FIELD_USER_CODE, userCodes.take(MAX_WHERE_IN))
-                .limit(MEMBERS_LIMIT)
+                .whereIn(FIELD_USER_CODE, userCodes.take(USERS_PAGE_SIZE))
                 .get()
                 .await()
                 .documents
                 .mapNotNull { it.data?.toUser(it.id) }
+                .sortedBy { user -> userCodes.indexOf(user.userCode).takeIf { it >= 0 } ?: userCodes.size }
         } catch (t: Throwable) {
             Log.w(TAG, "fetchCommunityAdmins failed for $lookupKeys: ${t.message}")
+            emptyList()
+        }
+    }
+
+    /**
+     * The `codeUser` of every admin of the community addressed by
+     * [kornerId] — the **raw** half of the "Kornerstones" list.
+     *
+     * Mirrors iOS `KornerDetailViewModel.fetchLeaders()`
+     * (`SwiftUI/Dashboard/Korner/KornerDetail/KornerDetailViewModel.swift:175`),
+     * which reads the `CommunityAdm` collection, takes every admin
+     * record's `userId` as the user's **code**, de-duplicates it, sorts
+     * it, and keeps the whole list:
+     *
+     * ```swift
+     * let ids = Array(Set(leaders.compactMap({ $0.userId }))).filter({ !$0.isEmpty }).sorted()
+     * self.leadersIds = ids
+     * self.fetchUsers(ids: Array(ids.prefix(Self.usersPageSize))) { … }
+     * ```
+     *
+     * The full list is kept so the "View All" sheet can paginate
+     * through it (iOS `KornerUsersListViewModel`), while the carousel
+     * only renders the first [USERS_PAGE_SIZE] of them.
+     */
+    suspend fun fetchCommunityAdminCodes(kornerId: String): Result<List<String>> = runCatching {
+        if (kornerId.isBlank()) error("kornerId must not be blank")
+        val doc = resolveCommunityDocument(kornerId)
+        fetchCommunityAdminCodes(doc.data?.communityLookupKeys().orEmpty())
+    }
+
+    /**
+     * The `codeUser` of every follower of the community addressed by
+     * [kornerId] — the **raw** half of the "Klouders" list.
+     *
+     * Mirrors iOS `KornerDetailViewModel.fetchFollowers()`
+     * (`KornerDetailViewModel.swift:149`), which reads the `Fellow`
+     * collection, takes every fellow record's `userName` as the user's
+     * **code**, de-duplicates it, sorts it, and keeps the whole list.
+     */
+    suspend fun fetchCommunityFollowerCodes(kornerId: String): Result<List<String>> = runCatching {
+        if (kornerId.isBlank()) error("kornerId must not be blank")
+        val doc = resolveCommunityDocument(kornerId)
+        fetchCommunityFollowerCodes(doc.data?.communityLookupKeys().orEmpty())
+    }
+
+    /**
+     * The admin `codeUser`s of a community, de-duplicated and sorted.
+     *
+     * iOS `CommunityAdmin.userId` carries the user's **code** — the
+     * same value `Users.codeUser` is keyed by.
+     */
+    private suspend fun fetchCommunityAdminCodes(lookupKeys: List<String>): List<String> {
+        if (lookupKeys.isEmpty()) return emptyList()
+        return try {
+            firestore.collection(COLLECTION_COMMUNITY_ADM)
+                .whereIn(FIELD_ADMIN_COMMUNITY_ID, lookupKeys.take(MAX_WHERE_IN))
+                .get()
+                .await()
+                .documents
+                .mapNotNull { it.data?.get(FIELD_ADMIN_USER_ID) as? String }
+                .filter { it.isNotBlank() }
+                .distinct()
+                .sorted()
+        } catch (t: Throwable) {
+            Log.w(TAG, "fetchCommunityAdminCodes failed for $lookupKeys: ${t.message}")
             emptyList()
         }
     }
@@ -348,32 +416,60 @@ class KornerFirestoreApi @Inject constructor(
      * The community's members — the `Fellow` records that follow this
      * community, joined against the `Users` collection. Mirrors iOS
      * `FellowRepository.fetchCommunityFellows` + `UsersRepository.fetchUsers`.
+     *
+     * The members are resolved from the **sorted** roster's first
+     * [USERS_PAGE_SIZE] entries, mirroring iOS
+     * `KornerDetailViewModel.fetchFollowers()`:
+     *
+     * ```swift
+     * let ids = Array(Set(followers.compactMap({ return $0.userName }))).filter({ !$0.isEmpty }).sorted()
+     * self.followersIds = ids
+     * self.fetchUsers(ids: Array(ids.prefix(Self.usersPageSize))) { … self.followers = users }
+     * ```
+     *
+     * so the "Klouders" carousel and the "View All" sheet — which
+     * pages through the same roster — agree on both the order and the
+     * cut.
      */
     private suspend fun fetchCommunityMembers(
         lookupKeys: List<String>,
     ): List<User> {
         if (lookupKeys.isEmpty()) return emptyList()
         return try {
-            val fellowUserNames = fellowRepository
-                .fetchCommunityFollowerCodes(lookupKeys, MEMBERS_LIMIT.toLong())
-                .getOrDefault(emptyList())
-            val userCodes = fellowUserNames.distinct().take(MAX_WHERE_IN)
-            val members = if (userCodes.isEmpty()) {
-                emptyList()
-            } else {
-                firestore.collection(COLLECTION_USERS)
-                    .whereIn(FIELD_USER_CODE, userCodes)
-                    .limit(MEMBERS_LIMIT)
-                    .get()
-                    .await()
-                    .documents
-                    .mapNotNull { it.data?.toUser(it.id) }
+            val followerCodes = fetchCommunityFollowerCodes(lookupKeys)
+            if (followerCodes.isEmpty()) return emptyList()
+            val members = firestore.collection(COLLECTION_USERS)
+                .whereIn(FIELD_USER_CODE, followerCodes.take(USERS_PAGE_SIZE))
+                .get()
+                .await()
+                .documents
+                .mapNotNull { it.data?.toUser(it.id) }
+            members.sortedBy { user ->
+                followerCodes.indexOf(user.userCode).takeIf { it >= 0 } ?: followerCodes.size
             }
-            members
         } catch (t: Throwable) {
             Log.w(TAG, "fetchCommunityMembers failed for $lookupKeys: ${t.message}")
             emptyList()
         }
+    }
+
+    /**
+     * The `codeUser` of every follower of the community, de-duplicated
+     * and sorted.
+     *
+     * Mirrors iOS `FellowRepository.fetchCommunityFellows(community:)`,
+     * whose codes are de-duplicated and sorted before they are paged
+     * through.
+     */
+    private suspend fun fetchCommunityFollowerCodes(
+        lookupKeys: List<String>,
+    ): List<String> {
+        if (lookupKeys.isEmpty()) return emptyList()
+        return fellowRepository
+            .fetchCommunityFollowerCodes(lookupKeys, MEMBERS_LIMIT.toLong())
+            .getOrDefault(emptyList())
+            .distinct()
+            .sorted()
     }
 
     private fun Map<String, Any?>.toKorner(id: String): Korner? {
@@ -531,5 +627,16 @@ class KornerFirestoreApi @Inject constructor(
         const val LIST_QUERY_LIMIT = 30L
         const val MEMBERS_LIMIT = 50L
         const val MAX_WHERE_IN = 30
+
+        /**
+         * How many users a page of the "View All" sheet holds.
+         *
+         * Firestore's `in` clause caps at 30 values, so the members are
+         * resolved in pages of this size — the same constant iOS uses
+         * (`KornerDetailViewModel.usersPageSize`, "Firestore `in`
+         * queries are limited to 30 values, so users are fetched in
+         * pages of this size").
+         */
+        const val USERS_PAGE_SIZE = 30
     }
 }
