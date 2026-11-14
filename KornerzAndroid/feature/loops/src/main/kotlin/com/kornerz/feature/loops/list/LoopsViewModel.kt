@@ -212,7 +212,15 @@ class LoopsViewModel @Inject constructor(
                         email = "",
                         displayName = snippet.name,
                         nickname = snippet.name,
-                        photoUrl = snippet.thumbnailUrl,
+                        // The snippet's URL is the Firebase Storage
+                        // avatar, so it must land in the field
+                        // `User.thumbnailURL` projects from —
+                        // `firebaseThumbnailUrl` — not in `photoUrl`.
+                        // `photoUrl` is a separate legacy field and
+                        // `thumbnailURL` never falls back to it, so
+                        // populating only `photoUrl` left the loop row
+                        // avatar permanently null.
+                        firebaseThumbnailUrl = snippet.thumbnailUrl,
                     )
                 }
         return loops.toCardData(communities, users)

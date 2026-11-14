@@ -1,48 +1,40 @@
 package com.kornerz.feature.home.loop
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.RemoveRedEye
-import androidx.compose.material.icons.filled.ChatBubble
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import coil.compose.SubcomposeAsyncImage
 import com.kornerz.core.model.Loop
 import com.kornerz.core.ui.R
 import com.kornerz.core.ui.components.HomeSectionHeader
 import com.kornerz.core.ui.components.HomeShimmerPlaceholder
-import com.kornerz.core.ui.components.KornerzDiamondImage
 import com.kornerz.core.ui.components.KornerzErrorState
 import com.kornerz.core.ui.theme.KornerzCardPalette
 import com.kornerz.core.ui.theme.KornerzTheme
 import com.kornerz.core.ui.theme.Spacing
-import com.kornerz.feature.home.components.loopAccentColor
-import com.kornerz.feature.home.components.timeAgoSince
+import com.kornerz.feature.loops.components.LoopItemView
+import com.kornerz.feature.loops.data.toCardData
 import kotlinx.datetime.Instant
 
+/**
+ * The Home tab's "Loop of the day" section. 1:1 port of iOS
+ * `LoopOfDaySectionView.swift:40-45`, which renders the shared
+ * `LoopItemView` under the section header.
+ *
+ * The row itself is `feature/loops`' `LoopItemView` — the same
+ * component the Loops tab, the Korner detail's "Recently in
+ * &lt;community&gt;" section, and the Home "Recent at Kornerz" section
+ * render, so the loop chrome is identical on every surface (iOS has a
+ * single `LoopItemView` for all four).
+ */
 @Composable
 fun LoopOfDayContent(
     loop: Loop,
@@ -55,134 +47,12 @@ fun LoopOfDayContent(
             iconRes = R.drawable.ic_home_section_loop,
             modifier = Modifier.padding(horizontal = Spacing.space8, vertical = Spacing.space2),
         )
-        LoopItem(
-            loop = loop,
-            accentIndex = 0,
-            onClick = { id -> onClick(id, KornerzCardPalette.hexForIndex(0)) },
+        val accentHex = KornerzCardPalette.hexForIndex(0)
+        LoopItemView(
+            data = loop.toCardData(community = null, owner = null),
+            color = KornerzCardPalette.color(0),
+            onClick = { id -> onClick(id, accentHex) },
             modifier = Modifier.padding(horizontal = Spacing.space8, vertical = Spacing.space4),
-        )
-    }
-}
-
-@Composable
-fun LoopItem(
-    loop: Loop,
-    accentIndex: Int,
-    onClick: (String) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable { onClick(loop.id.orEmpty()) },
-        verticalAlignment = Alignment.Top,
-    ) {
-        LoopThumbnail(loop = loop, accentIndex = accentIndex, modifier = Modifier.size(100.dp))
-        Spacer(modifier = Modifier.size(Spacing.space6))
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = loop.title.orEmpty().ifEmpty { "Untitled loop" },
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                ),
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 2,
-            )
-            loop.communityName?.takeIf { it.isNotBlank() }?.let { community ->
-                Spacer(Modifier.padding(top = 2.dp))
-                Text(
-                    text = "in $community",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            loop.description?.takeIf { it.isNotBlank() }?.let { description ->
-                Spacer(Modifier.padding(top = 2.dp))
-                Text(
-                    text = description,
-                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 3,
-                )
-            }
-            loop.createdAt?.let { createdAt ->
-                Text(
-                    text = createdAt.timeAgoSince(),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Spacer(Modifier.padding(top = Spacing.space2))
-            StatsRow(loop = loop)
-        }
-    }
-}
-
-@Composable
-private fun LoopThumbnail(
-    loop: Loop,
-    accentIndex: Int,
-    modifier: Modifier = Modifier,
-) {
-    val accent = loopAccentColor(accentIndex)
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(accent),
-    ) {
-        SubcomposeAsyncImage(
-            model = loop.thumbnailUrl,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.matchParentSize(),
-            loading = {
-                Box(modifier = Modifier.matchParentSize().background(accent))
-            },
-            error = {
-                Box(modifier = Modifier.matchParentSize().background(accent))
-            },
-        )
-        if (loop.publisherAvatarUrl != null) {
-            KornerzDiamondImage(
-                imageUrl = loop.publisherAvatarUrl,
-                fallbackAsset = null,
-                size = 32.dp,
-                cornerRadius = 6.dp,
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(4.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun StatsRow(loop: Loop) {
-    val muted = MaterialTheme.colorScheme.onSurfaceVariant
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        StatChip(icon = Icons.Filled.RemoveRedEye, count = loop.viewCounts, tint = muted)
-        Spacer(Modifier.padding(start = 25.dp))
-        StatChip(icon = Icons.Filled.ChatBubble, count = loop.commentsCount, tint = muted)
-        Spacer(Modifier.padding(start = 25.dp))
-        StatChip(icon = Icons.Filled.Favorite, count = loop.likesCount, tint = muted)
-    }
-}
-
-@Composable
-private fun StatChip(icon: ImageVector, count: Int?, tint: Color) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = tint,
-            modifier = Modifier.size(15.dp),
-        )
-        Spacer(Modifier.padding(start = 4.dp))
-        Text(
-            text = (count ?: 0).toString(),
-            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-            color = tint,
         )
     }
 }

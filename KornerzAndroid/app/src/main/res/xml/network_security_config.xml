@@ -3,7 +3,7 @@
   The video-call token handshake connects to `ws://ws.kornerz.com:80/`,
   which is plain TCP on port 80. Since targetSdk 28+, cleartext traffic
   is blocked by default, so the domain is explicitly exempted here.
-  Every other destination (REST API, IPFS, Firebase) stays HTTPS-only.
+  Every other destination (REST API, Firebase) stays HTTPS-only.
 
   This config lives in `main` (not a flavor) because both the dev and
   prod flavors use the same token service; scoping it to `dev` made

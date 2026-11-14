@@ -35,6 +35,9 @@ class HomeRepository @Inject constructor(
     suspend fun fetchUserSnippetsByCodes(codes: List<String>): Map<String, UserSnippet> =
         usersRepository.fetchUserSnippetsByCodes(codes)
 
+    suspend fun fetchUserByCode(code: String): com.kornerz.core.model.User? =
+        usersRepository.fetchUsersByCodes(listOf(code)).getOrNull()?.get(code)
+
     suspend fun fetchYourKornerzCommunities(
         fellows: List<com.kornerz.core.model.FollowMember>,
     ): Result<List<Community>> = runCatching {

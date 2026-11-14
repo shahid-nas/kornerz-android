@@ -19,9 +19,6 @@ object LoopMapper {
 
     fun toCardData(loop: Loop, community: Community?, owner: User?): LoopCardData {
         val id = loop.id.orEmpty()
-        val videoUrl = loop.iOsVideoUrl
-        val thumbnail = loop.iOsThumbnailUrl
-        val image = loop.iOsImageUrl
         return LoopCardData(
             id = id,
             title = loop.title.orEmpty(),
@@ -30,12 +27,15 @@ object LoopMapper {
             communityId = loop.communityId,
             communityName = community?.name ?: loop.communityName,
             publisherId = loop.publisherId,
-            publisherNickname = owner?.displayName,
-            publisherThumbnailUrl = owner?.thumbnailURL,
+            publisherNickname = owner?.displayName ?: loop.publisherName,
+            publisherThumbnailUrl = owner?.thumbnailURL ?: loop.publisherAvatarUrl,
             theme = loop.theme,
-            thumbnailUrl = thumbnail,
-            imageUrl = image,
-            videoUrl = videoUrl,
+            // `iOsThumbnailUrl` / `iOsImageUrl` resolve the Firebase
+            // Storage thumbnail and image, falling back from the
+            // thumbnail to the image.
+            thumbnailUrl = loop.iOsThumbnailUrl,
+            imageUrl = loop.iOsImageUrl,
+            videoUrl = loop.iOsVideoUrl,
             isVideo = loop.isVideo,
             viewCounts = loop.viewCounts ?: 0,
             commentsCount = loop.commentsCount ?: 0,

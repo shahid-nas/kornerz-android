@@ -29,7 +29,16 @@ class LoopOfDayViewModel @Inject constructor(
         scope.launch {
             _state.value = AsyncValue.Loading
             homeRepository.fetchLoopOfDay()
-                .onSuccess { _state.value = AsyncValue.Success(it) }
+                .onSuccess { loop ->
+                    val publisherCode = loop.publisherId?.takeIf { it.isNotBlank() }
+                    val publisher = publisherCode?.let { homeRepository.fetchUserByCode(it) }
+                    _state.value = AsyncValue.Success(
+                        loop.copy(
+                            publisherName = publisher?.displayName ?: loop.publisherName,
+                            publisherAvatarUrl = publisher?.thumbnailURL ?: loop.publisherAvatarUrl,
+                        ),
+                    )
+                }
                 .onFailure { _state.value = AsyncValue.Error(it) }
         }
     }

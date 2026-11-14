@@ -21,15 +21,22 @@ import com.kornerz.core.ui.components.KornerzErrorState
 import com.kornerz.core.ui.theme.KornerzCardPalette
 import com.kornerz.core.ui.theme.KornerzTheme
 import com.kornerz.core.ui.theme.Spacing
-import com.kornerz.feature.home.loop.LoopItem
+import com.kornerz.feature.loops.components.LoopItemView
+import com.kornerz.feature.loops.data.toCardData
 import kotlinx.datetime.Instant
 
 /**
  * Vertical list of recent loops ("Recent at Kornerz"). 1:1 port of
  * iOS `RecentLoopsView.swift:42-54`, which wraps a `LazyVStack(spacing:
  * 16)` of `LoopItemView`s under the section header. The per-row accent
- * color cycles through `loopAccentColor(index)` matching iOS's
+ * color cycles through `KornerzCardPalette` matching iOS's
  * `colorService.color(for: index)`.
+ *
+ * The rows are `feature/loops`' `LoopItemView` — the same component the
+ * Loops tab, the Korner detail's "Recently in &lt;community&gt;"
+ * section, and the Home "Loop of the day" section render, so the loop
+ * chrome is identical on every surface (iOS has a single
+ * `LoopItemView` for all four).
  *
  * The row's accent colour travels with the tap — the detail screen
  * inherits it, so the loop keeps one colour across the feed and the
@@ -53,9 +60,9 @@ fun RecentLoopsContent(
             verticalArrangement = Arrangement.spacedBy(Spacing.space8),
         ) {
             loops.forEachIndexed { index, loop ->
-                LoopItem(
-                    loop = loop,
-                    accentIndex = index,
+                LoopItemView(
+                    data = loop.toCardData(community = null, owner = null),
+                    color = KornerzCardPalette.color(index),
                     onClick = { id -> onClick(id, KornerzCardPalette.hexForIndex(index)) },
                 )
             }

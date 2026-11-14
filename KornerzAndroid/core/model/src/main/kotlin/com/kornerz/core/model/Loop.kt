@@ -12,8 +12,9 @@ import kotlinx.serialization.Serializable
  * Every field is nullable to match iOS — the iOS `Loop.init(from decoder:)`
  * calls `decodeIfPresent` for every property (see `Loop.swift:85-105`).
  *
- * Computed properties (`thumbnailUrl`, `imageUrl`, `videoUrl`, `isVideo`,
- * `videoColorHex`) use the Firebase Storage URLs exclusively.
+ * Computed properties (`iOsThumbnailUrl`, `iOsImageUrl`, `iOsVideoUrl`,
+ * `isVideo`, `videoColorHex`) resolve exclusively from the Firebase Storage
+ * URL fields.
  *
  * The P2 fields (`title`, `thumbnailUrl`, `color`, `durationSeconds`,
  * `createdAt`, `publisherName`, `publisherAvatarUrl`, `communityName`)

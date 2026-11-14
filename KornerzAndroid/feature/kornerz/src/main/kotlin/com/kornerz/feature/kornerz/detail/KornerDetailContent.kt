@@ -1,13 +1,19 @@
 package com.kornerz.feature.kornerz.detail
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import com.kornerz.core.model.AsyncValue
@@ -16,8 +22,12 @@ import com.kornerz.core.model.Korner
 import com.kornerz.core.model.KornerDetail
 import com.kornerz.core.model.Nook
 import com.kornerz.core.model.User
+import com.kornerz.core.ui.components.KornerzLoadingMoreView
+import com.kornerz.core.ui.theme.KornerzCardPalette
 import com.kornerz.core.ui.theme.KornerzTheme
 import com.kornerz.core.ui.theme.Spacing
+import com.kornerz.feature.loops.components.LoopCardData
+import com.kornerz.feature.loops.components.LoopItemView
 import com.kornerz.feature.loops.data.toCardData
 import kotlinx.datetime.Instant
 
@@ -42,7 +52,15 @@ import kotlinx.datetime.Instant
  *
  * iOS separates the blocks with the `LazyVStack`'s default 8-pt
  * spacing; a plain Compose `Column` has no such default, so the
- * [SectionGap] spacers reproduce it.
+ * screen's `LazyColumn` reproduces it with
+ * `Arrangement.spacedBy(Spacing.space4)`.
+ *
+ * The screen is a **single** `LazyColumn`. The blocks that used to
+ * live in a `Column(verticalScroll(...))` — most importantly the
+ * "Recently in" section, whose rows are a nested `LazyColumn` — are
+ * items of this one list, because a vertically scrollable component
+ * nested inside another vertically scrollable component is measured
+ * with an infinite height constraint and crashes the screen.
  */
 @Composable
 fun KornerDetailContent(
@@ -78,68 +96,127 @@ fun KornerDetailContent(
         }
     }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState()),
+    val listState = rememberLazyListState()
+    val currentOnLoadMore by rememberUpdatedState { onEvent(KornerDetailEvent.RecentLoopsLoadMore) }
+
+    // The "Recently in" block is the last thing on the screen, so the
+    // next page of loops is requested once the list scrolls close to
+    // its end. The trigger watches the **screen's** list state — the
+    // recent loops are items of the same list, so their own scroll
+    // position no longer exists.
+    LaunchedEffect(listState, recentCards.size, state.hasMoreRecentLoops, state.isLoadingMoreRecentLoops) {
+        snapshotFlow {
+            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            val totalItems = listState.layoutInfo.totalItemsCount
+            state.hasMoreRecentLoops &&
+                !state.isLoadingMoreRecentLoops &&
+                totalItems > 0 &&
+                lastVisible >= totalItems - RECENT_LOAD_MORE_THRESHOLD
+        }.collect { nearEnd ->
+            if (nearEnd) currentOnLoadMore()
+        }
+    }
+
+    LazyColumn(
+        state = listState,
+        modifier = modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(Spacing.space4),
     ) {
-        KornerDetailHeader(
-            korner = korner,
-            themeColor = themeColor,
-            isFollowing = korner.isJoined,
-            onBackClick = { onEvent(KornerDetailEvent.BackClicked) },
-            onFollowClick = { onEvent(KornerDetailEvent.FollowClicked) },
-            onAboutClick = { onEvent(KornerDetailEvent.AboutClicked) },
-        )
-        SectionGap()
-        KornerDetailNooksSection(
-            korner = korner,
-            nooks = detail.nooks,
-            selectedTab = state.selectedNookTab,
-            onTabSelected = { onEvent(KornerDetailEvent.NookTabSelected(it)) },
-            themeColor = themeColor,
-            onNookClick = { onEvent(KornerDetailEvent.NookTileClicked(it)) },
-            onJoinClick = { onEvent(KornerDetailEvent.JoinCtaClicked(it)) },
-        )
-        SectionGap()
-        KornerDetailUsersSection(
-            kornerstones = state.kornerstones,
-            klouders = detail.members,
-            selectedTab = state.selectedUserTab,
-            onTabSelected = { onEvent(KornerDetailEvent.UserTabSelected(it)) },
-            onUserClick = { onEvent(KornerDetailEvent.MemberTileClicked(it)) },
-            onViewAllClick = { onEvent(KornerDetailEvent.ViewAllClicked(it)) },
-            themeColor = themeColor,
-        )
-        SectionGap()
-        KornerDetailRecentSection(
+        item(key = "korner-detail-header") {
+            KornerDetailHeader(
+                korner = korner,
+                themeColor = themeColor,
+                isFollowing = korner.isJoined,
+                onBackClick = { onEvent(KornerDetailEvent.BackClicked) },
+                onFollowClick = { onEvent(KornerDetailEvent.FollowClicked) },
+                onAboutClick = { onEvent(KornerDetailEvent.AboutClicked) },
+            )
+        }
+        item(key = "korner-detail-nooks") {
+            KornerDetailNooksSection(
+                korner = korner,
+                nooks = detail.nooks,
+                selectedTab = state.selectedNookTab,
+                onTabSelected = { onEvent(KornerDetailEvent.NookTabSelected(it)) },
+                themeColor = themeColor,
+                onNookClick = { onEvent(KornerDetailEvent.NookTileClicked(it)) },
+                onJoinClick = { onEvent(KornerDetailEvent.JoinCtaClicked(it)) },
+            )
+        }
+        item(key = "korner-detail-users") {
+            KornerDetailUsersSection(
+                kornerstones = state.kornerstones,
+                klouders = detail.members,
+                selectedTab = state.selectedUserTab,
+                onTabSelected = { onEvent(KornerDetailEvent.UserTabSelected(it)) },
+                onUserClick = { onEvent(KornerDetailEvent.MemberTileClicked(it)) },
+                onViewAllClick = { onEvent(KornerDetailEvent.ViewAllClicked(it)) },
+                themeColor = themeColor,
+            )
+        }
+        kornerDetailRecentItems(
             communityName = korner.name,
             cards = recentCards,
+            isLoadingMore = state.isLoadingMoreRecentLoops,
             onLoopClick = { loopId, accentColorHex ->
                 onEvent(KornerDetailEvent.LoopTileClicked(loopId, accentColorHex))
             },
-            isLoadingMore = state.isLoadingMoreRecentLoops,
-            hasMore = state.hasMoreRecentLoops,
-            onLoadMore = { onEvent(KornerDetailEvent.RecentLoopsLoadMore) },
         )
     }
 }
 
 /**
- * The vertical gap between the screen's blocks.
+ * The "Recently in &lt;community&gt;" block, emitted as **items of the
+ * screen's own list**.
  *
- * iOS stacks the hero, the Nooks section, the users section and the
- * "Recently in" block in a `LazyVStack` with no explicit spacing, so
- * the platform's default 8-pt gap separates them. The Android port
- * stacks the blocks in a plain `Column`, which has no such default,
- * so the gap is added explicitly here — the same 8 dp the Home tab
- * uses between its sections (`HomeContent`'s
- * `Arrangement.spacedBy(Spacing.space4)`).
+ * The rows used to live in a nested `LazyColumn`, which cannot be
+ * measured inside a vertically scrolling parent — the nested list
+ * received an infinite height constraint and the screen crashed with
+ * *"Vertically scrollable component was measured with an infinity
+ * maximum height constraints"*. Emitting the rows straight into the
+ * screen's list is the fix the crash message itself recommends, and it
+ * keeps the block scrolling with the rest of the page.
  */
-@Composable
-private fun SectionGap() {
-    Spacer(modifier = Modifier.height(Spacing.space4))
+private fun LazyListScope.kornerDetailRecentItems(
+    communityName: String,
+    cards: List<LoopCardData>,
+    isLoadingMore: Boolean,
+    onLoopClick: (loopId: String, accentColorHex: String) -> Unit,
+) {
+    item(key = "korner-detail-recent-header") {
+        KornerDetailRecentHeader(communityName = communityName)
+    }
+    if (cards.isEmpty()) {
+        item(key = "korner-detail-recent-empty") {
+            EmptyRecentLoops()
+        }
+        return
+    }
+    items(items = cards, key = { "korner-detail-recent-${it.id}" }) { card ->
+        val index = cards.indexOf(card)
+        val accent = KornerzCardPalette.color(index)
+        LoopItemView(
+            data = card,
+            color = accent,
+            onClick = { onLoopClick(card.id, KornerzCardPalette.hexForIndex(index)) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.space8),
+        )
+    }
+    if (isLoadingMore) {
+        item(key = "korner-detail-recent-loading-more") {
+            KornerzLoadingMoreView()
+        }
+    }
 }
+
+/**
+ * How many items from the end of the screen's list still count as
+ * "close enough to the end" for the next page of recent loops to be
+ * requested.
+ */
+private const val RECENT_LOAD_MORE_THRESHOLD = 2
 
 @Preview(showBackground = true)
 @Composable

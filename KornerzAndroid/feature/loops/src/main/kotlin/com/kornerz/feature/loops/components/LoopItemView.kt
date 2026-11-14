@@ -33,22 +33,29 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
-import com.kornerz.core.ui.components.KornerzNetworkAvatar
+import com.kornerz.core.ui.components.KornerzTriangleImage
+import com.kornerz.core.ui.components.TriangleCorner
 import com.kornerz.core.ui.components.timeAgoSinceDate
 import com.kornerz.core.ui.theme.KornerzTheme
 import kotlinx.datetime.Instant
 
 /**
- * Shared loop item row used by the Loops tab list, the loop detail
- * header (with a `Modifier.size(100.dp)` thumbnail override), and the
- * Home recent-loops carousel (one-way `feature/home` → `feature/loops`
- * dependency per design.md D9).
+ * Shared loop item row used by the Loops tab list, the Korner detail
+ * "Recently in &lt;community&gt;" section, and the Home tab's
+ * "Loop of the day" / "Recent at Kornerz" sections (one-way
+ * `feature/home` → `feature/loops` dependency per design.md D9).
+ *
+ * 1:1 port of iOS `kornerz/Kornerz/SwiftUI/Dashboard/Loops/LoopsTab/
+ * LoopItemView.swift`, which is the single loop row every iOS surface
+ * renders.
  *
  * Renders:
  *   - 100×100dp thumbnail (Coil-loaded with shimmer placeholder, tinted
  *     [color] background when the URL is null).
- *   - 55dp circular `KornerzNetworkAvatar` overlay at the bottom-leading
- *     corner of the thumbnail (4dp padding inside).
+ *   - 55dp `KornerzTriangleImage` overlay at the bottom-leading corner
+ *     of the thumbnail (4dp padding inside) — iOS draws the owner's
+ *     avatar as a bottom-left triangle via `TriangleImageView`, whose
+ *     default corner is `.bottomLeft`.
  *   - `Column` on the trailing edge with title, community / time-ago
  *     row, description, and a 3-stat row.
  */
@@ -135,9 +142,12 @@ private fun LoopThumbnail(
                 modifier = Modifier.align(Alignment.Center).size(40.dp),
             )
         }
-        KornerzNetworkAvatar(
+        KornerzTriangleImage(
             imageUrl = data.publisherThumbnailUrl,
-            size = 36.dp,
+            size = LOOP_OWNER_AVATAR_SIZE,
+            cornerRadius = LOOP_OWNER_AVATAR_RADIUS,
+            corner = TriangleCorner.BottomLeft,
+            fallbackAsset = "ic_user_placeholder",
             modifier = Modifier
                 .align(Alignment.BottomStart)
                 .padding(4.dp),
@@ -154,9 +164,9 @@ private fun StatsRow(
     val muted = MaterialTheme.colorScheme.onSurfaceVariant
     Row(verticalAlignment = Alignment.CenterVertically) {
         StatChip(Icons.Filled.RemoveRedEye, viewCounts, muted)
-        Spacer(Modifier.padding(start = 16.dp))
+        Spacer(Modifier.padding(start = 25.dp))
         StatChip(Icons.Filled.ChatBubble, commentsCount, muted)
-        Spacer(Modifier.padding(start = 16.dp))
+        Spacer(Modifier.padding(start = 25.dp))
         StatChip(Icons.Filled.Favorite, likesCount, muted)
     }
 }
@@ -173,6 +183,16 @@ private fun StatChip(icon: ImageVector, count: Int, tint: Color) {
         )
     }
 }
+
+/**
+ * The owner avatar's frame size — iOS `LoopItemView.Constants.userImageSize`.
+ */
+private val LOOP_OWNER_AVATAR_SIZE = 55.dp
+
+/**
+ * The owner avatar's corner radius — iOS `LoopItemView.Constants.cornerRadius`.
+ */
+private val LOOP_OWNER_AVATAR_RADIUS = 12.dp
 
 @Preview(showBackground = true, locale = "en")
 @Composable

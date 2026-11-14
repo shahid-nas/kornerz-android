@@ -61,7 +61,13 @@ class LoopCommentRepository @Inject constructor(
                         email = "",
                         displayName = snippet.name,
                         nickname = snippet.name,
-                        photoUrl = snippet.thumbnailUrl,
+                        // The snippet's URL is the Firebase Storage
+                        // avatar, so it belongs in the field
+                        // `User.thumbnailURL` projects from —
+                        // `firebaseThumbnailUrl`. `photoUrl` is a
+                        // separate legacy field that `thumbnailURL`
+                        // never falls back to.
+                        firebaseThumbnailUrl = snippet.thumbnailUrl,
                     )
                 }
         }
