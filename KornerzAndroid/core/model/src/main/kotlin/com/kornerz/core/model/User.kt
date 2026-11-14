@@ -21,13 +21,8 @@ import kotlinx.serialization.Serializable
  * write-only on both platforms.
  *
  * P6 adds the avatar URL projection fields (`imageURL`, `thumbnailURL`,
- * `thumbnailType`) which mirror `Models/User.swift` lines 61–84 — the
- * iOS port derives the avatar URL from the document's
- * `firebaseImageUrl` / `firebaseThumbnailUrl` / `image` / `thumbnail`
- * fields plus the IPFS base URL. The Android port stores the same
- * fields but exposes them as nullable projections since the Firebase
- * Storage v4 migration drops the IPFS path (see
- * `FIREBASE_STORAGE_MIGRATION.md`).
+ * `thumbnailType`). Android resolves avatars exclusively from the
+ * document's `firebaseImageUrl` and `firebaseThumbnailUrl` fields.
  */
 @Serializable
 data class User(
@@ -67,29 +62,16 @@ data class User(
     // P6 avatar projection (mirrors iOS `Models/User.swift` lines 61–84)
     @SerialName("firebaseImageUrl") val firebaseImageUrl: String? = null,
     @SerialName("firebaseThumbnailUrl") val firebaseThumbnailUrl: String? = null,
-    @SerialName("image") val image: String? = null,
-    @SerialName("thumbnail") val thumbnail: String? = null,
     @SerialName("thumbnailType") val thumbnailType: String? = null,
 ) {
-    /**
-     * The fully-resolved avatar URL. Prefers the Firebase Storage URL
-     * (v4 migration) and falls back to the legacy IPFS path. Mirrors
-     * the iOS `user.imageURL` computed property.
-     */
+    /** The Firebase Storage avatar URL. */
     val imageURL: String?
         get() = firebaseImageUrl.takeUnless { it.isNullOrEmpty() }
-            ?: image?.let { IPFS_BASE_URL + it }
 
-    /**
-     * The fully-resolved avatar thumbnail URL. Prefers the Firebase
-     * Storage URL (v4 migration) and falls back to the legacy IPFS
-     * path. Mirrors the iOS `User.thumnailURL` computed property
-     * (`Models/User.swift` lines 61–67).
-     */
+    /** The Firebase Storage avatar thumbnail URL, falling back to the image URL. */
     val thumbnailURL: String?
         get() = firebaseThumbnailUrl.takeUnless { it.isNullOrEmpty() }
             ?: firebaseImageUrl.takeUnless { it.isNullOrEmpty() }
-            ?: (thumbnail ?: image)?.let { IPFS_BASE_URL + it }
 
     /**
      * The parsed [subscriptionExpiryDate], or `null` when the field is
@@ -137,16 +119,6 @@ data class User(
 
     /** Returns a copy with [newNickName] applied. */
     fun updateNickName(newNickName: String): User = copy(nickname = newNickName)
-
-    private companion object {
-        /**
-         * Legacy IPFS gateway. The v4 Firebase Storage migration
-         * (`FIREBASE_STORAGE_MIGRATION.md`) makes the IPFS branch
-         * unreachable in practice, but the iOS source-of-truth keeps
-         * the fallback for backwards compatibility.
-         */
-        const val IPFS_BASE_URL = "https://ipfs.kornerz.io/ipfs/"
-    }
 }
 
 /**

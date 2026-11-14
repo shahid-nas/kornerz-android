@@ -74,6 +74,9 @@ sealed interface KornerDetailEvent {
         val accentColorHex: String,
     ) : KornerDetailEvent
 
+    /** The recent-loops section reached its end — the next page is requested. */
+    data object RecentLoopsLoadMore : KornerDetailEvent
+
     /** A nook card's "Join" capsule was tapped. */
     data class JoinCtaClicked(val nookId: String) : KornerDetailEvent
 }

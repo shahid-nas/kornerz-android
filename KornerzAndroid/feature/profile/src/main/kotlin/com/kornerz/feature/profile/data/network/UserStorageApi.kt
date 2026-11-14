@@ -19,9 +19,8 @@ import javax.inject.Singleton
  * iOS uses the same storage path prefix (lines 43–48
  * `let avatarPrefix = "users/\(userCode)/profile"`) and writes four
  * fields (`image`, `thumbnail`, `firebaseImageUrl`,
- * `firebaseThumbnailUrl`) — the Android port writes the same four
- * fields to keep backwards compatibility with the legacy
- * `imageURL` / `thumbnailURL` IPFS branches.
+ * `firebaseThumbnailUrl`). Android writes only the two Firebase Storage
+ * URL fields.
  *
  * The upload goes through [FirebaseStorageUploader] rather than the
  * Firebase client SDK because the bucket's storage rules deny client

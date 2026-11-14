@@ -247,16 +247,44 @@ class LoopFirestoreApi @Inject constructor(
         .recover { emptyList() }
 
     /**
+     * Fetches one page of the loops published in a community, newest
+     * first. The page resumes after [cursor] when one is supplied.
+     */
+    suspend fun fetchCommunityLoopsPage(
+        communityId: String,
+        cursor: LoopCursor?,
+        pageSize: Int = DEFAULT_PAGE_SIZE,
+    ): Result<PagingResult<Loop>> = runCatching {
+        if (communityId.isBlank()) {
+            return@runCatching PagingResult(emptyList(), null, false)
+        }
+        var query = collection
+            .whereEqualTo(FIELD_COMMUNITY_ID, communityId)
+            .orderBy(FIELD_CREATION_DATE, Query.Direction.DESCENDING)
+            .limit(pageSize.toLong())
+        if (cursor?.snapshot != null) query = query.startAfter(cursor.snapshot!!)
+        val snapshot = query.get().await()
+        val items = snapshot.documents.mapNotNull { it.data?.toLoop(it.id) }
+        val last = snapshot.documents.lastOrNull()
+        val hasMore = items.size >= pageSize
+        PagingResult(
+            items = items,
+            nextCursor = if (hasMore) LoopCursor(last) else null,
+            hasMore = hasMore,
+        )
+    }.onFailure { Log.w(TAG, "fetchCommunityLoopsPage: ${it.message}") }
+
+    /**
      * Creates a new loop document in the `Loop` collection — mirrors iOS
      * `LoopRepository.createLoop(_:)` (`LoopRepository.swift:282-294`),
      * which writes `collection.document(loop.id).setData(from: loop)`.
      *
      * The document id is [Loop.id] (the 20-char forum/loop code generated
      * by the caller, mirroring iOS `AddForumViewModel.forumId`). All
-     * fields (`title`, `description`, `imageHash`/``firebaseImageUrl``,
-     * `videoHash`/`firebaseVideoUrl`, `creationDate` as a Firestore
-     * `Timestamp`, etc.) are written so both platforms decode the same
-     * document shape.
+     * fields (`title`, `description`, `firebaseImageUrl`,
+     * `firebaseThumbnailUrl`, `firebaseVideoUrl`, `creationDate` as a
+     * Firestore `Timestamp`, etc.) are written so both platforms decode
+     * the same document shape.
      */
     suspend fun createLoop(loop: Loop): Result<Unit> = runCatching {
         val loopId = loop.id ?: error("loop id must not be blank")
@@ -273,9 +301,6 @@ class LoopFirestoreApi @Inject constructor(
         title = this[FIELD_TITLE] as? String,
         description = this[FIELD_DESCRIPTION] as? String,
         descriptionHtml = this[FIELD_DESCRIPTION_HTML] as? String,
-        imageHash = this[FIELD_IMAGE_HASH] as? String,
-        thumbnailHash = this[FIELD_THUMBNAIL_HASH] as? String,
-        videoHash = this[FIELD_VIDEO_HASH] as? String,
         firebaseImageUrl = this[FIELD_FIREBASE_IMAGE_URL] as? String,
         firebaseThumbnailUrl = this[FIELD_FIREBASE_THUMBNAIL_URL] as? String,
         firebaseVideoUrl = this[FIELD_FIREBASE_VIDEO_URL] as? String,
@@ -310,9 +335,6 @@ class LoopFirestoreApi @Inject constructor(
         FIELD_TITLE to loop.title,
         FIELD_DESCRIPTION to loop.description,
         FIELD_DESCRIPTION_HTML to loop.descriptionHtml,
-        FIELD_IMAGE_HASH to loop.imageHash,
-        FIELD_THUMBNAIL_HASH to loop.thumbnailHash,
-        FIELD_VIDEO_HASH to loop.videoHash,
         FIELD_FIREBASE_IMAGE_URL to loop.firebaseImageUrl,
         FIELD_FIREBASE_THUMBNAIL_URL to loop.firebaseThumbnailUrl,
         FIELD_FIREBASE_VIDEO_URL to loop.firebaseVideoUrl,
@@ -338,9 +360,6 @@ class LoopFirestoreApi @Inject constructor(
         const val FIELD_TITLE = "title"
         const val FIELD_DESCRIPTION = "description"
         const val FIELD_DESCRIPTION_HTML = "descriptionHtml"
-        const val FIELD_IMAGE_HASH = "imageHash"
-        const val FIELD_THUMBNAIL_HASH = "thumbnailHash"
-        const val FIELD_VIDEO_HASH = "videoHash"
         const val FIELD_FIREBASE_IMAGE_URL = "firebaseImageUrl"
         const val FIELD_FIREBASE_THUMBNAIL_URL = "firebaseThumbnailUrl"
         const val FIELD_FIREBASE_VIDEO_URL = "firebaseVideoUrl"

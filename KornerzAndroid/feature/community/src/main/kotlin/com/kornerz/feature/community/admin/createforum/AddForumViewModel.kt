@@ -351,8 +351,8 @@ class AddForumViewModel @Inject constructor(
      * publishForum()
      *   -> uploadVideoThenImage(videoURL:image:)   (video attached)
      *   -> uploadImageOnly(image:)                 (no video)
-     *      -> uploadImage(image:videoHash:startProgress:)
-     *         -> createLoopWithHashes(...)
+     *      -> uploadImage(image:videoUrl:startProgress:)
+     *         -> createLoopWithUrls(...)
      * ```
      *
      * The Android port keeps the same ordering and the same progress
@@ -481,9 +481,6 @@ class AddForumViewModel @Inject constructor(
                         title = s.title,
                         description = s.description.takeIf { it.isNotBlank() },
                         descriptionHtml = s.descriptionHtml,
-                        imageHash = null,
-                        thumbnailHash = null,
-                        videoHash = null,
                         firebaseImageUrl = imageUrl,
                         firebaseThumbnailUrl = thumbUrl,
                         firebaseVideoUrl = videoUrl,

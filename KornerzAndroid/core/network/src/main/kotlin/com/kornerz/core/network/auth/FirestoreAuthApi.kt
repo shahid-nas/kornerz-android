@@ -158,8 +158,6 @@ class FirestoreAuthApi @Inject constructor(
                 // the Profile screen always renders the placeholder.
                 firebaseImageUrl = data["firebaseImageUrl"] as? String,
                 firebaseThumbnailUrl = data["firebaseThumbnailUrl"] as? String,
-                image = data["image"] as? String,
-                thumbnail = data["thumbnail"] as? String,
                 thumbnailType = data["thumbnailType"] as? String,
             ),
         )

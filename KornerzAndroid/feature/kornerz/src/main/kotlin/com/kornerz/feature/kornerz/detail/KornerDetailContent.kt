@@ -118,6 +118,9 @@ fun KornerDetailContent(
             onLoopClick = { loopId, accentColorHex ->
                 onEvent(KornerDetailEvent.LoopTileClicked(loopId, accentColorHex))
             },
+            isLoadingMore = state.isLoadingMoreRecentLoops,
+            hasMore = state.hasMoreRecentLoops,
+            onLoadMore = { onEvent(KornerDetailEvent.RecentLoopsLoadMore) },
         )
     }
 }

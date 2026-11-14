@@ -13,10 +13,7 @@ import kotlinx.serialization.Serializable
  * calls `decodeIfPresent` for every property (see `Loop.swift:85-105`).
  *
  * Computed properties (`thumbnailUrl`, `imageUrl`, `videoUrl`, `isVideo`,
- * `videoColorHex`) reproduce the iOS fallback chains:
- *   - Firebase URL first
- *   - `IPFS.baseUrl + <hash>` second
- *   - `null` only when both are empty (matches iOS)
+ * `videoColorHex`) use the Firebase Storage URLs exclusively.
  *
  * The P2 fields (`title`, `thumbnailUrl`, `color`, `durationSeconds`,
  * `createdAt`, `publisherName`, `publisherAvatarUrl`, `communityName`)
@@ -40,12 +37,6 @@ data class Loop(
     val description: String? = null,
     @SerialName("descriptionHtml")
     val descriptionHtml: String? = null,
-    @SerialName("imageHash")
-    val imageHash: String? = null,
-    @SerialName("thumbnailHash")
-    val thumbnailHash: String? = null,
-    @SerialName("videoHash")
-    val videoHash: String? = null,
     @SerialName("firebaseImageUrl")
     val firebaseImageUrl: String? = null,
     @SerialName("firebaseThumbnailUrl")
@@ -81,23 +72,18 @@ data class Loop(
     val communityName: String? = null,
 ) {
 
-    /** iOS `Loop.thumnailURL` (sic) — Firebase thumbnail → Firebase image → IPFS hash. */
+    /** Firebase thumbnail URL, falling back to the Firebase image URL. */
     val iOsThumbnailUrl: String?
         get() = firebaseThumbnailUrl?.takeIf { it.isNotEmpty() }
             ?: firebaseImageUrl?.takeIf { it.isNotEmpty() }
-            ?: listOfNotNull(thumbnailHash, imageHash)
-                .firstOrNull { it.isNotEmpty() }
-                ?.let { IPFS_BASE_URL + it }
 
-    /** iOS `Loop.imageURL` — Firebase image → IPFS imageHash. */
+    /** Firebase image URL. */
     val iOsImageUrl: String?
         get() = firebaseImageUrl?.takeIf { it.isNotEmpty() }
-            ?: imageHash?.takeIf { it.isNotEmpty() }?.let { IPFS_BASE_URL + it }
 
-    /** iOS `Loop.videoURL` — Firebase video → IPFS videoHash. */
-    val iOsVideoUrl: String
+    /** Firebase video URL. */
+    val iOsVideoUrl: String?
         get() = firebaseVideoUrl?.takeIf { it.isNotEmpty() }
-            ?: IPFS_BASE_URL + (videoHash.orEmpty())
 
     /** iOS `Loop.isVideo` — true when firebaseVideoUrl is non-empty. */
     val isVideo: Boolean
@@ -106,13 +92,4 @@ data class Loop(
     /** iOS `Loop.videoColor` — `#FFA500` when video, `#000000` otherwise. */
     val videoColorHex: String
         get() = if (isVideo) "#FFA500" else "#000000"
-
-    companion object {
-        /**
-         * IPFS gateway prefix used by iOS. The Kotlin port keeps a
-         * stable constant until a follow-up ships a settings-driven
-         * override.
-         */
-        const val IPFS_BASE_URL: String = "https://ipfs.io/ipfs/"
-    }
 }

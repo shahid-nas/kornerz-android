@@ -111,10 +111,8 @@ class UserProfileRepository @Inject constructor(
      * `phase-6-profile-and-notifications` task 3.4):
      *  1. Compress [bitmap] to full + 200-pt thumbnail JPEGs.
      *  2. Upload both to `users/{userCode}/profile/{id}.jpg`.
-     *  3. Write **four** fields to `Users/{email}`:
-     *     `firebaseImageUrl`, `firebaseThumbnailUrl`, plus the legacy
-     *     `image` / `thumbnail` fields (kept populated for the iOS
-     *     `User.imageURL` / `User.thumbnailURL` IPFS branch).
+     *  3. Write the `firebaseImageUrl` and `firebaseThumbnailUrl` fields
+     *     to `Users/{email}`.
      *
      * The two identifiers are deliberately kept apart, exactly as iOS
      * does (`UserProfileRepository.swift:43` uses `userCode` for the
@@ -153,16 +151,12 @@ class UserProfileRepository @Inject constructor(
             email = email,
             firebaseImageUrl = imageUrl,
             firebaseThumbnailUrl = thumbUrl,
-            legacyImageHash = imageUrl,
-            legacyThumbnailHash = thumbUrl,
         ).getOrThrow()
         val current = inMemoryUser.value ?: userApi.fetchByEmail(email)
             ?: error("User $email not found")
         val withImage = current.copy(
             firebaseImageUrl = imageUrl,
             firebaseThumbnailUrl = thumbUrl,
-            image = imageUrl,
-            thumbnail = thumbUrl,
         )
         inMemoryUser.value = withImage
         // Keep the persisted session in step with the new avatar.
@@ -171,8 +165,6 @@ class UserProfileRepository @Inject constructor(
                 sessionUser.copy(
                     firebaseImageUrl = withImage.firebaseImageUrl,
                     firebaseThumbnailUrl = withImage.firebaseThumbnailUrl,
-                    image = withImage.image,
-                    thumbnail = withImage.thumbnail,
                 )
             } else {
                 sessionUser

@@ -162,8 +162,6 @@ class SubscriptionFirestoreApi @Inject constructor(
             },
             firebaseImageUrl = data[FIELD_FIREBASE_IMAGE_URL] as? String,
             firebaseThumbnailUrl = data[FIELD_FIREBASE_THUMBNAIL_URL] as? String,
-            image = data[FIELD_IMAGE] as? String,
-            thumbnail = data[FIELD_THUMBNAIL] as? String,
             thumbnailType = data[FIELD_THUMBNAIL_TYPE] as? String,
         )
     }
@@ -186,8 +184,6 @@ class SubscriptionFirestoreApi @Inject constructor(
         const val FIELD_REGISTRATION_DATE = "userDateRegister"
         const val FIELD_FIREBASE_IMAGE_URL = "firebaseImageUrl"
         const val FIELD_FIREBASE_THUMBNAIL_URL = "firebaseThumbnailUrl"
-        const val FIELD_IMAGE = "image"
-        const val FIELD_THUMBNAIL = "thumbnail"
         const val FIELD_THUMBNAIL_TYPE = "thumbnailType"
     }
 }

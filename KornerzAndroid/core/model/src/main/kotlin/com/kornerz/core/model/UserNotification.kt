@@ -11,7 +11,7 @@ import kotlinx.serialization.Serializable
  * so the same Firestore document shape works on both platforms.
  *
  * The Android port exposes a [thumbnailURL] projection that resolves
- * Firebase Storage URLs directly and falls back to the legacy IPFS path.
+ * Firebase Storage URLs directly.
  */
 @Serializable
 data class UserNotification(
@@ -26,14 +26,10 @@ data class UserNotification(
     @SerialName("notificationUserId") val userId: String? = null,
     @SerialName("notificationCommunityId") val communityId: String? = null,
 ) {
-    /**
-     * Derived thumbnail URL. The iOS port builds
-     * `IPFS.baseUrl + image`; the Android port keeps the same fallback
-     * while preferring an already-resolved Firebase Storage URL.
-     */
+    /** Derived thumbnail URL from the Firebase Storage URL. */
     val thumbnailURL: String?
-        get() = image?.takeIf { it.isNotBlank() }?.let {
-            if (it.startsWith("http://") || it.startsWith("https://")) it else IPFS_BASE_URL + it
+        get() = image?.takeIf { it.isNotBlank() }?.takeIf {
+            it.startsWith("http://") || it.startsWith("https://")
         }
 
     /**
@@ -42,10 +38,6 @@ data class UserNotification(
      */
     val deeplinkType: UserNotificationDeeplinkType
         get() = UserNotificationDeeplinkType.fromRaw(type)
-
-    companion object {
-        const val IPFS_BASE_URL: String = "https://ipfs.kornerz.io/ipfs/"
-    }
 }
 
 /**

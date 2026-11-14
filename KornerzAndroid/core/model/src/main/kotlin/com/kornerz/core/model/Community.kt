@@ -59,8 +59,7 @@ data class Community(
 
     /**
      * The fully-resolved cover image URL. Prefers the Firebase Storage
-     * URL (v4 migration) and falls back to the legacy IPFS field
-     * (mirrors iOS `Models/Community.swift` lines 47–58).
+     * URL and falls back to the legacy document field.
      */
     val coverImageURL: String?
         get() = firebaseImageURL.takeUnless { it.isNullOrEmpty() }

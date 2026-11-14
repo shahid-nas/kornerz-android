@@ -30,6 +30,10 @@ data class KornerDetailState(
     val detail: AsyncValue<KornerDetail> = AsyncValue.Loading,
     val kornerstones: List<User> = emptyList(),
     val recentLoops: List<Loop> = emptyList(),
+    /** Whether the next page of recent loops is being fetched. */
+    val isLoadingMoreRecentLoops: Boolean = false,
+    /** Whether another page of recent loops is available. */
+    val hasMoreRecentLoops: Boolean = true,
     val selectedNookTab: KornerDetailNookTab = KornerDetailNookTab.Current,
     val selectedUserTab: KornerDetailUserTab = KornerDetailUserTab.Kornerstones,
     /** Whether the iOS-style "About" bottom sheet is presented. */

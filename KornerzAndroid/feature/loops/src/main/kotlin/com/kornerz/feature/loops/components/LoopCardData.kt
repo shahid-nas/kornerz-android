@@ -24,7 +24,7 @@ data class LoopCardData(
     val theme: String?,
     val thumbnailUrl: String?,
     val imageUrl: String?,
-    val videoUrl: String,
+    val videoUrl: String?,
     val isVideo: Boolean,
     val viewCounts: Int,
     val commentsCount: Int,

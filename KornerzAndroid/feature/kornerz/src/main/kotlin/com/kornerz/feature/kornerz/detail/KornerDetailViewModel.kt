@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kornerz.core.model.AsyncValue
 import com.kornerz.core.model.Korner
+import com.kornerz.core.network.loops.LoopCursor
 import com.kornerz.feature.kornerz.KornerzRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
@@ -82,6 +83,12 @@ class KornerDetailViewModel @Inject constructor(
      */
     private var followInFlight = false
 
+    /** Cursor for the next page of recent loops. */
+    private var recentLoopsCursor: LoopCursor? = null
+
+    /** The Korner whose community loops are being paged. */
+    private var recentLoopsKorner: Korner? = null
+
     init {
         if (kornerId.isNotBlank()) fetchData() else {
             _state.update { it.copy(detail = AsyncValue.Error(IllegalArgumentException("Missing kornerId"))) }
@@ -114,6 +121,7 @@ class KornerDetailViewModel @Inject constructor(
             is KornerDetailEvent.LoopTileClicked -> emit(
                 KornerDetailNavEvent.NavigateToLoopDetail(event.loopId, event.accentColorHex),
             )
+            KornerDetailEvent.RecentLoopsLoadMore -> loadNextRecentLoopsPage()
             is KornerDetailEvent.JoinCtaClicked -> joinCall(event.nookId)
         }
     }
@@ -278,9 +286,48 @@ class KornerDetailViewModel @Inject constructor(
                 _state.update { it.copy(kornerstones = result.getOrDefault(emptyList())) }
             }
         }
+        recentLoopsKorner = korner
+        recentLoopsCursor = null
         viewModelScope.launch {
-            repository.fetchKornerRecentLoops(korner).collect { result ->
-                _state.update { it.copy(recentLoops = result.getOrDefault(emptyList())) }
+            val result = repository.fetchKornerRecentLoopsPage(korner, cursor = null)
+            result.onSuccess { page ->
+                recentLoopsCursor = page.nextCursor
+                _state.update {
+                    it.copy(
+                        recentLoops = page.items,
+                        isLoadingMoreRecentLoops = false,
+                        hasMoreRecentLoops = page.hasMore,
+                    )
+                }
+            }.onFailure {
+                _state.update { it.copy(isLoadingMoreRecentLoops = false, hasMoreRecentLoops = false) }
+            }
+        }
+    }
+
+    /**
+     * Appends the next page of recent loops when the section reaches its
+     * end. One page is fetched at a time so a fast scroll cannot queue
+     * duplicate requests.
+     */
+    private fun loadNextRecentLoopsPage() {
+        val state = _state.value
+        if (state.isLoadingMoreRecentLoops || !state.hasMoreRecentLoops) return
+        val korner = recentLoopsKorner ?: return
+        val cursor = recentLoopsCursor ?: return
+        _state.update { it.copy(isLoadingMoreRecentLoops = true) }
+        viewModelScope.launch {
+            repository.fetchKornerRecentLoopsPage(korner, cursor).onSuccess { page ->
+                recentLoopsCursor = page.nextCursor
+                _state.update { current ->
+                    current.copy(
+                        recentLoops = (current.recentLoops + page.items).distinctBy { it.id },
+                        isLoadingMoreRecentLoops = false,
+                        hasMoreRecentLoops = page.hasMore,
+                    )
+                }
+            }.onFailure {
+                _state.update { it.copy(isLoadingMoreRecentLoops = false) }
             }
         }
     }

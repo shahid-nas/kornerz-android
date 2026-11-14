@@ -31,7 +31,7 @@ object LoopMapper {
             communityName = community?.name ?: loop.communityName,
             publisherId = loop.publisherId,
             publisherNickname = owner?.displayName,
-            publisherThumbnailUrl = owner?.photoUrl,
+            publisherThumbnailUrl = owner?.thumbnailURL,
             theme = loop.theme,
             thumbnailUrl = thumbnail,
             imageUrl = image,

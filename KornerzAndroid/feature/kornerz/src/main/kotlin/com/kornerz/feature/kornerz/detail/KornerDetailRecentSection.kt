@@ -7,12 +7,19 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -21,6 +28,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kornerz.core.ui.components.HomeSectionHeader
+import com.kornerz.core.ui.components.KornerzLoadingMoreView
 import com.kornerz.core.ui.theme.KornerzCardPalette
 import com.kornerz.core.ui.theme.KornerzTheme
 import com.kornerz.core.ui.theme.Spacing
@@ -46,8 +54,23 @@ fun KornerDetailRecentSection(
     communityName: String,
     cards: List<LoopCardData>,
     onLoopClick: (loopId: String, accentColorHex: String) -> Unit,
+    isLoadingMore: Boolean = false,
+    hasMore: Boolean = true,
+    onLoadMore: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
+    val listState = rememberLazyListState()
+    val currentOnLoadMore by rememberUpdatedState(onLoadMore)
+
+    LaunchedEffect(listState, cards.size, hasMore, isLoadingMore) {
+        snapshotFlow {
+            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            hasMore && !isLoadingMore && lastVisible >= cards.lastIndex - LOAD_MORE_THRESHOLD
+        }.collect { nearEnd ->
+            if (nearEnd) currentOnLoadMore()
+        }
+    }
+
     Column(modifier = modifier.fillMaxWidth()) {
         HomeSectionHeader(
             title = "Recently in $communityName",
@@ -57,24 +80,26 @@ fun KornerDetailRecentSection(
         if (cards.isEmpty()) {
             EmptyRecentLoops()
         } else {
-            Column(
-                modifier = Modifier.padding(bottom = Spacing.space8),
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(Spacing.space8),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = Spacing.space8),
             ) {
-                cards.forEachIndexed { index, card ->
-                    // iOS hands the **row's** colour to the loop detail
-                    // (`navigateToLoopDetail(loopInfo)` carries
-                    // `loopInfo.color`), so the detail opens in the very
-                    // colour the tapped row was painted with.
+                items(items = cards, key = { it.id }) { card ->
+                    val index = cards.indexOf(card)
                     val accent = KornerzCardPalette.color(index)
                     LoopItemView(
                         data = card,
-                        // iOS `viewModel.color(for: index)` — the
-                        // five-swatch rotation shared with the Loops tab.
                         color = accent,
                         onClick = { onLoopClick(card.id, KornerzCardPalette.hexForIndex(index)) },
                         modifier = Modifier.padding(horizontal = Spacing.space8),
                     )
+                }
+                if (isLoadingMore) {
+                    item(key = "recent-loops-loading-more") {
+                        KornerzLoadingMoreView()
+                    }
                 }
             }
         }
@@ -112,6 +137,8 @@ private fun EmptyRecentLoops() {
         )
     }
 }
+
+private const val LOAD_MORE_THRESHOLD = 2
 
 @Preview(showBackground = true, name = "Korner detail recent — empty")
 @Composable

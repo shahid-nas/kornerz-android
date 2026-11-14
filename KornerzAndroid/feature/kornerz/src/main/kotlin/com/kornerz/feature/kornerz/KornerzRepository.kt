@@ -7,7 +7,9 @@ import com.kornerz.core.model.Loop
 import com.kornerz.core.model.User
 import com.kornerz.core.network.fellow.FellowRepository
 import com.kornerz.core.network.kornerz.KornerFirestoreApi
+import com.kornerz.core.network.loops.LoopCursor
 import com.kornerz.core.network.loops.LoopFirestoreApi
+import com.kornerz.core.network.loops.PagingResult
 import com.kornerz.core.network.nooks.SessionInfoApi
 import com.kornerz.core.network.user.UsersRepository
 import com.kornerz.core.storage.session.SessionRepository
@@ -255,6 +257,18 @@ class KornerzRepository @Inject constructor(
     fun fetchKornerRecentLoops(korner: Korner): Flow<Result<List<Loop>>> = flow {
         val communityId = korner.communityId?.takeIf { it.isNotBlank() } ?: korner.id
         emit(loopApi.fetchCommunityLoops(communityId))
+    }
+
+    /**
+     * Fetches one page of the Korner's "Recently in" loops, resuming
+     * after [cursor] when one is supplied.
+     */
+    suspend fun fetchKornerRecentLoopsPage(
+        korner: Korner,
+        cursor: LoopCursor?,
+    ): Result<PagingResult<Loop>> {
+        val communityId = korner.communityId?.takeIf { it.isNotBlank() } ?: korner.id
+        return loopApi.fetchCommunityLoopsPage(communityId, cursor)
     }
 
     /**

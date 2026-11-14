@@ -76,26 +76,13 @@ class UserFirestoreApi @Inject constructor(
     }
 
     /**
-     * Writes the `firebaseImageUrl` + `firebaseThumbnailUrl` + legacy
-     * `image` + `thumbnail` fields in one batch (mirrors iOS
-     * `UserProfileRepository.uploadUserProfileImage` lines 107–118
-     * which writes all four). The legacy `image` / `thumbnail` fields
-     * are kept populated for backwards compatibility with the iOS
-     * computed `imageURL` / `thumbnailURL` IPFS branches — even
-     * though the v4 Firebase Storage migration makes them unused.
-     *
-     * @param storageHash A content-hash style identifier (e.g. the
-     *   Firebase Storage download URL or a legacy IPFS CID). iOS uses
-     *   the upload result hash here; the Android port uses the
-     *   download URL string for the legacy fields, mirroring the
-     *   v4 migration.
+     * Writes the `firebaseImageUrl` and `firebaseThumbnailUrl` fields in
+     * one batch.
      */
     suspend fun updateProfileImage(
         email: String,
         firebaseImageUrl: String,
         firebaseThumbnailUrl: String,
-        legacyImageHash: String,
-        legacyThumbnailHash: String,
     ): Result<Unit> = runCatching {
         firestore.collection(USERS_COLLECTION)
             .document(email)
@@ -103,8 +90,6 @@ class UserFirestoreApi @Inject constructor(
                 mapOf(
                     FIELD_FIREBASE_IMAGE_URL to firebaseImageUrl,
                     FIELD_FIREBASE_THUMBNAIL_URL to firebaseThumbnailUrl,
-                    FIELD_IMAGE to legacyImageHash,
-                    FIELD_THUMBNAIL to legacyThumbnailHash,
                 ),
                 SetOptions.merge(),
             )
@@ -178,8 +163,6 @@ class UserFirestoreApi @Inject constructor(
             subscriptionPlatform = data[FIELD_SUBSCRIPTION_PLATFORM] as? String,
             firebaseImageUrl = data[FIELD_FIREBASE_IMAGE_URL] as? String,
             firebaseThumbnailUrl = data[FIELD_FIREBASE_THUMBNAIL_URL] as? String,
-            image = data[FIELD_IMAGE] as? String,
-            thumbnail = data[FIELD_THUMBNAIL] as? String,
             thumbnailType = data[FIELD_THUMBNAIL_TYPE] as? String,
         )
     }
@@ -251,8 +234,6 @@ class UserFirestoreApi @Inject constructor(
         private const val FIELD_SUBSCRIPTION_PLATFORM = "subscriptionPlatform"
         private const val FIELD_FIREBASE_IMAGE_URL = "firebaseImageUrl"
         private const val FIELD_FIREBASE_THUMBNAIL_URL = "firebaseThumbnailUrl"
-        private const val FIELD_IMAGE = "image"
-        private const val FIELD_THUMBNAIL = "thumbnail"
         private const val FIELD_THUMBNAIL_TYPE = "thumbnailType"
         private const val FIELD_REGISTRATION_DATE = "userDateRegister"
     }

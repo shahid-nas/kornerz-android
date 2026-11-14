@@ -82,8 +82,6 @@ class UsersRepository @Inject constructor(
         photoUrl = this[FIELD_PHOTO_URL] as? String,
         firebaseImageUrl = this[FIELD_FIREBASE_IMAGE_URL] as? String,
         firebaseThumbnailUrl = this[FIELD_FIREBASE_THUMBNAIL_URL] as? String,
-        image = this[FIELD_IMAGE] as? String,
-        thumbnail = this[FIELD_THUMBNAIL] as? String,
         thumbnailType = this[FIELD_THUMBNAIL_TYPE] as? String,
     )
 
@@ -99,8 +97,6 @@ class UsersRepository @Inject constructor(
         const val FIELD_PHOTO_URL = "photoUrl"
         const val FIELD_FIREBASE_THUMBNAIL_URL = "firebaseThumbnailUrl"
         const val FIELD_FIREBASE_IMAGE_URL = "firebaseImageUrl"
-        const val FIELD_IMAGE = "image"
-        const val FIELD_THUMBNAIL = "thumbnail"
         const val FIELD_THUMBNAIL_TYPE = "thumbnailType"
 
         /**
