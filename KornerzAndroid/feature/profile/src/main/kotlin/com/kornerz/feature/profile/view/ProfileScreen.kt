@@ -1,10 +1,6 @@
 package com.kornerz.feature.profile.view
 
-import android.graphics.Bitmap
-import android.graphics.ImageDecoder
 import android.net.Uri
-import android.os.Build
-import android.provider.MediaStore
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -35,7 +31,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -93,8 +88,8 @@ fun ProfileScreen(
         }
     }
     val currentUser = (state.user as? AsyncValue.Success)?.data
-    val onAvatarPicked: (Bitmap) -> Unit = { bitmap ->
-        currentUser?.let { viewModel.uploadAvatar(it, bitmap) }
+    val onAvatarPicked: (Uri) -> Unit = { uri ->
+        currentUser?.let { viewModel.uploadAvatar(it, uri) }
     }
     val snackbarHostState = remember { SnackbarHostState() }
     // Surface a failed avatar upload. The key is the message itself,
@@ -222,16 +217,12 @@ fun ProfileContent(
     onMyCommunitiesTap: () -> Unit,
     onLogoutTap: () -> Unit,
     onDeleteAccountTap: () -> Unit,
-    onAvatarPicked: (Bitmap) -> Unit,
+    onAvatarPicked: (Uri) -> Unit,
     premiumTrailingText: String = "Premium",
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
     val picker = rememberKornerzImagePicker(
-        onPhotoPicked = { uri ->
-            val bitmap = decodeBitmap(context, uri)
-            if (bitmap != null) onAvatarPicked(bitmap)
-        },
+        onPhotoPicked = { uri -> onAvatarPicked(uri) },
     )
     when (val user = state.user) {
         AsyncValue.Loading -> KornerzLoadingView(modifier = modifier.fillMaxSize())
@@ -347,18 +338,5 @@ fun ProfileContent(
                 }
             }
         }
-    }
-}
-
-private fun decodeBitmap(context: android.content.Context, uri: Uri): Bitmap? {
-    return try {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri))
-        } else {
-            @Suppress("DEPRECATION")
-            MediaStore.Images.Media.getBitmap(context.contentResolver, uri)
-        }
-    } catch (e: Exception) {
-        null
     }
 }

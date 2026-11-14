@@ -29,6 +29,7 @@ dependencies {
     api(project(":core:storage"))
 
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.exifinterface)
 
     // Kotlinx
     implementation(libs.kotlinx.coroutines.android)

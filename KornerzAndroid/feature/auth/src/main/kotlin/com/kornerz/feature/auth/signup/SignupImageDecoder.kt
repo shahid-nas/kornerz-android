@@ -2,8 +2,8 @@ package com.kornerz.feature.auth.signup
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.net.Uri
+import com.kornerz.core.network.storage.ImageOrientationDecoder
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -29,6 +29,7 @@ import javax.inject.Singleton
 @Singleton
 class SignupImageDecoder @Inject constructor(
     @ApplicationContext private val context: Context,
+    private val orientationDecoder: ImageOrientationDecoder,
 ) {
 
     /**
@@ -40,16 +41,24 @@ class SignupImageDecoder @Inject constructor(
      * after the pick. The same pattern is used by the create-forum
      * wizard (`MediaCache` in `feature/community`).
      *
+     * The bytes are re-encoded with the EXIF orientation applied, so the
+     * cached copy — which is also what the photo-step preview shows — is
+     * upright even though the source file's orientation tag is dropped
+     * by the re-encode.
+     *
      * @throws IllegalStateException if the source cannot be read or the
      *   copy cannot be written.
      */
     suspend fun copyToCache(uri: Uri): Uri = withContext(Dispatchers.IO) {
+        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            ?: error("Could not open the selected image")
+        val normalized = orientationDecoder.decode(bytes)
         val directory = File(context.cacheDir, CACHE_DIR_NAME).apply { mkdirs() }
         val target = File(directory, "signup_photo_${System.currentTimeMillis()}.jpg")
         val copied = runCatching {
-            context.contentResolver.openInputStream(uri)?.use { input ->
-                target.outputStream().use { output -> input.copyTo(output) }
-            } ?: error("Could not open the selected image")
+            target.outputStream().use { output ->
+                normalized.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, output)
+            }
         }
         if (copied.isFailure) {
             target.delete()
@@ -78,7 +87,8 @@ class SignupImageDecoder @Inject constructor(
 
     /**
      * Decodes [uri] into a [Bitmap], downscaled so its longest edge is at
-     * most [maxDimension] pixels.
+     * most [maxDimension] pixels and rotated upright using the source
+     * image's EXIF orientation.
      *
      * The downscale happens during decode (via `inSampleSize`) rather than
      * after, so a 12-megapixel camera photo never has to be held in the
@@ -88,41 +98,7 @@ class SignupImageDecoder @Inject constructor(
      * @throws IllegalStateException if the image cannot be decoded.
      */
     suspend fun decode(uri: Uri, maxDimension: Int = MAX_DIMENSION): Bitmap =
-        withContext(Dispatchers.IO) {
-            // Read the bytes once. A content URI may only be opened a
-            // single time — the Photo Picker's read grant is
-            // one-shot — so the stream is opened exactly once and both
-            // the bounds probe and the real decode run off the same
-            // buffer.
-            val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                ?: error("Could not open the selected image")
-
-            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
-            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
-                error("The selected file is not a readable image")
-            }
-
-            val options = BitmapFactory.Options().apply {
-                inSampleSize = sampleSizeFor(bounds.outWidth, bounds.outHeight, maxDimension)
-            }
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
-                ?: error("Could not decode the selected image")
-        }
-
-    /**
-     * The power-of-two sample size that brings the image close to
-     * [maxDimension] without going below it.
-     */
-    private fun sampleSizeFor(width: Int, height: Int, maxDimension: Int): Int {
-        var sampleSize = 1
-        var longestEdge = maxOf(width, height)
-        while (longestEdge / 2 >= maxDimension) {
-            longestEdge /= 2
-            sampleSize *= 2
-        }
-        return sampleSize
-    }
+        orientationDecoder.decode(uri, maxDimension)
 
     private companion object {
         /**
@@ -130,6 +106,9 @@ class SignupImageDecoder @Inject constructor(
          * plenty for a profile photo and keeps the JPEG upload small.
          */
         const val MAX_DIMENSION = 1024
+
+        /** The cached copy is written at the same quality iOS uploads at. */
+        const val JPEG_QUALITY = 50
 
         /** The cache sub-directory the picked photo is copied into. */
         const val CACHE_DIR_NAME = "signup_photos"

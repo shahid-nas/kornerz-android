@@ -1,5 +1,6 @@
 package com.kornerz.feature.profile.view
 
+import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -7,6 +8,7 @@ import com.kornerz.core.model.AsyncValue
 import com.kornerz.core.model.SubscriptionProductType
 import com.kornerz.core.model.User
 import com.kornerz.core.network.community.CommunitiesRepository
+import com.kornerz.core.network.storage.ImageOrientationDecoder
 import com.kornerz.feature.profile.data.UserProfileRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.datetime.TimeZone
@@ -47,6 +49,7 @@ import javax.inject.Inject
 class ProfileViewModel @Inject constructor(
     private val userRepository: UserProfileRepository,
     private val communitiesRepository: CommunitiesRepository,
+    private val imageOrientationDecoder: ImageOrientationDecoder,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(ProfileState())
@@ -157,14 +160,14 @@ class ProfileViewModel @Inject constructor(
     }
 
     /**
-     * Uploads a new avatar for [user].
+     * Decodes the picked avatar and uploads it for [user].
      *
-     * The whole [User] is handed to the repository rather than a bare
-     * id: the Storage path needs the `codeUser` field, while the
-     * Firestore write needs the user's email. Passing the resolved user
-     * keeps those two identifiers from being mixed up.
+     * The picked file carries an EXIF orientation tag that `BitmapFactory`
+     * ignores, so the image is normalized before it reaches the JPEG
+     * re-encode. Re-encoding without applying the tag would strip the
+     * orientation and bake the rotation into the stored image.
      */
-    fun uploadAvatar(user: User, bitmap: android.graphics.Bitmap) {
+    fun uploadAvatar(user: User, uri: Uri) {
         if (_state.value.isUploadingImage) return
         viewModelScope.launch {
             _state.update {
@@ -176,6 +179,25 @@ class ProfileViewModel @Inject constructor(
                     uploadError = null,
                 )
             }
+            val bitmap = runCatching { imageOrientationDecoder.decode(uri) }
+                .getOrElse { error ->
+                    finishUpload(null, error)
+                    return@launch
+                }
+            uploadDecodedAvatar(user, bitmap)
+        }
+    }
+
+    /**
+     * Uploads a new avatar for [user].
+     *
+     * The whole [User] is handed to the repository rather than a bare
+     * id: the Storage path needs the `codeUser` field, while the
+     * Firestore write needs the user's email. Passing the resolved user
+     * keeps those two identifiers from being mixed up.
+     */
+    private fun uploadDecodedAvatar(user: User, bitmap: android.graphics.Bitmap) {
+        viewModelScope.launch {
             val result = userRepository.uploadProfileImage(user, bitmap) { step, progress ->
                 _state.update { current ->
                     current.copy(
@@ -189,22 +211,26 @@ class ProfileViewModel @Inject constructor(
                     )
                 }
             }
-            _state.update {
-                it.copy(
-                    isUploadingImage = false,
-                    uploadProgress = if (result.isSuccess) 1.0 else it.uploadProgress,
-                    uploadStepProgress = if (result.isSuccess) 1.0 else it.uploadStepProgress,
-                    user = if (result.isSuccess) {
-                        AsyncValue.Success(result.getOrThrow())
-                    } else {
-                        it.user
-                    },
-                    uploadError = result.exceptionOrNull()?.message,
-                )
-            }
-            result.exceptionOrNull()?.let { error ->
-                Log.w(TAG, "uploadAvatar failed: ${error.message}")
-            }
+            finishUpload(result.getOrNull(), result.exceptionOrNull())
+        }
+    }
+
+    private fun finishUpload(user: User?, error: Throwable?) {
+        _state.update {
+            it.copy(
+                isUploadingImage = false,
+                uploadProgress = if (user != null) 1.0 else it.uploadProgress,
+                uploadStepProgress = if (user != null) 1.0 else it.uploadStepProgress,
+                user = if (user != null) {
+                    AsyncValue.Success(user)
+                } else {
+                    it.user
+                },
+                uploadError = error?.message,
+            )
+        }
+        error?.let { failure ->
+            Log.w(TAG, "uploadAvatar failed: ${failure.message}")
         }
     }
 

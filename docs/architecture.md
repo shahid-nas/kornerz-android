@@ -233,6 +233,7 @@ Versions are pinned in `KornerzAndroid/gradle/libs.versions.toml`. Do **not** in
 | Library | Purpose |
 |---|---|
 | Coil Compose | Image loading (replaces iOS `KFImage`) |
+| AndroidX ExifInterface | Read EXIF orientation before re-encoding picked photos |
 | Media3 ExoPlayer | Video playback (P9) |
 | Lottie Compose | Lottie animations (replaces iOS `lottie-ios`) |
 | Accompanist (SystemUiController, Insets, Permissions) | Edge-to-edge + permissions UI |
