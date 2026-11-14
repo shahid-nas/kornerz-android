@@ -78,6 +78,7 @@ class FcmTokenRegistrar @Inject constructor(
                 return@launch
             }
             _state.tryEmit(AsyncValue.Success(token))
+            logToken("Fetched", token)
             upload(token)
         }
         scope.launch { observeRotation() }
@@ -93,7 +94,10 @@ class FcmTokenRegistrar @Inject constructor(
             .addOnSuccessListener { next ->
                 if (next.isNullOrEmpty() || next == lastUploadedToken) return@addOnSuccessListener
                 lastUploadedToken = next
-                scope.launch { upload(next) }
+                scope.launch {
+                    logToken("Rotated", next)
+                    upload(next)
+                }
             }
             .addOnFailureListener { error ->
                 Log.w(TAG, "FCM token rotation failed", error)
@@ -132,11 +136,28 @@ class FcmTokenRegistrar @Inject constructor(
             .onSuccess {
                 lastUploadedToken = token
                 pendingToken = null
+                logToken("Registered for ${user.email}", token)
             }
             .onFailure { error ->
                 Log.w(TAG, "Could not upload the FCM token", error)
                 pendingToken = token
             }
+    }
+
+    /**
+     * Prints the FCM registration token so it can be copied straight
+     * into the Firebase console (or a direct FCM HTTP v1 call) to test
+     * push delivery and deep-link handling on this exact device.
+     *
+     * Mirrors the iOS behaviour — `AppDelegate.messaging(_:didReceive
+     * RegistrationToken:)` prints `Token: <token>`
+     * (`kornerz/Kornerz/App/AppDelegate.swift:182-188`). The token is a
+     * device credential for the signed-in user, so it is logged at INFO
+     * level in debug builds only.
+     */
+    private suspend fun logToken(reason: String, token: String) {
+        val deviceId = runCatching { deviceIdProvider.deviceId() }.getOrNull()
+        Log.i(TAG, "FCM token ($reason) deviceId=$deviceId token=$token")
     }
 
     /**

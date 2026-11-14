@@ -64,7 +64,9 @@ class KornerzFcmService : FirebaseMessagingService() {
                 return@launch
             }
             val deviceId = deviceIdProvider.deviceId()
+            Log.i(TAG, "FCM token (Rotated in FCM service) deviceId=$deviceId token=$token")
             deviceTokenStore.upsert(email = user.email, deviceId = deviceId, token = token)
+                .onSuccess { Log.i(TAG, "FCM token (Registered for ${user.email}) token=$token") }
                 .onFailure { Log.w(TAG, "Could not write the rotated FCM token", it) }
         }
     }
