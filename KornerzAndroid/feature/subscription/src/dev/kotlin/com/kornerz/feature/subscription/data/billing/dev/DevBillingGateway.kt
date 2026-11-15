@@ -133,7 +133,7 @@ class DevBillingGateway @Inject constructor() : SubscriptionBillingGateway {
     override suspend fun queryProductDetails(
         ids: List<String>,
     ): Result<List<SubscriptionProduct>> = Result.success(
-        OfflineCatalog.all().filter { it.planId in ids },
+        OfflineCatalog.all().filter { it.playProductId in ids },
     )
 
     override suspend fun queryPurchases(): Result<List<PurchaseRecord>> = Result.success(

@@ -9,7 +9,7 @@ plugins {
 
 android {
     namespace = "com.kornerz.feature.nooks"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         minSdk = 26

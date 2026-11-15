@@ -36,7 +36,7 @@ class SubscriptionCloudFunctionsApi @Inject constructor(
      *
      * @param token the Play purchase token.
      * @param productId the Play product id, i.e.
-     *   `SubscriptionProductType.rawValue`.
+     *   `SubscriptionProductType.playProductId`.
      * @return `Result.success` with the parsed verdict, or
      *   `Result.failure` when the function is not deployed, the network
      *   is unavailable, or the response does not match the contract.

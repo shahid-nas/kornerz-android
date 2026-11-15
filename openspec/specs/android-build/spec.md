@@ -74,7 +74,7 @@ The `app/` module SHALL include `google-services.json` and apply the `com.google
 - **THEN** the crash is reported to Firebase Crashlytics within 30 seconds
 
 ### Requirement: Min SDK 26, target SDK latest stable
-The `app/` module's `build.gradle.kts` SHALL set `minSdk = 26` and `targetSdk = <latest stable>` (e.g., 35 at time of writing).
+The `app/` module's `build.gradle.kts` SHALL set `minSdk = 26` and `targetSdk = <latest stable>` (36 at time of writing).
 
 #### Scenario: Installs on API 26 device
 - **WHEN** an APK is installed on a device running Android 8.0 (API 26)
@@ -149,13 +149,22 @@ P8 dependency:
 
 | Catalog alias | Group : artifact | Version | Phase |
 |---|---|---|---|
-| `android-billing` | `com.android.billingclient` : `billing-ktx` | `7.0.0` | P8 |
+| `android-billing` | `com.android.billingclient` : `billing-ktx` | `8.0.0` | P8 |
 
-Version 7.0.0 satisfies the `docs/phases.md:259` floor of "Google Play
-Billing v6+"; v7 is chosen because v6 is end-of-life. The library
-requires `minSdk >= 21`, which the project's `minSdk = 26` already
-satisfies, and imposes no `compileSdk` or AGP floor above the project's
-existing `compileSdk = 35` / AGP 8.5.2.
+Version 8.0.0 satisfies the `docs/phases.md:259` floor of "Google Play
+Billing v6+"; v8 is chosen because v7 is superseded and v8 carries the
+latest monetisation features. The library requires `minSdk >= 21`,
+which the project's `minSdk = 26` already satisfies, and imposes no
+`compileSdk` or AGP floor above the project's `compileSdk = 36` /
+AGP 8.8.0.
+
+The 8.0 upgrade is source-compatible with the single Play boundary type
+(`BillingClientApi`): `BillingClient.BillingResponseCode` keeps the same
+constants, and the ktx `queryProductDetails` extension still returns a
+`ProductDetailsResult` carrying `billingResult` and `productDetailsList`.
+`ProductDetails.freeTrialOfferDetails` does not exist in 8.0.0 (nor in
+7.x), so the trial signal continues to be derived from the pricing-phase
+list.
 
 This is the **first Play-services dependency in the codebase** — the
 artifact is entirely absent today (0 hits for `billingclient` /
@@ -183,7 +192,7 @@ SHALL NOT gain an explicit `<uses-permission>` for it.
 
 #### Scenario: The billing alias resolves
 - **WHEN** `libs.android.billing` is referenced
-- **THEN** it resolves to `com.android.billingclient:billing-ktx:7.0.0` from Google Maven
+- **THEN** it resolves to `com.android.billingclient:billing-ktx:8.0.0` from Google Maven
 
 #### Scenario: No per-module repository block is added
 - **WHEN** P8's diff is reviewed for `repositories {` blocks
@@ -209,7 +218,7 @@ The module SHALL use the standard `feature/*` Gradle scaffolding,
 mirroring `feature/profile/build.gradle.kts`:
 
 - `namespace = "com.kornerz.feature.subscription"`
-- `compileSdk = 35`, `minSdk = 26`
+- `compileSdk = 36`, `minSdk = 26`
 - Java/JVM target 17, `jvmTarget = "17"`
 - `buildFeatures { compose = true }`
 - plugins: `android-library`, `kotlin-android`, `kotlin-kapt`, `kotlin-compose`, `hilt`

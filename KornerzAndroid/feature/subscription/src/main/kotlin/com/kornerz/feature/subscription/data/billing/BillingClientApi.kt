@@ -10,6 +10,7 @@ import com.android.billingclient.api.BillingResult
 import com.android.billingclient.api.ProductDetails
 import com.android.billingclient.api.Purchase
 import com.android.billingclient.api.PurchasesUpdatedListener
+import com.android.billingclient.api.PendingPurchasesParams
 import com.android.billingclient.api.QueryProductDetailsParams
 import com.android.billingclient.api.QueryPurchasesParams
 import com.android.billingclient.api.acknowledgePurchase
@@ -58,11 +59,17 @@ import javax.inject.Singleton
  * its IPC off the main thread, and `await` resumes on the caller's
  * dispatcher (`viewModelScope`, i.e. Main).
  *
- * **Pinned to `com.android.billingclient` 7.0.0**, whose response-code
- * constants live on `BillingClient.BillingResponseCode` (the top-level
- * `BillingResultCode` object and `ProductDetails.freeTrialOfferDetails`
- * arrived in 8.0 / 7.1 respectively). Where the `play-billing` spec's
- * mapping table names a code this version does not expose — `IO_ERROR`,
+ * **Pinned to `com.android.billingclient` 8.0.0**, whose response-code
+ * constants live on `BillingClient.BillingResponseCode`. The 8.0 upgrade
+ * is source-compatible with this file apart from the removal of the
+ * no-arg `BillingClient.Builder.enablePendingPurchases()`, which is now
+ * called with an explicit `PendingPurchasesParams` carrying
+ * `enableOneTimeProducts()` — the equivalence Google documents for the
+ * removed overload. `BillingResponseCode` keeps the same constants, and
+ * the ktx `queryProductDetails` extension still returns a
+ * `ProductDetailsResult` carrying `billingResult` and
+ * `productDetailsList`. Where the `play-billing` spec's mapping table
+ * names a code this version does not expose — `IO_ERROR`,
  * `PRODUCT_NOT_AVAILABLE` — it falls through to
  * [SubscriptionError.Unknown] rather than being faked; the pinned version
  * is the contract.
@@ -108,10 +115,10 @@ class BillingClientApi @Inject constructor(
     }
 
     private val _connectionState = MutableStateFlow<BillingConnectionState>(
-        // TEMPORARY: while [IAP_ENABLED] is `false` the client is never
-        // built, so the state would otherwise sit at `Disconnected` forever
-        // and the plans screen would render as if billing were merely still
-        // connecting. `Unavailable` is the honest shape here.
+        // While [IAP_ENABLED] is `false` the client is never built, so the
+        // state would otherwise sit at `Disconnected` forever and the plans
+        // screen would render as if billing were merely still connecting.
+        // `Unavailable` is the honest shape here.
         if (IAP_ENABLED) {
             BillingConnectionState.Disconnected
         } else {
@@ -148,7 +155,7 @@ class BillingClientApi @Inject constructor(
 
     /**
      * Play `ProductDetails` retained from the last successful
-     * [queryProductDetails], keyed by product id. Play's 7.0.0
+     * [queryProductDetails], keyed by product id. Play's
      * `launchBillingFlow` takes the resolved `ProductDetails` rather than a
      * bare id, so the catalog query is a prerequisite for a purchase — which
      * is also the natural ordering for the plans screen.
@@ -191,7 +198,11 @@ class BillingClientApi @Inject constructor(
         } else {
             BillingClient.newBuilder(context)
                 .setListener(purchasesUpdatedListener)
-                .enablePendingPurchases()
+                .enablePendingPurchases(
+                    PendingPurchasesParams.newBuilder()
+                        .enableOneTimeProducts()
+                        .build(),
+                )
                 .build()
                 .also { client ->
                     _connectionState.value = BillingConnectionState.Connecting
@@ -242,13 +253,12 @@ class BillingClientApi @Inject constructor(
     override suspend fun queryProductDetails(
         ids: List<String>,
     ): Result<List<SubscriptionProduct>> {
-        // TEMPORARY: IAP is switched off (the app is not on the Play
-        // Store), so the catalog is served from the offline copy instead
-        // of a Play round trip that can only fail with
+        // IAP is switched off, so the catalog is served from the offline
+        // copy instead of a Play round trip that can only fail with
         // "queryProductDetails failed: ...".
         if (!IAP_ENABLED) {
             return Result.success(
-                OfflineCatalog.all().filter { it.planId in ids },
+                OfflineCatalog.all().filter { it.playProductId in ids },
             )
         }
 
@@ -290,7 +300,8 @@ class BillingClientApi @Inject constructor(
                 .sortedBy { product ->
                     // Preserve the pinned MONTHLY-then-YEARLY order rather
                     // than whatever order Play happens to return.
-                    SubscriptionProductType.fromRawValue(product.planId)?.ordinal ?: Int.MAX_VALUE
+                    SubscriptionProductType.fromPlayProductId(product.playProductId)?.ordinal
+                        ?: Int.MAX_VALUE
                 }
         }.recoverCatching { throwable ->
             throw throwable.asSubscriptionThrowable("queryProductDetails")
@@ -303,8 +314,8 @@ class BillingClientApi @Inject constructor(
      * granted an entitlement yet.
      */
     override suspend fun queryPurchases(): Result<List<PurchaseRecord>> {
-        // TEMPORARY: no Play client is built while IAP is off, so there
-        // are no local purchases to report.
+        // No Play client is built while IAP is off, so there are no local
+        // purchases to report.
         if (!IAP_ENABLED) {
             return Result.success(emptyList())
         }
@@ -364,9 +375,9 @@ class BillingClientApi @Inject constructor(
         productId: String,
         offerToken: String?,
     ): Result<Unit> {
-        // TEMPORARY: IAP is switched off, so there is no Play sheet to
-        // present. Report the same typed failure the ViewModel already
-        // renders as "Billing is unavailable right now".
+        // IAP is switched off, so there is no Play sheet to present.
+        // Report the same typed failure the ViewModel already renders as
+        // "Billing is unavailable right now".
         if (!IAP_ENABLED) {
             return Result.failure(
                 SubscriptionException(
@@ -377,7 +388,7 @@ class BillingClientApi @Inject constructor(
         }
 
         val activity = activityRef?.get()
-        // `launchBillingFlow` in 7.0.0 takes the resolved ProductDetails
+        // `launchBillingFlow` takes the resolved ProductDetails
         // rather than a bare product id, so the catalog query's result is
         // retained here. An unresolved product id means the console is
         // misconfigured for this build.
@@ -431,8 +442,8 @@ class BillingClientApi @Inject constructor(
      * already shown as active.
      */
     override suspend fun acknowledgePurchase(token: String): Result<Unit> {
-        // TEMPORARY: no purchase can be made while IAP is off, so there
-        // is nothing to acknowledge.
+        // No purchase can be made while IAP is off, so there is nothing to
+        // acknowledge.
         if (!IAP_ENABLED) {
             return Result.failure(
                 SubscriptionException(
@@ -469,8 +480,8 @@ class BillingClientApi @Inject constructor(
      * while a purchase is still in flight.
      */
     override fun endConnection() {
-        // TEMPORARY: the lazy returns `null` while IAP is off, so the Play
-        // client is never even constructed here.
+        // The lazy returns `null` while IAP is off, so the Play client is
+        // never even constructed here.
         runCatching { billingClient?.endConnection() }
         _connectionState.value = BillingConnectionState.Disconnected
     }
@@ -512,8 +523,8 @@ class BillingClientApi @Inject constructor(
      * than hard-coded, so whichever base plan the Play Console configures
      * with a trial drives the "Try It Free" label. **API-surface note:**
      * `ProductDetails.freeTrialOfferDetails` does not exist in
-     * `com.android.billingclient` 7.0.0 (it arrived in 7.1), so the trial
-     * is derived from the phase list instead: a subscription with an
+     * `com.android.billingclient` 8.0.0 (nor in 7.x), so the trial is
+     * derived from the phase list instead: a subscription with an
      * introductory offer reports a leading `priceAmountMicros == 0` phase
      * followed by the paid recurring phase. Same signal, same
      * "Play decides" semantics, using the pinned version's API.
@@ -523,15 +534,21 @@ class BillingClientApi @Inject constructor(
         val phases = offer?.pricingPhases?.pricingPhaseList.orEmpty()
         val paidPhase = phases.lastOrNull { it.priceAmountMicros > 0L } ?: phases.firstOrNull()
         val hasFreeTrial = phases.size > 1 && phases.first().priceAmountMicros == 0L
-        val yearly = SubscriptionProductType.fromRawValue(productId) ==
-            SubscriptionProductType.YEARLY
+        // The Play product id and the canonical cross-platform
+        // `subscriptionType` are distinct namespaces. The canonical value is
+        // resolved from the pinned catalog; a product id outside it has no
+        // canonical counterpart, so it falls back to the Play id and the
+        // entitlement write is skipped rather than corrupting the shared
+        // Firestore field.
+        val type = SubscriptionProductType.fromPlayProductId(productId)
 
         return SubscriptionProduct(
-            planId = productId,
+            playProductId = productId,
+            subscriptionType = type?.subscriptionType ?: productId,
             title = title.ifBlank { name },
             priceLabel = paidPhase?.formattedPrice.orEmpty(),
             periodLabel = paidPhase.billingPeriodLabel(),
-            pricePerMonthEquivalent = if (yearly && paidPhase != null) {
+            pricePerMonthEquivalent = if (type == SubscriptionProductType.YEARLY && paidPhase != null) {
                 formatLocalizedMicros(
                     micros = paidPhase.priceAmountMicros / 12L,
                     currencyCode = paidPhase.priceCurrencyCode,
@@ -666,7 +683,7 @@ sealed interface BillingUnavailableReason {
  * `com.android.billingclient` — the type is only ever inferred.
  *
  * `IO_ERROR` and `PRODUCT_NOT_AVAILABLE` are named in the spec table but
- * do not exist in the pinned 7.0.0 surface; they fall through to
+ * do not exist in the pinned 8.0.0 surface; they fall through to
  * [SubscriptionError.Unknown] rather than being synthesised.
  */
 fun BillingResult.toSubscriptionError(): SubscriptionError = responseCode.toSubscriptionError()
@@ -688,6 +705,12 @@ internal fun Int.toSubscriptionError(): SubscriptionError = when (this) {
     BillingClient.BillingResponseCode.USER_CANCELED -> SubscriptionError.UserCancelled
 
     BillingClient.BillingResponseCode.NETWORK_ERROR,
+    // SERVICE_TIMEOUT is deprecated in PBL 8.0.0 — Play has not returned
+    // it since PBL 6.0, where timeouts became SERVICE_UNAVAILABLE. The
+    // constant is kept in the mapping because the `play-billing` spec's
+    // table names it explicitly under `NetworkError`, and the code is
+    // still a valid value on the wire for older Play Store clients.
+    @Suppress("DEPRECATION")
     BillingClient.BillingResponseCode.SERVICE_TIMEOUT,
     -> SubscriptionError.NetworkError
 

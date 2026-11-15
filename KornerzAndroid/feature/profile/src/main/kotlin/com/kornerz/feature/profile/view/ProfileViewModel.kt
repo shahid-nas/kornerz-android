@@ -145,7 +145,7 @@ class ProfileViewModel @Inject constructor(
     fun premiumTrailingText(): String {
         val user = currentUser() ?: return PREMIUM_LABEL
         if (!user.isUserPremiumNow) return PREMIUM_LABEL
-        return when (SubscriptionProductType.fromRawValue(user.subscriptionType)) {
+        return when (SubscriptionProductType.fromSubscriptionType(user.subscriptionType)) {
             SubscriptionProductType.MONTHLY -> PLAN_LABEL_MONTHLY
             SubscriptionProductType.YEARLY -> PLAN_LABEL_YEARLY
             // Rendered in the device's own zone: the expiry is an absolute

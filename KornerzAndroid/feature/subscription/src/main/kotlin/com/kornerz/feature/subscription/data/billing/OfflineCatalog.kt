@@ -10,9 +10,9 @@ import com.kornerz.core.model.SubscriptionProductType
  *
  * - The `dev` flavor's [com.kornerz.feature.subscription.data.billing.dev.DevBillingGateway],
  *   which simulates the whole purchase flow against it.
- * - The `prod` flavor's [BillingClientApi] while [com.kornerz.core.model.IAP_ENABLED]
- *   is `false` — i.e. while the app is not on the Play Store, so the Play
- *   catalog query would fail with `queryProductDetails failed: ...`.
+ * - The `prod` flavor's [BillingClientApi] while
+ *   [com.kornerz.core.model.IAP_ENABLED] is `false` — i.e. while the Play
+ *   catalog query cannot succeed.
  *
  * The pricing mirrors iOS `Kornerz-SKConfig.storekit` (monthly `10.99`,
  * yearly `95.9`) and the per-month equivalent derived the same way
@@ -30,7 +30,8 @@ internal object OfflineCatalog {
 
     fun all(): List<SubscriptionProduct> = listOf(
         SubscriptionProduct(
-            planId = SubscriptionProductType.MONTHLY.rawValue,
+            playProductId = SubscriptionProductType.MONTHLY.playProductId,
+            subscriptionType = SubscriptionProductType.MONTHLY.subscriptionType,
             title = "Monthly",
             priceLabel = MONTHLY_PRICE,
             periodLabel = "per month",
@@ -39,7 +40,8 @@ internal object OfflineCatalog {
             offerTag = "offline-offer-monthly",
         ),
         SubscriptionProduct(
-            planId = SubscriptionProductType.YEARLY.rawValue,
+            playProductId = SubscriptionProductType.YEARLY.playProductId,
+            subscriptionType = SubscriptionProductType.YEARLY.subscriptionType,
             title = "Yearly",
             priceLabel = YEARLY_PRICE,
             periodLabel = "per year",
@@ -49,7 +51,8 @@ internal object OfflineCatalog {
         ),
     )
 
-    fun resolve(planId: String): SubscriptionProduct? = all().firstOrNull { it.planId == planId }
+    fun resolve(playProductId: String): SubscriptionProduct? =
+        all().firstOrNull { it.playProductId == playProductId }
 
     private const val MONTHLY_PRICE = "$10.99"
     private const val YEARLY_PRICE = "$95.90"

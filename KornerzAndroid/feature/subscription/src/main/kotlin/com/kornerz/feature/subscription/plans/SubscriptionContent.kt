@@ -213,9 +213,9 @@ private fun LoadedPlans(
             products.forEach { product ->
                 SubscriptionPlanCard(
                     product = product,
-                    isSelected = product.planId == state.selected.rawValue,
+                    isSelected = product.playProductId == state.selected.playProductId,
                     onClick = {
-                        SubscriptionProductType.fromRawValue(product.planId)
+                        SubscriptionProductType.fromPlayProductId(product.playProductId)
                             ?.let(onPlanSelected)
                     },
                 )
@@ -359,7 +359,8 @@ private fun previewState() = SubscriptionState(
     products = AsyncValue.Success(
         listOf(
             SubscriptionProduct(
-                planId = SubscriptionProductType.MONTHLY.rawValue,
+                playProductId = SubscriptionProductType.MONTHLY.playProductId,
+                subscriptionType = SubscriptionProductType.MONTHLY.subscriptionType,
                 title = "Monthly",
                 priceLabel = "$10.99",
                 periodLabel = "per month",
@@ -367,7 +368,8 @@ private fun previewState() = SubscriptionState(
                 offerTag = "offer-token-monthly",
             ),
             SubscriptionProduct(
-                planId = SubscriptionProductType.YEARLY.rawValue,
+                playProductId = SubscriptionProductType.YEARLY.playProductId,
+                subscriptionType = SubscriptionProductType.YEARLY.subscriptionType,
                 title = "Yearly",
                 priceLabel = "$95.90",
                 periodLabel = "per year",

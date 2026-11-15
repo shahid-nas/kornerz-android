@@ -11,8 +11,14 @@ import kotlinx.serialization.Serializable
  * in the app that touches `com.android.billingclient`. No Play type
  * crosses this boundary (see the `play-billing` spec).
  *
- * @param planId the Play product id, equal to the matching
- *   [SubscriptionProductType.rawValue].
+ * @param playProductId the Play Console product id, equal to the matching
+ *   [SubscriptionProductType.playProductId]. Used to query the catalog and
+ *   to launch the purchase sheet.
+ * @param subscriptionType the canonical cross-platform value written to
+ *   `Users/{email}.subscriptionType`, equal to the matching
+ *   [SubscriptionProductType.subscriptionType]. **Never** the Play product
+ *   id — the two namespaces differ and the Firestore field is shared with
+ *   iOS.
  * @param title Play's localized product name ("Monthly" / "Yearly").
  * @param priceLabel Play's localized `formattedPrice`, already carrying
  *   the user's currency symbol and locale formatting.
@@ -29,7 +35,8 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 data class SubscriptionProduct(
-    val planId: String,
+    val playProductId: String,
+    val subscriptionType: String,
     val title: String,
     val priceLabel: String,
     val periodLabel: String,
@@ -40,7 +47,7 @@ data class SubscriptionProduct(
     /** The [SubscriptionProductType] this product belongs to, or `null`
      *  when Play returned an id outside the pinned catalog. */
     val productType: SubscriptionProductType?
-        get() = SubscriptionProductType.fromRawValue(planId)
+        get() = SubscriptionProductType.fromPlayProductId(playProductId)
 
     /** `true` for the yearly plan, which is the only card carrying a
      *  per-month-equivalent second line. */
@@ -58,7 +65,7 @@ data class SubscriptionPlan(
     val type: SubscriptionProductType,
     val product: SubscriptionProduct,
 ) {
-    val planId: String get() = product.planId
+    val playProductId: String get() = product.playProductId
     val priceLabel: String get() = product.priceLabel
     val periodLabel: String get() = product.periodLabel
     val pricePerMonthEquivalent: String? get() = product.pricePerMonthEquivalent

@@ -138,7 +138,7 @@ class SubscriptionViewModel @Inject constructor(
     private fun syncTrialEligibility() {
         val products = _state.value.products as? AsyncValue.Success
         val selected = products?.data?.firstOrNull {
-            it.planId == _state.value.selected.rawValue
+            it.playProductId == _state.value.selected.playProductId
         }
         _state.value = _state.value.copy(isTrialEligible = selected?.hasFreeTrialOffer == true)
     }
@@ -159,7 +159,7 @@ class SubscriptionViewModel @Inject constructor(
 
         viewModelScope.launch {
             _state.value = _state.value.copy(isPurchasing = true, error = null)
-            val launch = billingGateway.launchPurchase(product.planId, product.offerTag)
+            val launch = billingGateway.launchPurchase(product.playProductId, product.offerTag)
             if (launch.isFailure) {
                 val failure = launch.exceptionOrNull()
                 finishPurchase(
@@ -203,7 +203,7 @@ class SubscriptionViewModel @Inject constructor(
         productId: String,
         purchaseTimeMillis: Long,
     ) {
-        val plan = SubscriptionProductType.fromRawValue(productId)
+        val plan = SubscriptionProductType.fromPlayProductId(productId)
         if (plan == null) {
             finishPurchase(SubscriptionError.Unknown("Unrecognized product id $productId"))
             return
@@ -265,7 +265,7 @@ class SubscriptionViewModel @Inject constructor(
                 return@launch
             }
 
-            val plan = SubscriptionProductType.fromRawValue(latest.productId)
+            val plan = SubscriptionProductType.fromPlayProductId(latest.productId)
             val email = currentEmail()
             if (plan == null || email == null) {
                 _state.value = _state.value.copy(isRestoring = false)

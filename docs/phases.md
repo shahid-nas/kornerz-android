@@ -370,7 +370,7 @@ Then P10 closes out the work.
 Every phase must pass **all** of these before tagging:
 
 - [ ] `./gradlew :app:assembleDevDebug` succeeds
-- [ ] APK installs via `./gradlew :app:installDevDebug` on a Pixel-class emulator running API 26 and API 35
+- [ ] APK installs via `./gradlew :app:installDevDebug` on a Pixel-class emulator running API 26 and API 36
 - [ ] App launches without crash (verified via `adb logcat`)
 - [ ] All screens in scope render with no missing assets / no TODO strings
 - [ ] Lint passes (`./gradlew :app:lintDevDebug`)

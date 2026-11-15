@@ -11,14 +11,14 @@ plugins {
 
 android {
     namespace = "com.kornerz.kornerz"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.kornerz.kornerz"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        targetSdk = 36
+        versionCode = 178
+        versionName = "2.0"
     }
 
     flavorDimensions += "env"

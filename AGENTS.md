@@ -11,7 +11,7 @@ AI onboarding and working rules for this repository. Read this before changing c
 
 - **Product:** social platform with communities ("Kornerz"), nooks, loops/forums, video calls, gamification, notifications, and premium subscriptions.
 - **Language / UI:** Kotlin 2.0 + Jetpack Compose (Material 3) on Android; Swift 5 / UIKit + SwiftUI on iOS.
-- **Deployment targets:** Android `minSdk 26`, `compileSdk 35`, `targetSdk 35`. iOS targets are defined in `kornerz/Kornerz.xcodeproj`.
+- **Deployment targets:** Android `minSdk 26`, `compileSdk 36`, `targetSdk 36`. iOS targets are defined in `kornerz/Kornerz.xcodeproj`.
 - **Backend:** shared Firebase project — Firestore, Cloud Functions, Cloud Storage, FCM. Android uses the **same** collections, Cloud Functions, and user base as iOS.
 - **Product principles:** one user base, one content graph, two clients. Parity over novelty. Design tokens mirror the iOS palette and the Satoshi typeface.
 
@@ -37,7 +37,7 @@ KornerzUniversal/                 ← repository root
 │   ├── settings.gradle.kts        ← module registry
 │   ├── build.gradle.kts           ← plugin declarations (all `apply false`)
 │   ├── gradle/libs.versions.toml   ← canonical version catalog
-│   ├── gradle/wrapper/            ← Gradle 8.10.2
+│   ├── gradle/wrapper/            ← Gradle 8.11.1 (AGP 8.8.0 needs ≥ 8.10.2)
 │   ├── app/                       ← application module (dev + prod flavors)
 │   ├── core/
 │   │   ├── model/                 ← pure Kotlin data classes
@@ -277,7 +277,7 @@ Keep `docs/screen-inventory.md`, `docs/phases.md`, and the OpenSpec specs synchr
 | Concern | iOS | Android |
 |---|---|---|
 | Push | APNs via FCM | FCM directly |
-| Subscription | StoreKit + `Kornerz-SKConfig.storekit` | Google Play Billing 7.0.0; RTDN → Cloud Function sets `subscriptionPlatform = "Android"` |
+| Subscription | StoreKit + `Kornerz-SKConfig.storekit` | Google Play Billing 8.0.0; RTDN → Cloud Function sets `subscriptionPlatform = "Android"` |
 | OTP input | `AEOTPTextField` | `KornerzOtpTextField` in `core/ui/components/` |
 | Video calling | Vonage / OpenTok iOS SDK (`OTXCFramework 2.33.0`) | Vonage Android SDK 2.34.0 (`com.opentok.android`) |
 | WebSocket | Starscream | OkHttp WebSocket |

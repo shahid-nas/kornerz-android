@@ -48,7 +48,7 @@ class SubscriptionRepository @Inject constructor(
      */
     suspend fun observeCatalog(): AsyncValue<List<SubscriptionProduct>> =
         billingGateway.queryProductDetails(
-            SubscriptionProductType.ALL.map { it.rawValue },
+            SubscriptionProductType.ALL.map { it.playProductId },
         ).fold(
             onSuccess = { AsyncValue.Success(it) },
             onFailure = { AsyncValue.Error(it) },
@@ -111,7 +111,7 @@ class SubscriptionRepository @Inject constructor(
         val write = firestoreApi.setSubscription(
             email = email,
             expiryDate = expiry,
-            planId = plan.rawValue,
+            subscriptionType = plan.subscriptionType,
             platform = ENTITLEMENT_PLATFORM,
         )
         if (write.isFailure) return write
@@ -191,8 +191,8 @@ class SubscriptionRepository @Inject constructor(
      *    premium state.
      */
     suspend fun reconcileEntitlement(): Result<Unit> {
-        // TEMPORARY: there is no Play purchase to reconcile while IAP is
-        // off, so the launch-time reconciliation is skipped entirely.
+        // IAP is switched off: there is no Play purchase to reconcile, so
+        // the launch-time reconciliation is skipped entirely.
         if (!IAP_ENABLED) return Result.success(Unit)
 
         val user = (sessionRepository.data.first() as? SessionState.Authenticated)?.user
@@ -238,8 +238,13 @@ class SubscriptionRepository @Inject constructor(
                         ?: return@fold Result.success(Unit)
                     grantEntitlement(
                         email = email,
-                        plan = SubscriptionProductType.fromRawValue(user.subscriptionType)
-                            ?: SubscriptionProductType.fromRawValue(latest.productId)
+                        // The stored Firestore value is the canonical
+                        // cross-platform `subscriptionType`; the Play
+                        // product id is the fallback when the document
+                        // carries no type (e.g. a purchase made before the
+                        // type field existed).
+                        plan = SubscriptionProductType.fromSubscriptionType(user.subscriptionType)
+                            ?: SubscriptionProductType.fromPlayProductId(latest.productId)
                             ?: SubscriptionProductType.MONTHLY,
                         expiry = serverExpiry,
                     )

@@ -111,7 +111,7 @@ private val SECONDARY_LINE_COLOR = Color(0xFF75748B)
 @Composable
 private fun SubscriptionPlanCardMonthlySelectedPreview() {
     SubscriptionPlanCard(
-        product = monthlySample.copy(planId = SubscriptionProductType.MONTHLY.rawValue),
+        product = monthlySample.copy(playProductId = SubscriptionProductType.MONTHLY.playProductId),
         isSelected = true,
         onClick = {},
     )
@@ -121,7 +121,7 @@ private fun SubscriptionPlanCardMonthlySelectedPreview() {
 @Composable
 private fun SubscriptionPlanCardYearlySelectedPreview() {
     SubscriptionPlanCard(
-        product = yearlySample.copy(planId = SubscriptionProductType.YEARLY.rawValue),
+        product = yearlySample.copy(playProductId = SubscriptionProductType.YEARLY.playProductId),
         isSelected = true,
         onClick = {},
     )
@@ -131,7 +131,7 @@ private fun SubscriptionPlanCardYearlySelectedPreview() {
 @Composable
 private fun SubscriptionPlanCardYearlyUnselectedPreview() {
     SubscriptionPlanCard(
-        product = yearlySample.copy(planId = SubscriptionProductType.YEARLY.rawValue),
+        product = yearlySample.copy(playProductId = SubscriptionProductType.YEARLY.playProductId),
         isSelected = false,
         onClick = {},
     )
@@ -141,14 +141,15 @@ private fun SubscriptionPlanCardYearlyUnselectedPreview() {
 @Composable
 private fun SubscriptionPlanCardMonthlyUnselectedPreview() {
     SubscriptionPlanCard(
-        product = monthlySample.copy(planId = SubscriptionProductType.MONTHLY.rawValue),
+        product = monthlySample.copy(playProductId = SubscriptionProductType.MONTHLY.playProductId),
         isSelected = false,
         onClick = {},
     )
 }
 
 private val monthlySample = SubscriptionProduct(
-    planId = SubscriptionProductType.MONTHLY.rawValue,
+    playProductId = SubscriptionProductType.MONTHLY.playProductId,
+    subscriptionType = SubscriptionProductType.MONTHLY.subscriptionType,
     title = "Monthly",
     priceLabel = "$10.99",
     periodLabel = "per month",
@@ -158,7 +159,8 @@ private val monthlySample = SubscriptionProduct(
 )
 
 private val yearlySample = SubscriptionProduct(
-    planId = SubscriptionProductType.YEARLY.rawValue,
+    playProductId = SubscriptionProductType.YEARLY.playProductId,
+    subscriptionType = SubscriptionProductType.YEARLY.subscriptionType,
     title = "Yearly",
     priceLabel = "$95.90",
     periodLabel = "per year",

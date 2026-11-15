@@ -72,8 +72,9 @@ fun SubscriptionScreen(
     // user into the un-gated app. The handler stays enabled even mid-purchase
     // so the Play sheet's dismissal can never route out through here.
     //
-    // TEMPORARY: while IAP is off there is no purchase to complete, so the
-    // paywall must not be a dead end — the gesture pops the route instead.
+    // The gesture is swallowed while IAP is on, so the mandatory paywall
+    // cannot be dismissed. While IAP is off there is no purchase to
+    // complete, so the gesture pops the route instead of dead-ending.
     BackHandler(enabled = IAP_ENABLED) { }
 
     LaunchedEffect(viewModel) {

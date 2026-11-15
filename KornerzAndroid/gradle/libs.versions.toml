@@ -1,6 +1,6 @@
 [versions]
 # Build tooling
-agp = "8.5.2"
+agp = "8.8.0"
 kotlin = "2.0.21"
 ksp = "2.0.21-1.0.27"
 
@@ -37,7 +37,7 @@ vonage-android-sdk = "2.34.0"
 okhttp = "4.12.0"
 
 # Google Play Billing (P8 — premium / IAP)
-billing = "7.0.0"
+billing = "8.0.0"
 
 # Firebase
 firebase-bom = "33.5.1"

@@ -56,7 +56,7 @@ class SubscriptionFirestoreApi @Inject constructor(
     suspend fun setSubscription(
         email: String,
         expiryDate: Instant,
-        planId: String,
+        subscriptionType: String,
         platform: String,
     ): Result<Unit> = runCatching {
         if (email.isBlank()) {
@@ -81,7 +81,7 @@ class SubscriptionFirestoreApi @Inject constructor(
         document.update(
             mapOf<String, Any>(
                 FIELD_EXPIRY_DATE to Timestamp(Date(expiryDate.toEpochMilliseconds())),
-                FIELD_SUBSCRIPTION_TYPE to planId,
+                FIELD_SUBSCRIPTION_TYPE to subscriptionType,
                 FIELD_SUBSCRIPTION_PLATFORM to platform,
             ),
         ).await()

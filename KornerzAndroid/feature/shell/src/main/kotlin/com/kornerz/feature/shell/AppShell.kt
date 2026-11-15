@@ -177,6 +177,16 @@ fun AppShell(
     // `ShellViewModel`. The shell's only job is to act on a rising edge of
     // the request counter: no destination-change or tab-switch evaluation
     // exists here.
+    //
+    // The second call site is shell resume: iOS re-evaluates the gate from
+    // its Combine sink whenever StoreKit's entitlement list or the signed-in
+    // user changes (`AppTabController.swift:170-189`). On Android the
+    // equivalent trigger is the app returning to the foreground, because a
+    // subscription may have been bought or renewed on the Play Store while
+    // the app was backgrounded. `onShellResumed` reconciles before
+    // evaluating, so the gate sees the fresh entitlement.
+    ObserveShellResume(onResume = viewModel::onShellResumed)
+
     val premiumGateRequests by viewModel.premiumGateRequests.collectAsState()
     LaunchedEffect(premiumGateRequests) {
         if (premiumGateRequests > 0 && currentRoute != SubscriptionRoutePatterns.PLANS) {

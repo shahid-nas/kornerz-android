@@ -39,7 +39,7 @@ data class SubscriptionState(
     val selectedProduct: SubscriptionProduct?
         get() = (products as? AsyncValue.Success)
             ?.data
-            ?.firstOrNull { it.planId == selected.rawValue }
+            ?.firstOrNull { it.playProductId == selected.playProductId }
 
     /** The price shown in the "1 week free, then {price}" caption. */
     val selectedPriceLabel: String?

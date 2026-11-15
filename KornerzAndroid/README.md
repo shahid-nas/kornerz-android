@@ -63,12 +63,21 @@ task. To bootstrap on a fresh clone:
 
 ```bash
 cd KornerzAndroid
-gradle wrapper --gradle-version 8.10.2
+gradle wrapper --gradle-version 8.11.1
 ```
 
 Requires a system Gradle 8.x install; once the wrapper jar is present
 the repo can be built without further setup. CI installs Gradle via
 `./gradlew` once the jar is committed.
+
+Gradle 8.11.1 is the minimum required by AGP 8.8.0 (the version this
+project builds against); 8.11.1 is the version pinned in
+`gradle/wrapper/gradle-wrapper.properties`.
+
+AGP is capped at 8.8.0 because Android Studio 2024.2 (Meerkat) — the
+IDE this project is developed against — bundles AGP 8.8.0 and refuses
+to sync a project that requests a newer plugin. Raising the AGP version
+requires upgrading Android Studio first.
 
 ## Firebase
 
