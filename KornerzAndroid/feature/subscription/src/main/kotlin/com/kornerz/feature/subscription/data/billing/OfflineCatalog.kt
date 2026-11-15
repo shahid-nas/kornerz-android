@@ -19,34 +19,57 @@ import com.kornerz.core.model.SubscriptionProductType
  * `SubscriptionViewModel.mothlyPriceForYearlySubscription()` derives it
  * (`SubscriptionViewModel.swift:81-91`).
  *
- * `hasFreeTrialOffer` is `true` for **both** plans because
- * `Kornerz-SKConfig.storekit:185-200` gives both products a `P1W`
- * introductory offer. On `prod` with IAP enabled the flag is read from
- * Play's own pricing phases instead, so whichever plan the Play Console
- * configures with a trial drives the "Try It Free" label — no code change
- * either way.
+ * ## The trial flag is the store's *configuration*
+ *
+ * Both products carry a `P1W` introductory offer in
+ * `Kornerz-SKConfig.storekit:185-200`, so the catalog reports
+ * [SubscriptionProduct.isTrialEligible] as `true` — the store would
+ * grant the trial to an eligible user.
+ *
+ * That is the **product-level** half of the question, and it is not the
+ * whole of it: the same iOS store file grants the trial to a user who
+ * has already redeemed it, and StoreKit does not populate
+ * `Product.introductoryOffer` for that user — so iOS's button reads
+ * "Subscribe", not "Try It Free".
+ *
+ * The per-user half is applied **on top** of this catalog by the
+ * `dev` flavor's gateway and by the `prod` flavor's Play query, both of
+ * which know whether *this* user has consumed the trial. Play enforces
+ * that server-side by withholding the introductory-offer phase from an
+ * ineligible user's `QueryProductDetails` response; the `dev` gateway
+ * reproduces it from the local purchase history.
+ *
+ * @param isTrialEligible whether the store would grant the trial to the
+ *   user reading this catalog. The caller is responsible for applying
+ *   the per-user half of the rule.
  */
 internal object OfflineCatalog {
 
-    fun all(): List<SubscriptionProduct> = listOf(
+    /**
+     * The catalog as the store describes it, with the trial available.
+     *
+     * @param isTrialEligible whether the store grants the trial to the
+     *   user this catalog is being served to.
+     */
+    fun all(isTrialEligible: Boolean = true): List<SubscriptionProduct> = listOf(
         SubscriptionProduct(
             playProductId = SubscriptionProductType.MONTHLY.playProductId,
             subscriptionType = SubscriptionProductType.MONTHLY.subscriptionType,
-            title = "Monthly",
+            title = SubscriptionProductType.MONTHLY.label,
             priceLabel = MONTHLY_PRICE,
             periodLabel = "per month",
             pricePerMonthEquivalent = null,
-            hasFreeTrialOffer = true,
+            isTrialEligible = isTrialEligible,
             offerTag = "offline-offer-monthly",
         ),
         SubscriptionProduct(
             playProductId = SubscriptionProductType.YEARLY.playProductId,
             subscriptionType = SubscriptionProductType.YEARLY.subscriptionType,
-            title = "Yearly",
+            title = SubscriptionProductType.YEARLY.label,
             priceLabel = YEARLY_PRICE,
             periodLabel = "per year",
             pricePerMonthEquivalent = YEARLY_PER_MONTH,
-            hasFreeTrialOffer = true,
+            isTrialEligible = isTrialEligible,
             offerTag = "offline-offer-yearly",
         ),
     )

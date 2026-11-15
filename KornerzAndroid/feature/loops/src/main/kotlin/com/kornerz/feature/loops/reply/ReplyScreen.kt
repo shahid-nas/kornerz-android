@@ -1,6 +1,7 @@
 package com.kornerz.feature.loops.reply
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
@@ -51,6 +52,15 @@ fun ReplyScreen(
                 onClick = { viewModel.onEvent(ReplyEvent.AddCommentTapped) },
             )
         },
+        // The shell's own `Scaffold` (AppShell) already applies the
+        // system-bar insets to the `NavHost`, and this destination is
+        // not one of the routes that drops the status-bar inset. The
+        // default `ScaffoldDefaults.contentWindowInsets` would add the
+        // same status-bar and navigation-bar insets a second time,
+        // producing a wide empty band at the top and another one below
+        // the last row. Zeroing the insets here keeps a single owner
+        // for them — the shell — exactly like the profile screen does.
+        contentWindowInsets = WindowInsets(0),
         modifier = modifier,
     ) { padding ->
         ReplyContent(

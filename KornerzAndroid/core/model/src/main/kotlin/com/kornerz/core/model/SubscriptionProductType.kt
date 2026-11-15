@@ -35,18 +35,41 @@ package com.kornerz.core.model
 enum class SubscriptionProductType(
     val playProductId: String,
     val subscriptionType: String,
+    /**
+     * The card's title, pinned to the plan rather than read from Play.
+     *
+     * iOS renders the plan's own label — `monthly` / `yearly`
+     * (`kornerz/Kornerz/InAppPurchase/SubscriptionScreen.swift:80` and
+     * `:108`) — never the StoreKit product's display name. Play's product
+     * title is free-form console text (the live listing's title is
+     * `"subscription app kornerz (Kornerz Social Network)"`), so using it
+     * here overflows the card and pushes the price off the row. The label
+     * therefore comes from the pinned catalog, which is the same value on
+     * every platform and in every locale.
+     */
+    val label: String,
+    /**
+     * The billing-period unit appended to the card's price, matching iOS
+     * `SubscriptionViewModel.price(for:)` (`SubscriptionViewModel.swift:93-110`),
+     * which renders `<displayPrice>/<unit>`.
+     */
+    val periodUnit: String,
 ) {
 
     /** Monthly plan. Play id `kornerz_subscription`; iOS `InAppProduct.monthly`. */
     MONTHLY(
         playProductId = "kornerz_subscription",
         subscriptionType = "video_call_monthly",
+        label = "Monthly",
+        periodUnit = "month",
     ),
 
     /** Yearly plan. Play id `kornerz_subscription_yearly`; iOS `InAppProduct.yearly`. */
     YEARLY(
         playProductId = "kornerz_subscription_yearly",
         subscriptionType = "video_call_yearly_sub",
+        label = "Yearly",
+        periodUnit = "year",
     ),
     ;
 

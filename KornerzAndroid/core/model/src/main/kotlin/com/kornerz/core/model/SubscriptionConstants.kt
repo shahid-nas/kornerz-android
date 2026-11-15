@@ -10,9 +10,9 @@ package com.kornerz.core.model
  * own introductory offer — App Store Connect on iOS
  * (`SubscriptionViewModel.swift:73-79` reads
  * `product.subscription?.introductoryOffer != nil`) and Play's
- * free-trial offer on the base plan on Android, read from
- * `ProductDetails.freeTrialOfferDetails` into
- * [SubscriptionProduct.hasFreeTrialOffer].
+ * free-trial offer on the base plan on Android, read from the pricing
+ * phases Play returns for that user into
+ * [SubscriptionProduct.isTrialEligible].
  *
  * The entitlement gate is purely `subscriptionExpiryDate > now` on both
  * platforms (`User.isUserPremiumNow`). This constant exists so a reader

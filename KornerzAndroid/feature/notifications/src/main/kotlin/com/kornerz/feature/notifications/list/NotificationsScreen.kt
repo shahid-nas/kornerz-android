@@ -2,6 +2,7 @@ package com.kornerz.feature.notifications.list
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -80,8 +81,21 @@ fun NotificationsScreen(
         }
     }
     Scaffold(
+        // The shell's own `Scaffold` (AppShell) already applies the
+        // system-bar insets to the `NavHost`, and this destination is
+        // not one of the routes that drops the status-bar inset. The
+        // default `ScaffoldDefaults.contentWindowInsets` would add the
+        // same status-bar and navigation-bar insets a second time,
+        // producing a wide empty band above the top bar and another
+        // one below the last notification. Zeroing the insets here keeps
+        // a single owner for them — the shell — exactly like the profile
+        // screen does.
+        contentWindowInsets = WindowInsets(0),
         topBar = {
             TopAppBar(
+                // Same reasoning: the shell has already consumed the
+                // status-bar inset, so the bar must not add it again.
+                windowInsets = WindowInsets(0),
                 title = { Text("Notifications") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {

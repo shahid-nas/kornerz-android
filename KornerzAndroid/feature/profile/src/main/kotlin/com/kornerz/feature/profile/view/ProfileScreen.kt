@@ -4,10 +4,9 @@ import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -40,6 +39,7 @@ import com.kornerz.core.model.AsyncValue
 import com.kornerz.core.ui.components.KornerzUploadProgressView
 import com.kornerz.core.ui.components.rememberKornerzImagePicker
 import com.kornerz.core.ui.theme.Satoshi
+import com.kornerz.core.ui.theme.Spacing
 import com.kornerz.feature.profile.accountdeletion.AccountDeletionConfirmDialog
 import com.kornerz.feature.profile.accountdeletion.AccountDeletionViewModel
 import com.kornerz.feature.profile.components.KornerzErrorState
@@ -101,8 +101,21 @@ fun ProfileScreen(
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         snackbarHost = { SnackbarHost(snackbarHostState) },
+        // The shell's own `Scaffold` (AppShell) already applies the
+        // system-bar insets to the `NavHost`, and this destination is
+        // not one of the routes that drops the status-bar inset. The
+        // default `ScaffoldDefaults.contentWindowInsets` would add the
+        // same status-bar and navigation-bar insets a second time,
+        // producing a wide empty band above the top bar and another
+        // one below the last menu row. Zeroing the insets here keeps a
+        // single owner for them — the shell — exactly like the loop
+        // detail screen does (`contentWindowInsets = WindowInsets(0)`).
+        contentWindowInsets = WindowInsets(0),
         topBar = {
             TopAppBar(
+                // Same reasoning: the shell has already consumed the
+                // status-bar inset, so the bar must not add it again.
+                windowInsets = WindowInsets(0),
                 title = {
                     Text(
                         text = "Profile",
@@ -235,8 +248,13 @@ fun ProfileContent(
             val current = user.data
             LazyColumn(
                 modifier = modifier.fillMaxSize(),
-                contentPadding = PaddingValues(vertical = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                // The screen is already inset by the shell's `Scaffold`,
+                // so this padding is the screen's own breathing room only
+                // — the header sits directly under the top bar and the
+                // last menu row clears the navigation bar by the same
+                // amount.
+                contentPadding = PaddingValues(vertical = Spacing.space8),
+                verticalArrangement = Arrangement.spacedBy(Spacing.space6),
             ) {
                 item {
                     // `fillMaxSize()` inside a LazyColumn item would make
@@ -244,9 +262,7 @@ fun ProfileContent(
                     // target would swallow the entire screen. The header
                     // is sized by its content instead.
                     Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         contentAlignment = Alignment.Center,
                     ) {
                         UserInfoHeader(
@@ -278,7 +294,6 @@ fun ProfileContent(
                     }
                 }
                 item {
-                    Spacer(Modifier.height(8.dp))
                     ProfileMenuRow(
                         iconRes = android.R.drawable.ic_dialog_info,
                         title = "Notifications",

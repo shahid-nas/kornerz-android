@@ -133,8 +133,25 @@ class DevBillingGateway @Inject constructor() : SubscriptionBillingGateway {
     override suspend fun queryProductDetails(
         ids: List<String>,
     ): Result<List<SubscriptionProduct>> = Result.success(
-        OfflineCatalog.all().filter { it.playProductId in ids },
+        OfflineCatalog.all(isTrialEligible = isTrialAvailable())
+            .filter { it.playProductId in ids },
     )
+
+    /**
+     * Whether the store would still grant the free trial to this user.
+     *
+     * Play decides this **server-side, per user**: it withholds the
+     * introductory-offer phase from a `QueryProductDetails` response
+     * when the user has already redeemed the offer. The `dev` gateway
+     * reproduces that rule locally, because there is no Play server to
+     * ask: a user who already holds a purchase has consumed the trial
+     * and must be offered "Subscribe", not "Try It Free".
+     *
+     * The store's *configuration* half of the question lives in
+     * [OfflineCatalog] — both plans carry a `P1W` introductory offer —
+     * and this method applies only the per-user half.
+     */
+    private fun isTrialAvailable(): Boolean = activePurchase == null
 
     override suspend fun queryPurchases(): Result<List<PurchaseRecord>> = Result.success(
         listOfNotNull(activePurchase),

@@ -4,6 +4,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -60,6 +61,14 @@ fun CreateForumTopBar(
 ) {
     TopAppBar(
         modifier = modifier,
+        // The shell's own `Scaffold` (AppShell) already applies the
+        // system-bar insets to the `NavHost`, and this destination is
+        // not one of the routes that drops the status-bar inset. The
+        // default `TopAppBarDefaults.windowInsets` would add the
+        // status-bar inset a second time, producing a wide empty band
+        // above the bar. Zeroing it keeps a single owner for the
+        // insets — the shell — exactly like the profile screen does.
+        windowInsets = WindowInsets(0),
         title = {
             Text(
                 text = title,

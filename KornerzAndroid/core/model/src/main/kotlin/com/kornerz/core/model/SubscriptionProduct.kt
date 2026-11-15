@@ -20,6 +20,10 @@ import kotlinx.serialization.Serializable
  *   id — the two namespaces differ and the Firestore field is shared with
  *   iOS.
  * @param title Play's localized product name ("Monthly" / "Yearly").
+ *   **Not** what the plan card renders — the card uses the pinned
+ *   [SubscriptionProductType.label] instead, because Play's console title
+ *   is free-form text that overflows the card. See
+ *   [displayTitle] and [displayPrice].
  * @param priceLabel Play's localized `formattedPrice`, already carrying
  *   the user's currency symbol and locale formatting.
  * @param periodLabel Play's localized billing period, e.g. "per month".
@@ -27,9 +31,10 @@ import kotlinx.serialization.Serializable
  *   localized "/month" suffix — the grey secondary line on the yearly
  *   card. Mirrors iOS `SubscriptionViewModel.mothlyPriceForYearly-
  *   Subscription()`. **Non-null only for [SubscriptionProductType.YEARLY].**
- * @param hasFreeTrialOffer read from Play's `freeTrialOfferDetails` /
- *   `offerDetails`, never hard-coded, so whichever base plan the Play
- *   Console configures with a trial drives the "Try It Free" label.
+ * @param isTrialEligible whether **this user** may start the plan's
+ *   free trial — the store's own per-user verdict, never a local timer
+ *   and never hard-coded. See [SubscriptionConstants.TRIAL_PERIOD_DAYS]
+ *   for why the 7-day figure is deliberately inert.
  * @param offerTag the base-plan offer token to pass to
  *   `launchBillingFlow`, or `null` when the plan has no offer.
  */
@@ -41,7 +46,7 @@ data class SubscriptionProduct(
     val priceLabel: String,
     val periodLabel: String,
     val pricePerMonthEquivalent: String? = null,
-    val hasFreeTrialOffer: Boolean = false,
+    val isTrialEligible: Boolean = false,
     val offerTag: String? = null,
 ) {
     /** The [SubscriptionProductType] this product belongs to, or `null`
@@ -53,6 +58,33 @@ data class SubscriptionProduct(
      *  per-month-equivalent second line. */
     val isYearly: Boolean
         get() = productType == SubscriptionProductType.YEARLY
+
+    /**
+     * The title the plan card renders: the pinned plan label ("Monthly" /
+     * "Yearly"), never Play's console product title.
+     *
+     * iOS pins these labels in the screen itself
+     * (`SubscriptionScreen.swift:80` and `:108`), so the rendered card is
+     * identical on both platforms regardless of how the Play Console
+     * listing is worded. Falls back to Play's title only for a product
+     * outside the pinned catalog.
+     */
+    val displayTitle: String
+        get() = productType?.label ?: title
+
+    /**
+     * The price the plan card renders, formatted as iOS does:
+     * `"<formattedPrice>/<periodUnit>"` — e.g. `"$10.99/month"`.
+     *
+     * Mirrors iOS `SubscriptionViewModel.price(for:)`
+     * (`SubscriptionViewModel.swift:93-110`), which appends the StoreKit
+     * subscription-period unit to the localized display price.
+     */
+    val displayPrice: String
+        get() {
+            val unit = productType?.periodUnit ?: return priceLabel
+            return if (priceLabel.isBlank()) priceLabel else "$priceLabel/$unit"
+        }
 }
 
 /**
@@ -69,6 +101,12 @@ data class SubscriptionPlan(
     val priceLabel: String get() = product.priceLabel
     val periodLabel: String get() = product.periodLabel
     val pricePerMonthEquivalent: String? get() = product.pricePerMonthEquivalent
-    val hasFreeTrialOffer: Boolean get() = product.hasFreeTrialOffer
+    val isTrialEligible: Boolean get() = product.isTrialEligible
     val offerTag: String? get() = product.offerTag
+
+    /** The pinned plan label the card renders ("Monthly" / "Yearly"). */
+    val displayTitle: String get() = product.displayTitle
+
+    /** The card's price, formatted as `"<price>/<periodUnit>"`. */
+    val displayPrice: String get() = product.displayPrice
 }

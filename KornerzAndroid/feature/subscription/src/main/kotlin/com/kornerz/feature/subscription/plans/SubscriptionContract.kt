@@ -14,9 +14,17 @@ import com.kornerz.core.model.SubscriptionProductType
  * @param selected the single-selected plan. Defaults to
  *   [SubscriptionProductType.MONTHLY], mirroring iOS
  *   `SubscriptionViewModel.selectedSubscription`'s initial value.
- * @param isTrialEligible re-derived from the **selected** product's
- *   `hasFreeTrialOffer` on every selection change, so it can never disagree
- *   with the button label.
+ * @param isTrialEligible whether **this user** may start the selected
+ *   plan's free trial. Re-derived from the **selected** product's
+ *   [SubscriptionProduct.isTrialEligible] on every selection change, so
+ *   it can never disagree with the button label.
+ *
+ *   The value is the store's own per-user verdict, not a local timer and
+ *   not a hard-coded constant: Play only returns the introductory-offer
+ *   phase to a user who may redeem it, and StoreKit only populates
+ *   `Product.introductoryOffer` for an eligible user. See
+ *   [com.kornerz.core.model.SubscriptionConstants.TRIAL_PERIOD_DAYS] for
+ *   why the 7-day figure is deliberately inert.
  * @param billingNotice a non-fatal message for
  *   `BillingConnectionState.Unavailable` — the `dev` flavor's unregistered
  *   application id lands here. It renders *alongside* the screen chrome, not
@@ -41,9 +49,16 @@ data class SubscriptionState(
             ?.data
             ?.firstOrNull { it.playProductId == selected.playProductId }
 
-    /** The price shown in the "1 week free, then {price}" caption. */
+    /**
+     * The price shown in the "1 week free, then {price}" caption.
+     *
+     * Formatted as iOS formats it — `"<price>/<periodUnit>"`, e.g.
+     * `"$10.99/month"` — because iOS passes `SubscriptionViewModel.selectedPrice`
+     * into `select_payment_plan_message` and that value already carries
+     * the period unit (`SubscriptionViewModel.swift:93-110`).
+     */
     val selectedPriceLabel: String?
-        get() = selectedProduct?.priceLabel
+        get() = selectedProduct?.displayPrice
 }
 
 /**

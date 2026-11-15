@@ -257,8 +257,14 @@ class BillingClientApi @Inject constructor(
         // copy instead of a Play round trip that can only fail with
         // "queryProductDetails failed: ...".
         if (!IAP_ENABLED) {
+            // The offline copy carries the store's *configuration*; the
+            // per-user half of the trial rule still applies, so a user
+            // who already holds a purchase is offered "Subscribe" rather
+            // than "Try It Free". This mirrors what Play would report.
+            val purchases = queryPurchases().getOrDefault(emptyList())
             return Result.success(
-                OfflineCatalog.all().filter { it.playProductId in ids },
+                OfflineCatalog.all(isTrialEligible = purchases.isEmpty())
+                    .filter { it.playProductId in ids },
             )
         }
 
@@ -528,12 +534,31 @@ class BillingClientApi @Inject constructor(
      * introductory offer reports a leading `priceAmountMicros == 0` phase
      * followed by the paid recurring phase. Same signal, same
      * "Play decides" semantics, using the pinned version's API.
+     *
+     * ## This is a per-user verdict, not a product flag
+     *
+     * Play filters offers **server-side, per user**: the introductory
+     * phase is only present in a `QueryProductDetails` response for a
+     * user who may actually redeem it. A user who has already consumed
+     * the trial, or who is outside the offer's eligible region, is
+     * served the base plan without the free-trial phase. So the presence
+     * of a zero-priced leading phase *is* the eligibility signal — the
+     * same semantics iOS gets from StoreKit, where
+     * `Product.introductoryOffer` is non-`nil` only for an eligible
+     * user (`SubscriptionViewModel.swift:73-79`).
+     *
+     * The zero phase must also be a genuine **trial** rather than a
+     * $0 promotional phase that bills later within the same period: the
+     * phase is only counted when it is followed by a **paid** phase, so
+     * a free-but-recurring plan is never mistaken for a trial.
      */
     private fun ProductDetails.toSubscriptionProduct(): SubscriptionProduct {
         val offer = basePlanSubscriptionOffer()
         val phases = offer?.pricingPhases?.pricingPhaseList.orEmpty()
         val paidPhase = phases.lastOrNull { it.priceAmountMicros > 0L } ?: phases.firstOrNull()
-        val hasFreeTrial = phases.size > 1 && phases.first().priceAmountMicros == 0L
+        val hasFreeTrial = phases.size > 1 &&
+            phases.first().priceAmountMicros == 0L &&
+            phases.any { it.priceAmountMicros > 0L }
         // The Play product id and the canonical cross-platform
         // `subscriptionType` are distinct namespaces. The canonical value is
         // resolved from the pinned catalog; a product id outside it has no
@@ -545,7 +570,19 @@ class BillingClientApi @Inject constructor(
         return SubscriptionProduct(
             playProductId = productId,
             subscriptionType = type?.subscriptionType ?: productId,
-            title = title.ifBlank { name },
+            // The pinned plan label, **not** Play's console product title.
+            // Play's title is free-form operator text — the live listing's
+            // is `"subscription app kornerz (Kornerz Social Network)"` —
+            // and iOS renders the plan's own label rather than the
+            // StoreKit product's display name
+            // (`kornerz/Kornerz/InAppPurchase/SubscriptionScreen.swift:80`).
+            // Keeping the console string out of the model entirely means
+            // no screen can accidentally render it: the plan card reads
+            // `SubscriptionProduct.displayTitle`, which is the pinned
+            // label. Play's title is retained only as a fallback for a
+            // product outside the pinned catalog, where there is no label
+            // to fall back on.
+            title = type?.label ?: title.ifBlank { name },
             priceLabel = paidPhase?.formattedPrice.orEmpty(),
             periodLabel = paidPhase.billingPeriodLabel(),
             pricePerMonthEquivalent = if (type == SubscriptionProductType.YEARLY && paidPhase != null) {
@@ -556,7 +593,7 @@ class BillingClientApi @Inject constructor(
             } else {
                 null
             },
-            hasFreeTrialOffer = hasFreeTrial,
+            isTrialEligible = hasFreeTrial,
             offerTag = offer?.offerToken,
         )
     }

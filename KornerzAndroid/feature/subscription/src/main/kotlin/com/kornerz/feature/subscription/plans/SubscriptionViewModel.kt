@@ -135,12 +135,23 @@ class SubscriptionViewModel @Inject constructor(
         syncTrialEligibility()
     }
 
+    /**
+     * Re-derives the trial flag from the newly selected product rather
+     * than carrying the previous value forward, so the "Try It Free" /
+     * "Subscribe" label can never disagree with the card that is
+     * stroked.
+     *
+     * The flag is the store's **per-user** verdict — Play returns the
+     * introductory-offer phase only to a user who may redeem it — so
+     * selecting a plan the user has already trialed flips the button
+     * back to "Subscribe" on its own.
+     */
     private fun syncTrialEligibility() {
         val products = _state.value.products as? AsyncValue.Success
         val selected = products?.data?.firstOrNull {
             it.playProductId == _state.value.selected.playProductId
         }
-        _state.value = _state.value.copy(isTrialEligible = selected?.hasFreeTrialOffer == true)
+        _state.value = _state.value.copy(isTrialEligible = selected?.isTrialEligible == true)
     }
 
     /**

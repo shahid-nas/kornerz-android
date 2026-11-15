@@ -425,6 +425,19 @@ fun AppShell(
                     bottom = padding.calculateBottomPadding(),
                 )
 
+            // The subscription paywall is a full-bleed screen: iOS
+            // presents it modally with `.fullScreen` and its `#68B6CC`
+            // background runs edge to edge, behind the status bar and the
+            // home indicator. The status-bar inset is therefore dropped
+            // for it, and the screen insets its own content instead —
+            // otherwise the window background shows through as a strip
+            // above the aqua.
+            isSubscriptionRoute(currentRoute) -> Modifier.padding(
+                start = padding.calculateStartPadding(layoutDirection),
+                end = padding.calculateEndPadding(layoutDirection),
+                bottom = padding.calculateBottomPadding(),
+            )
+
             else -> Modifier.padding(padding)
         }
         NavHost(
@@ -665,6 +678,9 @@ fun AppShell(
 internal object SubscriptionRoutePatterns {
     const val PLANS = "subscription/plans"
     const val SUCCESS = "subscription/success"
+
+    /** The prefix every subscription destination shares. */
+    const val PREFIX = "subscription/"
 }
 
 
@@ -736,6 +752,22 @@ internal fun isKornerDetailOnScreen(
     ShellTab.Kornerz.route -> kornerzVisible
     else -> false
 }
+
+/**
+ * Whether the current route belongs to the subscription flow.
+ *
+ * Both subscription destinations are full-screen: iOS presents the
+ * paywall modally with `.fullScreen`
+ * (`kornerz/Kornerz/SwiftUI/TabView/AppTabController.swift:217-220`),
+ * so their background is meant to reach every edge of the display. The
+ * shell drops the status-bar inset for them, letting the aqua paint
+ * behind the status bar and the screen inset its own content.
+ *
+ * Expressed as a prefix match so it covers both the plans route and the
+ * success route, and any destination the flow pushes later.
+ */
+internal fun isSubscriptionRoute(currentRoute: String?): Boolean =
+    currentRoute?.startsWith(SubscriptionRoutePatterns.PREFIX) == true
 
 /**
  * Whether the shell's bottom bar is visible.
