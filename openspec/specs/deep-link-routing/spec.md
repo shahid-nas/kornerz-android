@@ -142,12 +142,14 @@ The interstitial route SHALL carry **no** navigation argument. The link is hande
 | `NewLoop` | `LoopDetail(loopId)` | yes |
 | `NewLoopComment` | `LoopDetail(loopId)` | yes |
 | `VideoCall` | `KornerDetail(kornerId)` | yes |
-| `NewEvent` | — | no — Event Detail is excluded from the port |
-| `NewArticle` | — | no — Post Detail is excluded from the port |
-| `NewForum` | — | no — Forum Detail is excluded from the port |
-| `NewComment` | — | no — Forum Detail is excluded from the port |
+| `NewEvent` | `KornerDetail(kornerId)` | yes — the community's detail |
+| `NewArticle` | `KornerDetail(kornerId)` | yes — the community's detail |
+| `NewForum` | `KornerDetail(kornerId)` | yes — the community's detail |
+| `NewComment` | `KornerDetail(kornerId)` | yes — the owning community's detail |
 
-The four excluded targets SHALL stay excluded: `docs/screen-inventory.md:229-237` records the stakeholder decision that Event Detail, Post Detail, and Forum Detail are out of the Android port.
+**The four community-scoped links resolve to the Korner detail.** Event Detail, Post Detail and Forum Detail are excluded from the Android port (`docs/screen-inventory.md:229-237` records the stakeholder decision), so there is no dedicated screen to open for them. The community that owns the content is still live in the port and its detail screen is where the content is listed, so a tap lands the user on the community the notification is about rather than failing with a "not routable" alert. iOS opens the dedicated detail screen for these; Android opens the community.
+
+`NewComment` carries only a forum id, with no community id — the forum's community is not known to the client, so the link SHALL resolve through the forum's own document.
 
 A `VideoCall` link SHALL resolve to the **Korner detail**, not to the video-call screen — iOS's `handleCallLink` pushes a `KornerDetailController` (`DeeplinkViewController.swift:135-155`), and the call itself stays reachable only from the Korner detail.
 
@@ -161,19 +163,25 @@ A `KornerDetail` target SHALL carry the Korner's **document id**, because the Ko
 - **WHEN** a `DeepLink.VideoCall("community-1")` is resolved and `community-1` maps to the document id `doc-1`
 - **THEN** the resolver returns `KornerDetail("doc-1")`
 
-#### Scenario: Excluded targets are not routable
-- **WHEN** a `DeepLink.NewArticle("article-1", "community-1")` is resolved
-- **THEN** the resolver reports it as not routable
+#### Scenario: An article link resolves to the owning community's detail
+- **WHEN** a `DeepLink.NewArticle("article-1", "community-1")` is resolved and `community-1` maps to the document id `doc-1`
+- **THEN** the resolver returns `KornerDetail("doc-1")`
+
+#### Scenario: A forum comment link resolves through the forum's community
+- **WHEN** a `DeepLink.NewComment("forum-1")` is resolved and the forum `forum-1` belongs to a community that maps to the document id `doc-1`
+- **THEN** the resolver returns `KornerDetail("doc-1")`
 
 #### Scenario: An unresolvable community is not routable
 - **WHEN** a `DeepLink.VideoCall("missing")` is resolved and no `Communities` document carries `communityId = "missing"`
 - **THEN** the resolver reports it as not routable
 
 ### Requirement: MainActivity delivers cold and warm deep links
-`MainActivity` SHALL hand every `kornerz://` URI it receives to the `DeepLinkManager`:
+`MainActivity` SHALL hand every deep link it receives to the `DeepLinkManager`:
 
-- A **cold** deep link — the activity's `onCreate` — SHALL be handed over as soon as the intent's data is read.
+- A **cold** deep link — the activity's `onCreate` — SHALL be handed over as soon as the intent is read.
 - A **warm** deep link — `onNewIntent` — SHALL be handed over at that moment.
+
+The deep link SHALL be resolved from the intent's `data` URI or from the intent's `extras`, whichever carries one — see the requirement "A backgrounded or killed push notification carries its deep link".
 
 `MainActivity` SHALL call `setIntent(intent)` inside `onNewIntent`, so the current intent stays accurate for a later configuration change or process restore.
 
@@ -192,7 +200,7 @@ The `DeepLinkManager` SHALL be reached through a Hilt `@EntryPoint` on the `Sing
 - **THEN** `getIntent()` afterwards returns the new intent
 
 #### Scenario: A launch with no deep link hands over nothing
-- **WHEN** the activity is created with no intent data
+- **WHEN** the activity is created with no intent data and no push payload in its extras
 - **THEN** the `DeepLinkManager` receives nothing
 
 ### Requirement: A tapped push notification carries its deep link
@@ -230,6 +238,72 @@ The push dialect SHALL stay distinct from the in-app notification-document diale
 - **WHEN** FCM delivers a notification payload
 - **THEN** the tray notification is still shown on the `kornerz_notifications` channel
 
+### Requirement: A backgrounded or killed push notification carries its deep link
+The tray notification's `PendingIntent` is only one of the two ways a push notification reaches the app. The Firebase SDK displays a notification **itself** whenever the app is backgrounded or has been killed, and in that case `onMessageReceived` is never called — the app never gets to build its own `PendingIntent`. The SDK then launches the app from the payload's `click_action`, with the message's `data` payload copied into the launch intent's extras.
+
+Without handling that second path, a notification that arrives while the app is not running opens the app but lands the user on the Home tab instead of the screen the notification is about. iOS has no such split: `UNUserNotificationCenterDelegate.didReceive` fires for a tap in every app state, and the payload is in `userInfo` either way.
+
+`DeepLinkPayloadParser` SHALL declare a `CLICK_ACTION` constant whose value is `kornerz://deeplink`, and `app/src/main/AndroidManifest.xml` SHALL declare an `<intent-filter>` on `MainActivity` for that action with the `DEFAULT` category, so the SDK's launch intent resolves to the app.
+
+`MainActivity` SHALL resolve a deep link from **either** transport:
+
+- the intent's `data` URI, when it is a `kornerz://` URI that matches the link grammar; and
+- the intent's `extras`, when they carry a push payload.
+
+The extras transport SHALL read the payload keys `pushType`, `communityId`, `eventId`, `articleId`, `forumId`, `loopId`, `notificationType`, `notificationReferenceId`, and `notificationCommunityId`, and SHALL ignore the Firebase SDK's own `google.*` bookkeeping extras.
+
+The extras transport SHALL accept **both** payload dialects. The push dialect (`pushType` / `communityId` / `eventId` / …) is tried first; the notification-record dialect (`notificationType` / `notificationReferenceId` / `notificationCommunityId`) is the fallback. The backend describes a notification once for the in-app list and once for the deep link, and which of the two it puts on the wire is not something this repo can verify — so a payload carrying either dialect is routable.
+
+The `PendingIntent` the app builds itself SHALL carry the payload in **both** transports — the `kornerz://` URI as its intent data and the payload as its extras — so the two paths cannot drift apart. They are built from the same payload, by the same parser, in the same place.
+
+#### Scenario: The click action is declared
+- **WHEN** the merged manifest of the `devDebug` variant is inspected
+- **THEN** `MainActivity` declares an intent filter whose action is `kornerz://deeplink`
+
+#### Scenario: A backgrounded push tap carries the deep link
+- **WHEN** the app is launched by the Firebase SDK with an intent whose extras carry `pushType = "VideoCall"` and `communityId = "community-1"`
+- **THEN** the `DeepLinkManager` receives a `VideoCall` deep link carrying `communityId = "community-1"`
+
+#### Scenario: A record-dialect payload is routable
+- **WHEN** the app is launched with an intent whose extras carry `notificationType = "NewEvent"`, `notificationReferenceId = "event-1"` and `notificationCommunityId = "community-1"`
+- **THEN** the `DeepLinkManager` receives a `NewEvent` deep link carrying `eventId = "event-1"` and `communityId = "community-1"`
+
+#### Scenario: The extras transport ignores the SDK's own keys
+- **WHEN** the app is launched with extras carrying `google.message_id` and no `pushType`
+- **THEN** the `DeepLinkManager` receives nothing
+
+#### Scenario: The two transports agree
+- **WHEN** the app's own `PendingIntent` for a `VideoCall` push is tapped
+- **THEN** the `DeepLinkManager` receives the same `VideoCall` deep link the extras transport would produce from the same payload
+
+### Requirement: A video-call push refreshes the Korner detail that is already open
+iOS treats a **video-call** push specially: when the Korner the call belongs to is already the top screen of the selected tab, the open screen **re-reads its data** instead of a second copy of the Korner detail being pushed on top of it — `DeepLinksManager.handleDeepLink(info:)` calls `checkIfKornerDetailAlreadyOpened` and, when it matches, posts the `.refreshKornerDetail` notification (`kornerz/Kornerz/DeepLinks/DeeplinkManager.swift:108-116, 168-183`).
+
+Android SHALL reproduce that behaviour:
+
+- `DeepLinkTarget.KornerDetail` SHALL carry an `isVideoCall` flag, set by the resolver for a `VideoCall` link and clear for every other link.
+- The shell SHALL determine that the Korner detail is "already open" only when the **active** tab is the Kornerz tab and the Korner detail it shows is the destination the link names. A Korner left behind in an inactive tab does not count — Navigation-Compose keeps an inactive tab's destination composed, while iOS reads the *selected* tab's stack.
+- When the link is a video-call link and the Korner is already open, the shell SHALL request a refresh of that screen instead of navigating.
+- `feature/kornerz` SHALL declare a `KornerDetailRefreshBus` carrying the korner id, and `KornerDetailViewModel` SHALL re-read the Korner when a refresh is requested for the korner it is showing. The refresh SHALL keep the current content on screen while the read is in flight, the same as the pull-to-refresh path.
+
+A video-call push for a Korner that is **not** already open SHALL navigate to the Korner detail, exactly as before.
+
+#### Scenario: An open Korner is refreshed, not duplicated
+- **WHEN** a `VideoCall` push for a community that maps to the Korner document id `doc-1` arrives while the Kornerz tab is showing the Korner detail for `doc-1`
+- **THEN** the open Korner detail re-reads its data and no second Korner detail is pushed
+
+#### Scenario: A closed Korner is opened
+- **WHEN** a `VideoCall` push for a community that maps to the Korner document id `doc-1` arrives while no Korner detail is open
+- **THEN** the shell navigates to the Korner detail for `doc-1`
+
+#### Scenario: An inactive tab does not count as open
+- **WHEN** a `VideoCall` push for the Korner document id `doc-1` arrives while the Kornerz tab is not the active tab
+- **THEN** the shell navigates to the Korner detail for `doc-1`
+
+#### Scenario: A non-video-call push opens the Korner
+- **WHEN** a `NewEvent` push for the Korner document id `doc-1` arrives while the Korner detail for `doc-1` is open
+- **THEN** the shell navigates to the Korner detail for `doc-1` rather than refreshing in place
+
 ### Requirement: The deep link is delivered before the premium gate
 The shell SHALL release a pending deep link before the premium gate opens. The deep-link destination SHALL therefore be on the back stack first, and the paywall SHALL be pushed on top of it.
 
@@ -262,3 +336,11 @@ It SHALL NOT look the community up by the Firestore document id. The `communityI
 - **WHEN** no `Communities` document carries `communityId = "missing"`
 - **THEN** `fetchById("missing")` returns `null`
 
+
+## References
+- [`docs/architecture.md`](../../../docs/architecture.md) — MVVM + Repository + unidirectional data flow; navigation through `Channel<NavEvent>`; module boundaries.
+- [`docs/screen-inventory.md`](../../../docs/screen-inventory.md) §"What is NOT in the Android port" — the excluded Event Detail, Post Detail and Forum Detail screens that the community-scoped links resolve to the Korner detail instead.
+- `kornerz/Kornerz/DeepLinks/DeeplinkManager.swift` — the iOS deep-link model, the push-payload parser and the video-call refresh-in-place path.
+- `kornerz/Kornerz/DeepLinks/DeeplinkViewController.swift` — the iOS interstitial that fetches the linked entity and pushes the destination.
+- `kornerz/Kornerz/App/AppDelegate.swift` — the iOS notification-tap delegate.
+- `openspec/specs/notifications-push-display/spec.md` — the FCM `click_action` contract and the tray notification's `PendingIntent`.

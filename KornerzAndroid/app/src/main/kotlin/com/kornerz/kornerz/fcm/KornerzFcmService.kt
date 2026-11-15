@@ -38,6 +38,16 @@ import javax.inject.Inject
  *  - a tapped tray notification carries the deep link built from the
  *    **push** payload, so the tap opens the app *and* routes to the
  *    resolved destination (P10, task 9.7).
+ *
+ * **The foreground path and the backgrounded path are different
+ * mechanisms.** This service only runs while the app is in the
+ * foreground, so the notification it builds is the only one it can
+ * give a tap intent to. When the app is backgrounded or killed, the
+ * Firebase SDK displays the notification itself and this service never
+ * runs — the SDK then launches the app from the payload's
+ * `click_action`, and the payload arrives in the launch intent's
+ * extras. `MainActivity` reads both transports; see
+ * `MainActivity.resolveDeepLink`.
  */
 @AndroidEntryPoint
 class KornerzFcmService : FirebaseMessagingService() {
@@ -72,6 +82,10 @@ class KornerzFcmService : FirebaseMessagingService() {
     }
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
+        // The payload's shape is the backend's contract, and this repo
+        // cannot verify it. Logging it is what makes a mismatch between
+        // the app and the backend visible instead of silent.
+        Log.i(TAG, "FCM message: data=${remoteMessage.data}")
         val notification = remoteMessage.notification
         if (notification != null) {
             val pi = buildTapIntent(remoteMessage.data)
@@ -140,15 +154,25 @@ class KornerzFcmService : FirebaseMessagingService() {
      * (_:didReceive:)` (`:170-175`) passes the tapped notification's
      * `userInfo` straight to `DeepLinksManager.shared.handleDeepLink(info:)`.
      *
+     * The intent carries the link **twice**: as the `kornerz://` URI in
+     * `intent.data`, and as the payload in `intent.extras`. The URI is
+     * what the app's own deep-link filter matches; the extras are what
+     * the Firebase SDK's launch intent carries in the backgrounded /
+     * killed case. Reading both means the two transports cannot drift
+     * apart — they are built from the same payload, by the same
+     * parser, in the same place.
+     *
      * A payload with no recognisable `pushType` falls back to the plain
      * launch intent, so the notification still opens the app.
      */
     private fun buildTapIntent(payload: Map<String, String>): PendingIntent? {
-        val deeplink = DeepLinkPayloadParser.parse(payload)
+        val deeplink = DeepLinkPayloadParser.parseAny(payload)
         val intent = if (deeplink != null) {
             Intent(this, MainActivity::class.java).apply {
                 action = Intent.ACTION_VIEW
                 data = Uri.parse(deeplink.toUri())
+                putExtra(DeepLinkPayloadParser.CLICK_ACTION, true)
+                payload.forEach { (key, value) -> putExtra(key, value) }
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             }
         } else {

@@ -138,6 +138,30 @@ The Korner detail screen SHALL wrap its content in a Material 3 `PullToRefreshBo
 - **WHEN** the Korner detail screen opens for a Korner that has not loaded yet
 - **THEN** a shimmer in the settled layout's shape is shown
 
+### Requirement: Korner detail re-reads itself when a refresh is requested for it
+The Korner detail SHALL re-read its data when a refresh is requested for the Korner it is showing, keeping the current content on screen while the read is in flight — the same behaviour as a pull-to-refresh, without the user having to pull.
+
+The request travels through a `KornerDetailRefreshBus` that carries the korner id, because the Korner detail lives inside the Kornerz tab's **nested** `NavHost` and the requester — the shell's deep-link routing — cannot reach the screen's view model directly. This mirrors iOS, where the detail's view model subscribes to the `.refreshKornerDetail` `NotificationCenter` post (`kornerz/Kornerz/SwiftUI/Dashboard/Korner/KornerDetail/KornerDetailViewModel.swift:105-112`).
+
+The bus SHALL carry the korner id, so a refresh request for a different Korner does not disturb the screen that is open. iOS's notification carries no id and refreshes every open Korner detail; the id is what makes the Android behaviour precise.
+
+The bus SHALL replay the most recent request to a new subscriber, so a request emitted while the screen's collector is between subscriptions is not lost. The korner-id filter is what keeps the replayed request from refreshing the wrong screen.
+
+Requesting a refresh SHALL NOT suspend the caller.
+
+#### Scenario: A refresh for this Korner re-reads it
+- **WHEN** a refresh is requested for the korner the screen is showing
+- **THEN** the Korner, its admins and its loops are re-read
+- **AND** the content stays on screen until the read resolves
+
+#### Scenario: A refresh for another Korner is ignored
+- **WHEN** a refresh is requested for a different korner id
+- **THEN** the screen does not re-read its data
+
+#### Scenario: A replayed request does not refresh the wrong screen
+- **WHEN** a refresh requested for korner A is replayed to a newly opened screen for korner B
+- **THEN** the screen for korner B does not re-read its data
+
 ### Requirement: Korner detail view model exposes AsyncValue state and navigation events
 `KornerDetailViewModel` SHALL be a `@HiltViewModel` constructed with a `SavedStateHandle` that exposes `kornerId: String`. It SHALL expose `state: StateFlow<KornerDetailState>` where `KornerDetailState` contains an `AsyncValue<KornerDetail>` aggregate, the Korner's admins, the Korner's recent loops, the selected nook tab, the selected users tab and the About sheet's visibility; and a `navEvents: Channel<KornerDetailNavEvent>` for navigation. `KornerDetailNavEvent.NavigateToNookDetail(nookId)`, `NavigateToMemberProfile(userId)`, `NavigateToLoopDetail(loopId)`, `NavigateBack` and `ShowMessage(message)` SHALL be emitted on the matching interactions. The view model SHALL initiate `KornerzRepository.fetchKornerDetail(kornerId)` on construction and SHALL then load the Korner's admins (`fetchKornerAdmins`) and loops (`fetchKornerRecentLoops`).
 
@@ -177,3 +201,9 @@ recognised.
 - **THEN** `korner.isJoined` is `true`
 - **AND** the header's capsule reads "Unfollow"
 
+
+## References
+- [`docs/architecture.md`](../../../docs/architecture.md) — the `feature/kornerz` module layout, `AsyncValue` state, and the `Channel<NavEvent>` navigation contract.
+- [`docs/screen-inventory.md`](../../../docs/screen-inventory.md) §Kornerz Tab — the Korner detail screen's place in the port.
+- `kornerz/Kornerz/SwiftUI/Dashboard/Korner/KornerDetail/KornerDetailViewModel.swift` — the iOS view model, its `fetchData()` and its `.refreshKornerDetail` observer.
+- `openspec/specs/deep-link-routing/spec.md` — the video-call deep link that requests the refresh.

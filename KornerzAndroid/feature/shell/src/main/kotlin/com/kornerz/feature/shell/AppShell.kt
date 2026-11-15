@@ -35,6 +35,7 @@ import com.kornerz.feature.kornerz.KornerzRoute
 import com.kornerz.feature.kornerz.KornerzScreen
 import com.kornerz.feature.kornerz.KornerzNavEvent
 import com.kornerz.feature.kornerz.detail.KornerDetailNavEvent
+import com.kornerz.feature.kornerz.detail.KornerDetailRefreshBus
 import com.kornerz.feature.kornerz.detail.KornerDetailScreen
 import com.kornerz.feature.kornerz.detail.KornerDetailViewModel
 import com.kornerz.feature.loops.LoopsRoute
@@ -153,6 +154,7 @@ fun AppShell(
     // shell's ViewModel rather than constructed here.
     val deepLinkManager = viewModel.deepLinkManager
     val deepLinkResolver = viewModel.deepLinkResolver
+    val kornerDetailRefreshBus = viewModel.kornerDetailRefreshBus
 
     // P10 (task 8.7) — release any deep link that arrived before the
     // graph could route it. Declared **before** the premium-gate effect
@@ -283,6 +285,33 @@ fun AppShell(
     var kornerDetailVisible by remember { mutableStateOf(false) }
 
     /**
+     * The Korner whose detail is currently open in the Kornerz tab, or
+     * `null` when the tab is showing its list.
+     *
+     * iOS parity: `DeepLinksManager.checkIfKornerDetailAlreadyOpened`
+     * (`kornerz/Kornerz/DeepLinks/DeeplinkManager.swift:168-179`) reads
+     * the **top view controller** of the selected tab's navigation
+     * controller, checks that it is a `KornerDetailController`, and
+     * compares its community with the one the deep link names. A
+     * video-call push for the Korner that is already on screen
+     * therefore **refreshes** that screen instead of pushing a second
+     * copy of it.
+     *
+     * The Korner detail lives inside the Kornerz tab's **nested**
+     * `NavHost`, so the shell cannot read its back stack directly —
+     * the tab lifts the open korner's id up here, the same way it
+     * lifts the `kornerDetailVisible` flag.
+     *
+     * **Only the active tab counts.** Navigation-Compose keeps an
+     * inactive tab's destination composed, so the Kornerz tab's nested
+     * controller still holds its last Korner detail after the user
+     * switched away. iOS's check reads the *selected* tab's stack, so
+     * a Korner left behind in an inactive tab is not "already open".
+     * The active-tab test is applied at the point of use.
+     */
+    var openKornerId by remember { mutableStateOf<String?>(null) }
+
+    /**
      * Executes a resolved deep-link target.
      *
      * Both destinations live inside a tab's **nested** `NavHost` — the
@@ -294,6 +323,15 @@ fun AppShell(
      * interstitial from the back stack, which is what iOS's
      * `removeSelfFromNavigation()` (`DeeplinkViewController.swift:41-49`)
      * does.
+     *
+     * **The one exception is the video-call push.** iOS refreshes the
+     * Korner detail when the Korner the call belongs to is *already on
+     * screen*, rather than pushing a second copy of it
+     * (`DeepLinksManager.handleDeepLink(info:)`,
+     * `kornerz/Kornerz/DeepLinks/DeeplinkManager.swift:108-116`). The
+     * screen is refreshed through the [KornerDetailRefreshBus], because
+     * the detail lives inside a nested graph the shell cannot reach
+     * into.
      */
     val executeDeepLinkTarget: (DeepLinkTarget) -> Unit = { target ->
         when (target) {
@@ -304,11 +342,28 @@ fun AppShell(
                 onPending = { pendingLoopTarget.value = it },
             )
 
-            is DeepLinkTarget.KornerDetail -> navigateToKornerDetail(
-                navController = navController,
-                kornerId = target.kornerId,
-                onPending = { pendingKornerTarget.value = it },
-            )
+            is DeepLinkTarget.KornerDetail -> {
+                // "Already open" means: the Korner detail is the
+                // destination **on screen**, in the tab the user is
+                // looking at. iOS reads the selected tab's top view
+                // controller (`checkIfKornerDetailAlreadyOpened`), so a
+                // Korner left behind in an inactive tab does not count.
+                val isOpen = currentRoute == ShellTab.Kornerz.route &&
+                    openKornerId == target.kornerId
+                if (target.isVideoCall && isOpen) {
+                    // iOS parity: the Korner is already on screen, so
+                    // the open screen re-reads its data instead of a
+                    // second copy of the Korner detail being pushed on
+                    // top of it.
+                    kornerDetailRefreshBus.requestRefresh(target.kornerId)
+                } else {
+                    navigateToKornerDetail(
+                        navController = navController,
+                        kornerId = target.kornerId,
+                        onPending = { pendingKornerTarget.value = it },
+                    )
+                }
+            }
         }
     }
 
@@ -490,6 +545,7 @@ fun AppShell(
                 snackbarHostState = comingSoonSnackbar,
                 onHideBottomBarChanged = { hides -> kornerDetailHidesBottomBar = hides },
                 onKornerDetailVisibleChanged = { visible -> kornerDetailVisible = visible },
+                onOpenKornerIdChanged = { id -> openKornerId = id },
                 onJoinVideoCall = { sessionId, communityName, communityId ->
                     navController.navigate(
                         VideocallRoute.Call.build(sessionId, communityName, communityId),
@@ -1076,6 +1132,7 @@ internal fun androidx.navigation.NavGraphBuilder.kornerzTabGraph(
     onPendingConsumed: () -> Unit = {},
     onHideBottomBarChanged: (Boolean) -> Unit = {},
     onKornerDetailVisibleChanged: (Boolean) -> Unit = {},
+    onOpenKornerIdChanged: (String?) -> Unit = {},
 ) {
     composable(ShellTab.Kornerz.route) {
         val nested = rememberNavController()
@@ -1091,6 +1148,20 @@ internal fun androidx.navigation.NavGraphBuilder.kornerzTabGraph(
         // status-bar inset for it.
         val kornerDetailVisible = nestedRoute == KornerzRoute.Detail.PATTERN
         LaunchedEffect(kornerDetailVisible) { onKornerDetailVisibleChanged(kornerDetailVisible) }
+        // The id of the Korner whose detail is open, lifted to the shell
+        // so a video-call deep link can tell "this Korner is already on
+        // screen" from "this Korner has to be opened" — iOS's
+        // `checkIfKornerDetailAlreadyOpened`
+        // (`kornerz/Kornerz/DeepLinks/DeeplinkManager.swift:168-179`).
+        //
+        // Read off the nested entry's **argument**, not off the route
+        // pattern: the pattern carries the `{kornerId}` placeholder, so
+        // only the argument holds the value.
+        val openKornerId = nestedEntry
+            ?.arguments
+            ?.getString(KornerzRoute.Detail.ARG_KORNER_ID)
+            ?.takeIf { kornerDetailVisible && it.isNotBlank() }
+        LaunchedEffect(openKornerId) { onOpenKornerIdChanged(openKornerId) }
         // The pending target is consumed as a **flow**, not as a
         // captured value: the `NavHost` builder is remembered, so the
         // parameter would otherwise stay frozen at the graph's creation

@@ -22,8 +22,25 @@ sealed interface DeepLinkTarget {
     /** The loop detail — `loops/{loopId}` in the Loops tab's nested graph. */
     data class LoopDetail(val loopId: String) : DeepLinkTarget
 
-    /** The Korner detail — `kornerz/{kornerId}` in the Kornerz tab's nested graph. */
-    data class KornerDetail(val kornerId: String) : DeepLinkTarget
+    /**
+     * The Korner detail — `kornerz/{kornerId}` in the Kornerz tab's
+     * nested graph.
+     *
+     * [isVideoCall] records that the link came from a **video-call**
+     * push. iOS treats that case specially: when the Korner the call
+     * belongs to is **already on screen**, the open screen refreshes
+     * itself instead of a second copy of the Korner detail being pushed
+     * on top of it (`DeepLinksManager.handleDeepLink(info:)`,
+     * `kornerz/Kornerz/DeepLinks/DeeplinkManager.swift:108-116`). The
+     * flag is what lets the shell reproduce that decision — a
+     * community-scoped push for a Korner that is already open opens it
+     * again, because the user asked for that content, not for a
+     * refresh.
+     */
+    data class KornerDetail(
+        val kornerId: String,
+        val isVideoCall: Boolean = false,
+    ) : DeepLinkTarget
 }
 
 /**

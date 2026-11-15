@@ -12,6 +12,13 @@ TBD - created by archiving change phase-6-profile-and-notifications. Update Purp
 
 Mirrors iOS `AppDelegate.userNotificationCenter(_:didReceive:)` lines 170–175, which passes the tapped notification's `userInfo` straight to `DeepLinksManager.shared.handleDeepLink(info:)`.
 
+### Requirement: The push payload declares a click_action for the backgrounded case
+`KornerzFcmService` only runs while the app is in the foreground. When the app is backgrounded or killed, the Firebase SDK displays the notification itself and the service never runs — the app cannot build a `PendingIntent` for the SDK to use. The SDK then launches the app from the payload's `click_action`, with the message's `data` payload copied into the launch intent's extras.
+
+The backend therefore SHALL set `click_action` to `kornerz://deeplink` on every Kornerz push that carries a deep link. `DeepLinkPayloadParser.CLICK_ACTION` SHALL hold that exact string, and `AndroidManifest.xml` SHALL declare a matching intent-filter on `MainActivity` so the SDK's launch intent resolves to the app. The routing of that launch intent is specified in the `deep-link-routing` capability.
+
+The `PendingIntent` the app builds itself SHALL carry the payload in **both** transports — the `kornerz://` URI as its intent data and the payload as its extras — so the foreground path and the backgrounded path cannot drift apart.
+
 #### Scenario: New token writes to Firestore
 - **WHEN** FCM dispatches `onNewToken("fcm-token-xyz")` and `SessionStorage.userCode = "user-123"`
 - **THEN** `UserProfileRepository.updateFcmToken("fcm-token-xyz")` writes `Users/user-123` with `tokenPush = "fcm-token-xyz"` and returns `Success(Unit)`
@@ -23,6 +30,10 @@ Mirrors iOS `AppDelegate.userNotificationCenter(_:didReceive:)` lines 170–175,
 #### Scenario: A video-call push carries its deep link
 - **WHEN** FCM delivers a data payload with `pushType = "VideoCall"` and `communityId = "community-1"`
 - **THEN** the tray notification's `PendingIntent` carries `kornerz://community/community-1/call` as its intent data
+
+#### Scenario: The app's own intent carries the payload too
+- **WHEN** FCM delivers a data payload with `pushType = "VideoCall"` and `communityId = "community-1"`
+- **THEN** the tray notification's `PendingIntent` also carries `pushType` and `communityId` in its extras
 
 #### Scenario: A loop-comment push carries its deep link
 - **WHEN** FCM delivers a data payload with `pushType = "LoopComment"` and `loopId = "loop-1"`
@@ -84,3 +95,10 @@ When `SessionStorage.userCode` transitions from `null` to a non-null value for t
 - **WHEN** user denies `POST_NOTIFICATIONS`
 - **THEN** sign-in completes, the user lands on the home tab, and FCM messages are silently dropped at the system level (no in-app error)
 
+
+## References
+- [`docs/architecture.md`](../../../docs/architecture.md) — the `core/network` FCM layer and the `feature/*` boundary.
+- [`docs/screen-inventory.md`](../../../docs/screen-inventory.md) — the Notifications screens the pushed records surface in.
+- `kornerz/Kornerz/App/AppDelegate.swift` — the iOS notification registration and token handling.
+- `kornerz/Kornerz/Helper/ApiService.swift` — the backend Cloud Functions that send the pushes.
+- `openspec/specs/deep-link-routing/spec.md` — the routing of a tapped notification's payload.

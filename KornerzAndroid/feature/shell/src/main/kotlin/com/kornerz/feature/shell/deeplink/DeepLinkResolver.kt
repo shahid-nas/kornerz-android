@@ -39,6 +39,12 @@ import javax.inject.Singleton
  * `KornerDetailController` (`DeeplinkViewController.swift:135-155`),
  * and the call itself stays reachable only from the Korner detail.
  *
+ * A `VideoCall` link is additionally **flagged** on the target, so the
+ * shell can reproduce iOS's "refresh the open Korner instead of pushing
+ * a second copy" behaviour — iOS's
+ * `checkIfKornerDetailAlreadyOpened` /
+ * `refreshKornerDetail` (`DeeplinkManager.swift:108-116, 168-183`).
+ *
  * The `kornerId` the target carries is the Korner's **document id**,
  * while the link carries the community's `communityId` **field**. The
  * resolver bridges the two with one `Communities.whereEqualTo(
@@ -63,7 +69,12 @@ class DeepLinkResolver @Inject constructor(
             DeepLinkTarget.LoopDetail(deeplink.loopId),
         )
 
-        is DeepLink.VideoCall -> resolveCommunity(deeplink.communityId)
+        // A video-call push is flagged so the shell can refresh the
+        // Korner detail when it is **already on screen** instead of
+        // pushing a second copy of it — iOS's
+        // `checkIfKornerDetailAlreadyOpened` path
+        // (`DeeplinkManager.swift:108-116, 168-179`).
+        is DeepLink.VideoCall -> resolveCommunity(deeplink.communityId, isVideoCall = true)
 
         is DeepLink.NewEvent -> resolveCommunity(deeplink.communityId)
 
@@ -77,10 +88,15 @@ class DeepLinkResolver @Inject constructor(
     /**
      * Resolves a community-scoped link to the community's Korner detail.
      */
-    private suspend fun resolveCommunity(communityId: String): DeepLinkResolution {
+    private suspend fun resolveCommunity(
+        communityId: String,
+        isVideoCall: Boolean = false,
+    ): DeepLinkResolution {
         val documentId = communitiesRepository.fetchDocumentIdByCommunityId(communityId)
         return if (documentId != null) {
-            DeepLinkResolution.Routable(DeepLinkTarget.KornerDetail(documentId))
+            DeepLinkResolution.Routable(
+                DeepLinkTarget.KornerDetail(kornerId = documentId, isVideoCall = isVideoCall),
+            )
         } else {
             DeepLinkResolution.NotRoutable
         }

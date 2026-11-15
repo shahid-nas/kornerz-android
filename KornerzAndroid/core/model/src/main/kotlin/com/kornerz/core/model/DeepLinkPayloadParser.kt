@@ -32,6 +32,30 @@ package com.kornerz.core.model
 object DeepLinkPayloadParser {
 
     /**
+     * The FCM `click_action` that carries a deep link.
+     *
+     * **Why a dedicated action rather than the link's own URI.** FCM's
+     * `click_action` is a plain string, and the SDK launches the app
+     * with it when it displays the notification **itself** — which is
+     * what happens whenever the app is in the background or has been
+     * killed, because `onMessageReceived` is then never called and the
+     * app cannot build its own `PendingIntent`.
+     *
+     * Using the link's own `kornerz://community/{id}/event/{id}` URI as
+     * the `click_action` would work too, but it makes the backend
+     * responsible for minting a URI that must stay in step with the
+     * app's grammar. A single opaque action keeps the contract between
+     * the backend and the app to **one string**, and the app derives the
+     * destination from the payload it already receives in the launch
+     * intent's extras.
+     *
+     * The action is matched by the manifest's intent-filter on
+     * `MainActivity` (`app/src/main/AndroidManifest.xml`), so the SDK's
+     * launch intent resolves to this app.
+     */
+    const val CLICK_ACTION: String = "kornerz://deeplink"
+
+    /**
      * Parses a push payload into a [DeepLink], or returns `null` when
      * the payload does not describe one.
      */
@@ -82,4 +106,131 @@ object DeepLinkPayloadParser {
         val entityId = this[entityKey]?.takeIf { it.isNotBlank() } ?: return null
         return build(communityId, entityId)
     }
+
+    /**
+     * Reads the push payload out of a launch intent's extras.
+     *
+     * When the Firebase SDK displays a notification itself — the
+     * backgrounded / killed case — it launches the app with the
+     * message's `data` payload copied into the intent's extras, one
+     * entry per key, alongside the SDK's own `google.*` bookkeeping
+     * entries. This pulls the **payload** keys back out of that bag.
+     *
+     * The SDK's own keys are skipped rather than filtered by name:
+     * [PAYLOAD_KEYS] is the closed set of keys this app's dialects
+     * read, so a key the app does not know about is simply not part of
+     * the payload.
+     */
+    fun payloadFromExtras(extras: Map<String, Any?>): Map<String, String> =
+        PAYLOAD_KEYS.mapNotNull { key ->
+            val value = extras[key]?.toString()?.takeIf { it.isNotBlank() }
+            if (value == null) null else key to value
+        }.toMap()
+
+    /**
+     * The payload keys this app's dialects read.
+     *
+     * The list is the closed set of keys [parse] and [parseNotification]
+     * look at. It exists so [payloadFromExtras] can tell a payload entry
+     * from the Firebase SDK's own `google.*` bookkeeping extras, which
+     * are not part of the message the backend sent.
+     *
+     * Both dialects are listed because the backend may send either —
+     * or both — depending on the notification. [parse] reads the push
+     * dialect; [parseNotification] reads the notification-record
+     * dialect.
+     */
+    private val PAYLOAD_KEYS: List<String> = listOf(
+        // The push dialect — iOS's `DeepLinksManager.handleDeepLink(info:)`.
+        "pushType",
+        "communityId",
+        "eventId",
+        "articleId",
+        "forumId",
+        "loopId",
+        // The notification-record dialect — iOS's `UserNotification`'s
+        // `CodingKeys`, which the FCM service also reads to build the
+        // in-app notifications list.
+        "notificationType",
+        "notificationReferenceId",
+        "notificationCommunityId",
+    )
+
+    /**
+     * Parses a push payload in the **notification-record** dialect.
+     *
+     * The backend sends the notification-record keys alongside the push
+     * dialect's keys on some notifications — they are the same
+     * notification, described once for the in-app list
+     * (`notificationType` / `notificationReferenceId` /
+     * `notificationCommunityId`) and once for the deep link
+     * (`pushType` / `eventId` / …). When the push dialect's keys are
+     * absent but the record dialect's are, this is the reader that
+     * still finds the destination.
+     *
+     * The mapping mirrors [deeplink] — the same table the in-app
+     * notifications list uses — except that the community id comes
+     * straight from the payload's `notificationCommunityId` rather than
+     * from a fetched [Community].
+     *
+     * Returns `null` when the payload carries neither dialect, or when
+     * the record dialect is missing an id its type requires.
+     */
+    fun parseNotification(payload: Map<String, String>): DeepLink? {
+        val type = payload["notificationType"]?.takeIf { it.isNotBlank() } ?: return null
+        val reference = payload["notificationReferenceId"]?.takeIf { it.isNotBlank() }
+        val communityId = payload["notificationCommunityId"]?.takeIf { it.isNotBlank() }
+        return when (UserNotificationDeeplinkType.fromRaw(type)) {
+            UserNotificationDeeplinkType.NEW_EVENT ->
+                if (reference != null && communityId != null) {
+                    DeepLink.NewEvent(eventId = reference, communityId = communityId)
+                } else {
+                    null
+                }
+
+            UserNotificationDeeplinkType.NEW_ARTICLE ->
+                if (reference != null && communityId != null) {
+                    DeepLink.NewArticle(articleId = reference, communityId = communityId)
+                } else {
+                    null
+                }
+
+            UserNotificationDeeplinkType.NEW_FORUM ->
+                if (reference != null && communityId != null) {
+                    DeepLink.NewForum(forumId = reference, communityId = communityId)
+                } else {
+                    null
+                }
+
+            UserNotificationDeeplinkType.VIDEO_CALL ->
+                communityId?.let { DeepLink.VideoCall(communityId = it) }
+
+            UserNotificationDeeplinkType.NEW_COMMENT ->
+                reference?.let { DeepLink.NewComment(forumId = it) }
+
+            UserNotificationDeeplinkType.NEW_LOOP ->
+                if (reference != null && communityId != null) {
+                    DeepLink.NewLoop(communityId = communityId, loopId = reference)
+                } else {
+                    null
+                }
+
+            UserNotificationDeeplinkType.LOOP_COMMENT ->
+                reference?.let { DeepLink.NewLoopComment(loopId = it) }
+
+            UserNotificationDeeplinkType.UNKNOWN -> null
+        }
+    }
+
+    /**
+     * Parses a push payload into a [DeepLink], trying **both**
+     * dialects.
+     *
+     * The push dialect ([parse]) is tried first: it is the one iOS
+     * reads for a tapped notification, and it names the entity ids
+     * directly. The notification-record dialect ([parseNotification]) is
+     * the fallback, for a payload that carries only the record keys.
+     */
+    fun parseAny(payload: Map<String, String>): DeepLink? =
+        parse(payload) ?: parseNotification(payload)
 }

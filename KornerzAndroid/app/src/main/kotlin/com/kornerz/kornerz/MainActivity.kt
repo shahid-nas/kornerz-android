@@ -3,12 +3,14 @@ package com.kornerz.kornerz
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationManagerCompat
 import com.kornerz.core.model.DeepLink
+import com.kornerz.core.model.DeepLinkPayloadParser
 import com.kornerz.core.network.community.CommunitiesRepository
 import com.kornerz.core.network.videocall.VonageSessionController
 import com.kornerz.core.storage.country.CountryCodesRepository
@@ -157,13 +159,19 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * P10 (task 9.5) — the **warm** path: a `kornerz://` intent arrived
+     * P10 (task 9.5) — the **warm** path: a deep-link intent arrived
      * while the activity was already running.
      *
      * `MainActivity` is `singleTop`, so the intent is delivered here
      * instead of creating a second activity instance. `setIntent`
      * keeps the activity's current intent accurate for a later
      * configuration change or process restore.
+     *
+     * The same method serves both transports — the app's own
+     * `kornerz://` URI and the Firebase SDK's extras-carrying launch
+     * intent — because the warm and cold paths are the same two
+     * mechanisms, differing only in which lifecycle callback delivers
+     * the intent.
      */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
@@ -172,14 +180,72 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Hands a `kornerz://` URI to the deep-link manager. Anything else
-     * — a null intent, a foreign scheme, a URI that does not match the
-     * grammar — is ignored.
+     * Hands a deep link to the deep-link manager.
+     *
+     * Two transports reach this method, and **both** must be handled:
+     *
+     *  - **The `kornerz://` URI** — the app's own `PendingIntent`, built
+     *    in `KornerzFcmService.buildTapIntent` when the app was in the
+     *    foreground and `onMessageReceived` ran.
+     *  - **The intent extras** — the launch intent the Firebase SDK
+     *    builds when it displays the notification itself, which is what
+     *    happens whenever the app was backgrounded or killed. The SDK
+     *    copies the message's `data` payload into the extras and the
+     *    `click_action` into the intent's action. Without reading the
+     *    extras, a tap on a notification that arrived while the app was
+     *    not running would open the app but land the user on the Home
+     *    tab instead of the screen the notification is about.
+     *
+     * iOS has no such split: `UNUserNotificationCenterDelegate
+     * .didReceive` fires for a tap in every app state and the payload
+     * is in `userInfo` either way.
+     *
+     * Anything else — a null intent, a foreign scheme, a payload with
+     * no recognisable `pushType` — is ignored.
      */
     private fun handleDeepLink(intent: Intent?) {
-        val uri = intent?.data ?: return
-        if (!uri.scheme.equals(DeepLink.SCHEME, ignoreCase = true)) return
-        val deeplink = DeepLink.parse(uri.toString()) ?: return
+        val deeplink = intent?.let { resolveDeepLink(it) } ?: return
         deepLinkManager.handle(deeplink)
+    }
+
+    /**
+     * Resolves the deep link an intent carries, or `null` when it
+     * carries none.
+     *
+     * The URI transport is tried first, then the extras transport.
+     *
+     * The URI transport is tried first because the app's own
+     * `PendingIntent` puts the link there — and that intent also
+     * carries the payload in its extras, so either transport yields the
+     * same link. The Firebase SDK's launch intent, by contrast, may
+     * carry the `click_action` URI (`kornerz://deeplink`) as its data;
+     * that URI is not part of the link grammar, so it parses to `null`
+     * and the extras transport handles it instead.
+     */
+    private fun resolveDeepLink(intent: Intent): DeepLink? {
+        intent.data?.let { uri ->
+            if (uri.scheme?.equals(DeepLink.SCHEME, ignoreCase = true) == true) {
+                DeepLink.parse(uri.toString())?.let { return it }
+            }
+        }
+        val payload = DeepLinkPayloadParser.payloadFromExtras(
+            intent.extras?.let { bundle ->
+                bundle.keySet().associateWith { key -> bundle.get(key) }
+            }.orEmpty(),
+        )
+        // The payload's keys are logged: the backend's payload shape is
+        // not something this repo can verify, and a mismatch here is
+        // the difference between "the tap does nothing" and a working
+        // deep link.
+        Log.i(
+            TAG,
+            "Deep link intent: action=${intent.action} data=${intent.data} " +
+                "payload=$payload",
+        )
+        return DeepLinkPayloadParser.parseAny(payload)
+    }
+
+    private companion object {
+        const val TAG = "KornerzMainActivity"
     }
 }

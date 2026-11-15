@@ -48,6 +48,7 @@ import javax.inject.Inject
 class KornerDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: KornerzRepository,
+    private val refreshBus: KornerDetailRefreshBus,
 ) : ViewModel() {
 
     private val kornerId: String = savedStateHandle.get<String>(ARG_KORNER_ID).orEmpty()
@@ -92,6 +93,35 @@ class KornerDetailViewModel @Inject constructor(
     init {
         if (kornerId.isNotBlank()) fetchData() else {
             _state.update { it.copy(detail = AsyncValue.Error(IllegalArgumentException("Missing kornerId"))) }
+        }
+        observeRefreshRequests()
+    }
+
+    /**
+     * Re-reads the Korner when a refresh is requested for **this**
+     * Korner.
+     *
+     * iOS parity: `KornerDetailViewModel.addNotificationObserver`
+     * (`kornerz/Kornerz/SwiftUI/Dashboard/Korner/KornerDetail/KornerDetailViewModel.swift:105-112`)
+     * subscribes to the `.refreshKornerDetail` notification and calls
+     * `fetchData()` when it fires. iOS's notification carries no id, so
+     * every open Korner detail refreshed; Android's bus carries the
+     * korner id, so only the screen that is actually about the Korner
+     * in question refreshes.
+     *
+     * The refresh is a **silent** one — the current content stays on
+     * screen while the read is in flight, the same as the
+     * pull-to-refresh path — so a video-call notification does not
+     * replace the screen the user is reading with a shimmer.
+     */
+    private fun observeRefreshRequests() {
+        viewModelScope.launch {
+            refreshBus.requests.collect { requestedId ->
+                if (requestedId == kornerId) {
+                    _state.update { it.copy(isRefreshing = true) }
+                    fetchData(showLoading = false)
+                }
+            }
         }
     }
 

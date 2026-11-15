@@ -55,6 +55,33 @@
                 <data android:host="forum" />
                 <data android:host="community" />
             </intent-filter>
+            <!--
+              The FCM `click_action` that carries a deep link.
+
+              **Why this filter exists.** When the app is in the
+              foreground, `onMessageReceived` runs and the app builds
+              its own `PendingIntent` with the `kornerz://` URI — that
+              is the filter above. But when the app is **backgrounded or
+              killed**, the Firebase SDK displays the notification
+              itself and `onMessageReceived` is never called, so the
+              app never gets to build that intent. The SDK then launches
+              the app with the payload's `click_action`, and the message
+              `data` in the intent's extras.
+
+              The backend sets `click_action` to `kornerz://deeplink`
+              (`DeepLinkPayloadParser.CLICK_ACTION`). This filter is
+              what makes that action resolve to this app; without it the
+              SDK's launch intent would not match any filter and the
+              tap would open the app on the Home tab instead of the
+              screen the notification is about.
+
+              The `data` payload itself is read from the intent's
+              extras — see `MainActivity.resolveDeepLink`.
+            -->
+            <intent-filter>
+                <action android:name="kornerz://deeplink" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
         </activity>
 
         <!--

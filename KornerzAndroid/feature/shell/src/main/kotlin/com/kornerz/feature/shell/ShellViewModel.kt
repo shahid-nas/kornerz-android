@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kornerz.core.network.AuthRepository
 import com.kornerz.core.network.fcm.FcmTokenRegistrar
+import com.kornerz.feature.kornerz.detail.KornerDetailRefreshBus
 import com.kornerz.feature.profile.accountdeletion.UserDeletedHisAccountEventBus
 import com.kornerz.feature.shell.deeplink.DeepLinkManager
 import com.kornerz.feature.shell.deeplink.DeepLinkResolver
@@ -27,6 +28,12 @@ import javax.inject.Inject
  * the shell is the only place that owns the navigation graph, so it is
  * the only place that may hold the [DeepLinkManager] and the
  * [DeepLinkResolver].
+ *
+ * The [KornerDetailRefreshBus] is exposed for the third reason: the
+ * Korner detail lives inside the Kornerz tab's **nested** `NavHost`, so
+ * the shell cannot reach its ViewModel to refresh it directly. The bus
+ * carries the request across that boundary — the same shape as iOS's
+ * `.refreshKornerDetail` `NotificationCenter` post.
  */
 @HiltViewModel
 class ShellViewModel @Inject constructor(
@@ -37,6 +44,7 @@ class ShellViewModel @Inject constructor(
     private val entitlementReconciler: SubscriptionEntitlementReconciler,
     val deepLinkManager: DeepLinkManager,
     val deepLinkResolver: DeepLinkResolver,
+    val kornerDetailRefreshBus: KornerDetailRefreshBus,
 ) : ViewModel() {
 
     private val _navEvents = Channel<ShellNavEvent>(Channel.BUFFERED)
