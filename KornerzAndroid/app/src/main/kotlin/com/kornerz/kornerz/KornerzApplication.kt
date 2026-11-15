@@ -5,7 +5,9 @@ import android.util.Log
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
+import com.kornerz.core.model.DeepLinkDiagnostics
 import com.kornerz.core.network.fcm.FcmTokenRegistrar
+import com.kornerz.core.ui.DeepLinkLog
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 
@@ -38,6 +40,14 @@ class KornerzApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+
+        // Route `core/model`'s deep-link diagnostics to logcat. The
+        // parser lives in a pure JVM module and cannot log itself, so
+        // it reports through a sink the Android side installs here —
+        // the earliest point in the process, so no event is missed.
+        DeepLinkDiagnostics.reporter = DeepLinkDiagnostics.Reporter { stage, message ->
+            DeepLinkLog.log(stage, message)
+        }
 
         FirebaseApp.initializeApp(this)
         val options: FirebaseOptions = FirebaseApp.getInstance().options

@@ -61,7 +61,7 @@ object DeepLinkPayloadParser {
      */
     fun parse(payload: Map<String, String>): DeepLink? {
         val pushType = payload["pushType"]?.takeIf { it.isNotBlank() } ?: return null
-        return when (pushType.lowercase()) {
+        val link = when (pushType.lowercase()) {
             "newevent" -> payload.link("eventId") { communityId, eventId ->
                 DeepLink.NewEvent(eventId = eventId, communityId = communityId)
             }
@@ -92,6 +92,22 @@ object DeepLinkPayloadParser {
 
             else -> null
         }
+        if (link == null) {
+            // The type was recognised but the payload is missing an id
+            // that type needs — the single most common cause of a tap
+            // that opens the app but not the screen.
+            DeepLinkDiagnostics.fail(
+                "5-parse",
+                "pushType='$pushType' was recognised but the payload is " +
+                    "missing the id it needs. payload=$payload",
+            )
+        } else {
+            DeepLinkDiagnostics.log(
+                "5-parse",
+                "push dialect matched: pushType='$pushType' → $link",
+            )
+        }
+        return link
     }
 
     /**
@@ -121,11 +137,26 @@ object DeepLinkPayloadParser {
      * read, so a key the app does not know about is simply not part of
      * the payload.
      */
-    fun payloadFromExtras(extras: Map<String, Any?>): Map<String, String> =
-        PAYLOAD_KEYS.mapNotNull { key ->
+    fun payloadFromExtras(extras: Map<String, Any?>): Map<String, String> {
+        val payload = PAYLOAD_KEYS.mapNotNull { key ->
             val value = extras[key]?.toString()?.takeIf { it.isNotBlank() }
             if (value == null) null else key to value
         }.toMap()
+        // The keys that were dropped are logged alongside the ones that
+        // survived. A payload whose keys are spelled differently — or
+        // whose values are not strings — is dropped here, silently, and
+        // the filtered view alone would look empty without showing
+        // that the extras were not empty at all.
+        val dropped = extras.keys - payload.keys
+        if (dropped.isNotEmpty()) {
+            DeepLinkDiagnostics.log(
+                "4-transport",
+                "extras keys dropped by the payload filter: $dropped " +
+                    "(the app reads only $PAYLOAD_KEYS)",
+            )
+        }
+        return payload
+    }
 
     /**
      * The payload keys this app's dialects read.
@@ -180,7 +211,7 @@ object DeepLinkPayloadParser {
         val type = payload["notificationType"]?.takeIf { it.isNotBlank() } ?: return null
         val reference = payload["notificationReferenceId"]?.takeIf { it.isNotBlank() }
         val communityId = payload["notificationCommunityId"]?.takeIf { it.isNotBlank() }
-        return when (UserNotificationDeeplinkType.fromRaw(type)) {
+        val link = when (UserNotificationDeeplinkType.fromRaw(type)) {
             UserNotificationDeeplinkType.NEW_EVENT ->
                 if (reference != null && communityId != null) {
                     DeepLink.NewEvent(eventId = reference, communityId = communityId)
@@ -220,6 +251,22 @@ object DeepLinkPayloadParser {
 
             UserNotificationDeeplinkType.UNKNOWN -> null
         }
+        if (link == null) {
+            DeepLinkDiagnostics.fail(
+                "5-parse",
+                "notificationType='$type' was recognised but the record " +
+                    "dialect is missing the id it needs " +
+                    "(notificationReferenceId / notificationCommunityId). " +
+                    "payload=$payload",
+            )
+        } else {
+            DeepLinkDiagnostics.log(
+                "5-parse",
+                "notification-record dialect matched: notificationType=" +
+                    "'$type' → $link",
+            )
+        }
+        return link
     }
 
     /**
@@ -231,6 +278,19 @@ object DeepLinkPayloadParser {
      * directly. The notification-record dialect ([parseNotification]) is
      * the fallback, for a payload that carries only the record keys.
      */
-    fun parseAny(payload: Map<String, String>): DeepLink? =
-        parse(payload) ?: parseNotification(payload)
+    fun parseAny(payload: Map<String, String>): DeepLink? {
+        val push = parse(payload)
+        if (push != null) return push
+        val record = parseNotification(payload)
+        if (record != null) return record
+        // Neither dialect matched. `parse` and `parseNotification` have
+        // already logged why, so this line only states the outcome.
+        DeepLinkDiagnostics.fail(
+            "5-parse",
+            "NO dialect matched — the payload carries no usable deep " +
+                "link. payload=$payload " +
+                "(keys=${payload.keys})",
+        )
+        return null
+    }
 }

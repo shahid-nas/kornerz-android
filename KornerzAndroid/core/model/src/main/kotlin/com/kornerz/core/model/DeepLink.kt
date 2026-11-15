@@ -89,14 +89,31 @@ sealed interface DeepLink {
          * this app can honour.
          */
         fun parse(uri: String): DeepLink? {
-            val parsed = runCatching { URI(uri) }.getOrNull() ?: return null
-            if (!parsed.scheme.equals(SCHEME, ignoreCase = true)) return null
-            val host = parsed.host?.lowercase() ?: return null
-            val segments = parsed.path.orEmpty()
+            val parsed = runCatching { URI(uri) }.getOrNull() ?: run {
+                DeepLinkDiagnostics.fail("5-parse", "the URI is not a valid URI: '$uri'")
+                return null
+            }
+            if (!parsed.scheme.equals(SCHEME, ignoreCase = true)) {
+                DeepLinkDiagnostics.fail(
+                    "5-parse",
+                    "the URI's scheme is '${parsed.scheme}', not '$SCHEME': '$uri'",
+                )
+                return null
+            }
+            val host = parsed.host?.lowercase() ?: run {
+                DeepLinkDiagnostics.fail("5-parse", "the URI has no host: '$uri'")
+                return null
+            }
+            // The **raw** path is decoded exactly once, here. `URI.getPath()`
+            // would hand back an already-decoded path, and decoding that a
+            // second time corrupts any id that contains a literal `%` —
+            // the id `a%2Fb` would come back as `a/b` and address a
+            // different loop.
+            val segments = parsed.rawPath.orEmpty()
                 .split('/')
                 .filter { it.isNotEmpty() }
                 .map { decodeSegment(it) }
-            return when {
+            val link = when {
                 host == "loop" && segments.size == 1 ->
                     NewLoopComment(loopId = segments[0])
 
@@ -117,13 +134,27 @@ sealed interface DeepLink {
 
                 else -> null
             }
+            if (link == null) {
+                DeepLinkDiagnostics.fail(
+                    "5-parse",
+                    "the URI does not match the link grammar: '$uri' " +
+                        "(host='$host' segments=$segments)",
+                )
+            } else {
+                DeepLinkDiagnostics.log("5-parse", "the URI parsed into: $link")
+            }
+            return link
         }
 
         /**
-         * Percent-decodes a path segment. Firestore document ids are
-         * alphanumeric in practice, so this is a no-op for every id the
-         * app mints; a malformed escape falls back to the raw segment
-         * rather than throwing.
+         * Percent-decodes a **raw** path segment — the form
+         * `URI.rawPath` hands back, before any decoding. A malformed
+         * escape falls back to the raw segment rather than throwing.
+         *
+         * This is applied to the raw path exactly once; decoding an
+         * already-decoded path would corrupt any id that contains a
+         * literal `%` (the id `a%2Fb` would come back as `a/b` and
+         * address a different loop).
          *
          * `+` is **not** translated to a space: this decodes a path
          * segment, not an HTML form value, and the ids the app mints

@@ -9,6 +9,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.kornerz.core.ui.DeepLinkLog
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -63,14 +64,31 @@ class DeepLinkResolvingViewModel @Inject constructor(
                 // Nothing queued — the manager's queue was drained
                 // between the shell pushing the route and the
                 // interstitial composing. There is no link to report.
+                DeepLinkLog.fail(
+                    "8-resolve",
+                    "the interstitial found no link to resolve — the deep " +
+                        "link is lost and the user will be returned to " +
+                        "the Home tab.",
+                )
                 DeepLinkResolvingState.Failed
             } else {
                 when (val resolution = deepLinkResolver.resolve(deeplink)) {
-                    is DeepLinkResolution.Routable ->
+                    is DeepLinkResolution.Routable -> {
+                        DeepLinkLog.log(
+                            "8-resolve",
+                            "resolved to a live destination: ${resolution.target}",
+                        )
                         DeepLinkResolvingState.Resolved(resolution.target)
+                    }
 
-                    DeepLinkResolution.NotRoutable ->
+                    DeepLinkResolution.NotRoutable -> {
+                        DeepLinkLog.fail(
+                            "8-resolve",
+                            "the link is NOT routable — the community or " +
+                                "forum it names could not be resolved: $deeplink",
+                        )
                         DeepLinkResolvingState.Failed
+                    }
                 }
             }
         }

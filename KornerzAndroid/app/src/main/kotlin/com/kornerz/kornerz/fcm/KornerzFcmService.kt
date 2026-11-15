@@ -9,6 +9,7 @@ import androidx.core.app.NotificationManagerCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.kornerz.core.model.DeepLink
+import com.kornerz.core.ui.DeepLinkLog
 import com.kornerz.core.model.DeepLinkPayloadParser
 import com.kornerz.core.model.User
 import com.kornerz.core.model.UserNotification
@@ -86,6 +87,12 @@ class KornerzFcmService : FirebaseMessagingService() {
         // cannot verify it. Logging it is what makes a mismatch between
         // the app and the backend visible instead of silent.
         Log.i(TAG, "FCM message: data=${remoteMessage.data}")
+        DeepLinkLog.log(
+            "1-payload",
+            "message received in the FOREGROUND (the app built this " +
+                "notification itself). data=${remoteMessage.data} " +
+                "notification=${remoteMessage.notification != null}",
+        )
         val notification = remoteMessage.notification
         if (notification != null) {
             val pi = buildTapIntent(remoteMessage.data)
@@ -102,26 +109,103 @@ class KornerzFcmService : FirebaseMessagingService() {
         val data = remoteMessage.data
         if (data.isNotEmpty()) {
             val userNotification = UserNotification(
-                id = data["notificationId"].orEmpty(),
-                title = data["notificationTitle"],
-                description = data["notificationDescription"],
+                id = data["notificationId"].orEmpty().ifBlank {
+                    // The backend does not always send a
+                    // `notificationId` — the push dialect has no
+                    // equivalent. Without an id the record cannot be
+                    // written (the `Notifications` collection is keyed
+                    // by it), so a deterministic id is minted from the
+                    // payload's own contents. The same payload yields
+                    // the same id, so a redelivery updates the same
+                    // record instead of duplicating it.
+                    derivedNotificationId(data)
+                },
+                title = data["notificationTitle"] ?: notification?.title,
+                description = data["notificationDescription"] ?: notification?.body,
                 content = data["notificationContent"],
                 image = data["notificationCommunityImage"],
                 date = data["dateNotification"]?.toLongOrNull()?.let {
                     kotlinx.datetime.Instant.fromEpochMilliseconds(it * 1000)
                 },
-                reference = data["notificationReferenceId"],
-                type = data["notificationType"],
+                reference = data["notificationReferenceId"] ?: pushDialectReference(data),
+                type = data["notificationType"] ?: data["pushType"],
                 userId = data["notificationUserId"],
-                communityId = data["notificationCommunityId"],
+                communityId = data["notificationCommunityId"] ?: data["communityId"],
+            )
+            DeepLinkLog.log(
+                "1-payload",
+                "in-app notification built: id=${userNotification.id} " +
+                    "type=${userNotification.type} reference=${userNotification.reference} " +
+                    "communityId=${userNotification.communityId}",
             )
             if (userNotification.id.isNotEmpty()) {
                 scope.launch {
                     notificationRepository.pushDataMessage(userNotification)
+                    DeepLinkLog.log(
+                        "1-payload",
+                        "in-app notification stored: id=${userNotification.id}",
+                    )
                 }
             }
+        } else {
+            DeepLinkLog.skip(
+                "1-payload",
+                "the message carried no data payload — there is no deep " +
+                    "link to build. The notification will open the app " +
+                    "without a destination.",
+            )
         }
     }
+
+    /**
+     * A deterministic notification id for a payload that carries no
+     * `notificationId`.
+     *
+     * The `Notifications` collection is keyed by `notificationId`, so a
+     * record cannot be written without one. The id is derived from the
+     * payload's type, its reference and its date — the three fields
+     * that identify *which* notification this is — so the same
+     * notification redelivered by FCM resolves to the same record
+     * instead of writing a second copy.
+     */
+    private fun derivedNotificationId(data: Map<String, String>): String {
+        val type = data["notificationType"] ?: data["pushType"].orEmpty()
+        val reference = data["notificationReferenceId"]
+            ?: pushDialectReference(data).orEmpty()
+        val date = data["dateNotification"].orEmpty()
+        return "push-$type-$reference-$date"
+    }
+
+    /**
+     * The entity id a **push-dialect** payload names.
+     *
+     * The backend describes a notification in one of two dialects. The
+     * **record** dialect — `notificationType` / `notificationReferenceId`
+     * / `notificationCommunityId` — is the one the `Notifications`
+     * collection is written in, and it is preferred. The **push**
+     * dialect — `pushType` / `communityId` / `eventId` / `articleId` /
+     * `forumId` / `loopId` — is the one the deep link is built from,
+     * and it is the fallback.
+     *
+     * A push that carries only the push dialect would otherwise never
+     * become an in-app notification: the record dialect's
+     * `notificationReferenceId` and `notificationType` are absent, so
+     * the notification would have no reference to open and no type to
+     * route on. Reading the push dialect's own ids closes that gap.
+     *
+     * The id is the one the push type names: a loop comment names the
+     * loop, a forum comment names the forum, and the community-scoped
+     * types name their entity in the community.
+     */
+    private fun pushDialectReference(data: Map<String, String>): String? =
+        when (data["pushType"]?.lowercase()) {
+            "loopcomment", "newloop" -> data["loopId"]
+            "newcomment" -> data["forumId"]
+            "newevent" -> data["eventId"]
+            "newarticle" -> data["articleId"]
+            "newforum" -> data["forumId"]
+            else -> null
+        }
 
     /**
      * Called when FCM drops messages because the token is no longer
@@ -176,7 +260,24 @@ class KornerzFcmService : FirebaseMessagingService() {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             }
         } else {
+            DeepLinkLog.skip(
+                "2-tap-intent",
+                "the payload could NOT be parsed into a deep link, so the " +
+                    "notification falls back to the plain launch intent — " +
+                    "tapping it opens the app WITHOUT a destination. " +
+                    "payload=$payload. Check that the payload carries a " +
+                    "recognised pushType (or notificationType) and the " +
+                    "id that type needs (loopId, forumId, eventId, " +
+                    "articleId, communityId).",
+            )
             packageManager.getLaunchIntentForPackage(packageName)
+        }
+        intent?.let {
+            DeepLinkLog.log(
+                "2-tap-intent",
+                "tap intent built: uri=${it.data} action=${it.action} " +
+                    "link=$deeplink extras=${payload.keys}",
+            )
         }
         return intent?.let {
             // The request code must differ from the notification's own

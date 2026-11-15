@@ -1,6 +1,7 @@
 package com.kornerz.feature.shell.deeplink
 
 import com.kornerz.core.model.DeepLink
+import com.kornerz.core.ui.DeepLinkLog
 import com.kornerz.core.network.community.CommunitiesRepository
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -83,6 +84,11 @@ class DeepLinkResolver @Inject constructor(
         is DeepLink.NewForum -> resolveCommunity(deeplink.communityId)
 
         is DeepLink.NewComment -> resolveForumCommunity(deeplink.forumId)
+    }.also { resolution ->
+        DeepLinkLog.log(
+            "8-resolve",
+            "resolved $deeplink → $resolution",
+        )
     }
 
     /**

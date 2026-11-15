@@ -2,6 +2,7 @@ package com.kornerz.feature.notifications.list
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.kornerz.core.ui.DeepLinkLog
 import com.kornerz.core.model.UserNotification
 import com.kornerz.core.model.deeplink
 import com.kornerz.core.network.community.CommunitiesRepository
@@ -122,15 +123,38 @@ class NotificationsViewModel @Inject constructor(
 
     private fun openNotification(notification: UserNotification) {
         viewModelScope.launch {
+            DeepLinkLog.log(
+                "13-destination",
+                "an in-app notification was opened: type=${notification.type} " +
+                    "reference=${notification.reference} " +
+                    "communityId=${notification.communityId} " +
+                    "deeplinkType=${notification.deeplinkType}",
+            )
             when (notification.deeplinkType) {
                 com.kornerz.core.model.UserNotificationDeeplinkType.NEW_LOOP,
                 com.kornerz.core.model.UserNotificationDeeplinkType.LOOP_COMMENT -> {
                     val loopId = notification.reference
-                    if (loopId != null) _navEvents.trySend(NotificationsNavEvent.OpenLoopComment(loopId))
+                    if (loopId != null) {
+                        DeepLinkLog.log(
+                            "9-target",
+                            "opening the loop detail for the notification: " +
+                                "loopId='$loopId'",
+                        )
+                        _navEvents.trySend(NotificationsNavEvent.OpenLoopComment(loopId))
+                    } else {
+                        DeepLinkLog.fail(
+                            "9-target",
+                            "the notification is a ${notification.type} but " +
+                                "carries no reference id, so there is no loop " +
+                                "to open.",
+                        )
+                    }
                 }
                 com.kornerz.core.model.UserNotificationDeeplinkType.NEW_COMMENT -> {
                     val forumId = notification.reference
-                    if (forumId != null) _navEvents.trySend(NotificationsNavEvent.OpenForumComment(forumId))
+                    if (forumId != null) {
+                        _navEvents.trySend(NotificationsNavEvent.OpenForumComment(forumId))
+                    }
                 }
                 else -> {
                     // Mirrors iOS `NotificationsViewModel.fetchCommunityInfo`
@@ -146,6 +170,12 @@ class NotificationsViewModel @Inject constructor(
                     if (deeplink != null) {
                         _navEvents.trySend(NotificationsNavEvent.Open(deeplink))
                     } else {
+                        DeepLinkLog.fail(
+                            "9-target",
+                            "the notification's type=${notification.type} " +
+                                "resolved to no deep link — its community " +
+                                "could not be found.",
+                        )
                         _navEvents.trySend(NotificationsNavEvent.ShowAlert("Community not found"))
                     }
                 }

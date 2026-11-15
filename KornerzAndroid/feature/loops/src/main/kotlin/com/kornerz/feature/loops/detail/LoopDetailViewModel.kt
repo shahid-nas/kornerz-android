@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kornerz.core.model.AsyncValue
+import com.kornerz.core.ui.DeepLinkLog
 import com.kornerz.core.model.LoopAccentPalette
 import com.kornerz.core.model.LoopComment
 import com.kornerz.core.model.LoopCommentInfo
@@ -99,6 +100,11 @@ class LoopDetailViewModel @Inject constructor(
     private var hasAwardedAccessLoop: Boolean = false
 
     init {
+        DeepLinkLog.log(
+            "13-destination",
+            "the loop detail screen took its route argument: loopId=" +
+                "'$loopId' (blank=${loopId.isBlank()})",
+        )
         observeSession()
         fetchData()
     }
@@ -174,7 +180,14 @@ class LoopDetailViewModel @Inject constructor(
      * the loop's own like state.
      */
     fun fetchData(forcedRefresh: Boolean = false) {
-        if (loopId.isBlank()) return
+        if (loopId.isBlank()) {
+            DeepLinkLog.fail(
+                "13-destination",
+                "the loop detail was opened with a BLANK loopId — the " +
+                    "route did not carry the id. The screen cannot load.",
+            )
+            return
+        }
         fetchJob?.cancel()
         fetchJob = viewModelScope.launch {
             if (forcedRefresh) {
@@ -189,9 +202,20 @@ class LoopDetailViewModel @Inject constructor(
             val result = loopDetailRepository.fetchLoopDetail(loopId)
             val failure = result.exceptionOrNull()
             if (failure != null) {
+                DeepLinkLog.fail(
+                    "13-destination",
+                    "the loop '$loopId' did NOT load: ${failure.message}. " +
+                        "The id does not match a Loop document's 'id' " +
+                        "field, nor its document id.",
+                )
                 _state.update { it.copy(detail = AsyncValue.Error(failure), isRefreshing = false) }
             } else {
                 val resolved = result.getOrThrow()
+                DeepLinkLog.log(
+                    "13-destination",
+                    "the loop '$loopId' loaded: documentId='${resolved.loop.id}' " +
+                        "title='${resolved.loop.title}'",
+                )
                 _state.update {
                     it.copy(
                         detail = AsyncValue.Success(resolved),

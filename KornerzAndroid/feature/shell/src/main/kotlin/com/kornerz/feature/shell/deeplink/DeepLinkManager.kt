@@ -1,6 +1,7 @@
 package com.kornerz.feature.shell.deeplink
 
 import com.kornerz.core.model.DeepLink
+import com.kornerz.core.ui.DeepLinkLog
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -73,7 +74,14 @@ class DeepLinkManager @Inject constructor() {
             appLaunched
         }
         if (isReady) {
+            DeepLinkLog.log("6-manager", "link accepted and released (the app is ready): $deeplink")
             released.trySend(deeplink)
+        } else {
+            DeepLinkLog.log(
+                "6-manager",
+                "link accepted and QUEUED — the shell is not composed yet " +
+                    "(a cold start). queueDepth=${pending.size} link=$deeplink",
+            )
         }
     }
 
@@ -89,6 +97,10 @@ class DeepLinkManager @Inject constructor() {
             appLaunched = true
             pending.toList()
         }
+        DeepLinkLog.log(
+            "6-manager",
+            "the app is ready — releasing ${queued.size} queued link(s): $queued",
+        )
         queued.forEach { released.trySend(it) }
     }
 
@@ -96,7 +108,20 @@ class DeepLinkManager @Inject constructor() {
      * Takes the head of the queue — the link the interstitial is about
      * to resolve. Returns `null` when the queue is empty.
      */
-    fun takeNext(): DeepLink? = synchronized(lock) { pending.removeFirstOrNull() }
+    fun takeNext(): DeepLink? = synchronized(lock) {
+        pending.removeFirstOrNull().also { taken ->
+            if (taken != null) {
+                DeepLinkLog.log("6-manager", "the interstitial took the next queued link: $taken")
+            } else {
+                DeepLinkLog.fail(
+                    "6-manager",
+                    "the interstitial found an EMPTY queue — the link was " +
+                        "already taken, or it was never queued. The " +
+                        "interstitial will report the deep link as failed.",
+                )
+            }
+        }
+    }
 
     /** Whether any link is still waiting to be routed. */
     fun hasPending(): Boolean = synchronized(lock) { pending.isNotEmpty() }

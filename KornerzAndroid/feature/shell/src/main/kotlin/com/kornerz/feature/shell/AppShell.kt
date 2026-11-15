@@ -29,6 +29,7 @@ import androidx.navigation.compose.dialog
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.kornerz.core.model.DeepLink
+import com.kornerz.core.ui.DeepLinkLog
 import com.kornerz.feature.home.HomeRoute
 import com.kornerz.feature.home.HomeScreen
 import com.kornerz.feature.kornerz.KornerzRoute
@@ -169,6 +170,7 @@ fun AppShell(
     // P10 (task 8.8) — one `deeplink/resolving` push per released link.
     LaunchedEffect(deepLinkManager) {
         deepLinkManager.releasedLinks.collect {
+            DeepLinkLog.log("7-interstitial", "pushing the resolving screen for: $it")
             navController.navigate(DeepLinkRoutePatterns.RESOLVING) {
                 launchSingleTop = true
             }
@@ -334,6 +336,7 @@ fun AppShell(
      * into.
      */
     val executeDeepLinkTarget: (DeepLinkTarget) -> Unit = { target ->
+        DeepLinkLog.log("9-target", "executing the deep-link target: $target")
         when (target) {
             is DeepLinkTarget.LoopDetail -> navigateToLoopDetail(
                 navController = navController,
@@ -920,6 +923,11 @@ private fun navigateToLoopDetail(
     accentColorHex: String = "",
     onPending: (LoopDetailTarget) -> Unit = {},
 ) {
+    DeepLinkLog.log(
+        "10-tab-switch",
+        "handing the loop detail over to the Loops tab: loopId='$loopId' " +
+            "hideBottomBar=$hideBottomBar accentColorHex='$accentColorHex'",
+    )
     onPending(
         LoopDetailTarget(
             loopId = loopId,
@@ -937,6 +945,11 @@ private fun navigateToLoopDetail(
         // screen instead of the feed.
         restoreState = false
     }
+    DeepLinkLog.log(
+        "10-tab-switch",
+        "switched to the Loops tab; the pending target is waiting to be " +
+            "consumed by the tab's nested controller",
+    )
 }
 
 /**
@@ -1398,12 +1411,26 @@ internal fun androidx.navigation.NavGraphBuilder.loopsTabGraph(
                     // Cleared before the push so a cancelled tab switch
                     // cannot replay the same target on the next visit.
                     onPendingConsumed()
-                    nested.navigate(
-                        LoopsRoute.Detail.build(
-                            target.loopId,
-                            target.hideBottomBar,
-                            target.accentColorHex,
-                        ),
+                    val route = LoopsRoute.Detail.build(
+                        target.loopId,
+                        target.hideBottomBar,
+                        target.accentColorHex,
+                    )
+                    DeepLinkLog.log(
+                        "11-consume",
+                        "the Loops tab took the pending target: loopId=" +
+                            "'${target.loopId}' route='$route'",
+                    )
+                    nested.navigate(route)
+                    DeepLinkLog.log(
+                        "12-route",
+                        "pushed the loop detail route '$route' on the " +
+                            "Loops tab's nested controller",
+                    )
+                } else {
+                    DeepLinkLog.log(
+                        "11-consume",
+                        "the pending target is empty — nothing to open",
                     )
                 }
             }

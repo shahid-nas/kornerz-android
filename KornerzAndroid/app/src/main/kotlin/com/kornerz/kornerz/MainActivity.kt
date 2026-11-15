@@ -10,6 +10,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationManagerCompat
 import com.kornerz.core.model.DeepLink
+import com.kornerz.core.ui.DeepLinkLog
 import com.kornerz.core.model.DeepLinkPayloadParser
 import com.kornerz.core.network.community.CommunitiesRepository
 import com.kornerz.core.network.videocall.VonageSessionController
@@ -204,7 +205,22 @@ class MainActivity : ComponentActivity() {
      * no recognisable `pushType` — is ignored.
      */
     private fun handleDeepLink(intent: Intent?) {
-        val deeplink = intent?.let { resolveDeepLink(it) } ?: return
+        if (intent == null) {
+            DeepLinkLog.skip("3-intent", "the activity received no intent")
+            return
+        }
+        val deeplink = resolveDeepLink(intent)
+        if (deeplink == null) {
+            DeepLinkLog.skip(
+                "3-intent",
+                "the intent carried NO usable deep link — the app will " +
+                    "open normally and the user lands on the Home tab. " +
+                    "action=${intent.action} data=${intent.data} " +
+                    "extras=${intent.extras?.keySet()}",
+            )
+            return
+        }
+        DeepLinkLog.log("3-intent", "deep link resolved from the intent: $deeplink")
         deepLinkManager.handle(deeplink)
     }
 
@@ -223,9 +239,36 @@ class MainActivity : ComponentActivity() {
      * and the extras transport handles it instead.
      */
     private fun resolveDeepLink(intent: Intent): DeepLink? {
+        // Every key the intent carries, before the app's own filter
+        // narrows them down. The raw key set is what tells you whether
+        // the payload arrived at all — the app's `PAYLOAD_KEYS` filter
+        // would silently drop a payload whose keys are spelled
+        // differently, and the filtered view alone would look empty
+        // without showing why.
+        DeepLinkLog.log(
+            "3-intent",
+            "intent received: action=${intent.action} data=${intent.data} " +
+                "flags=${intent.flags} extrasKeys=${intent.extras?.keySet()}",
+        )
+
         intent.data?.let { uri ->
             if (uri.scheme?.equals(DeepLink.SCHEME, ignoreCase = true) == true) {
-                DeepLink.parse(uri.toString())?.let { return it }
+                DeepLink.parse(uri.toString())?.let {
+                    DeepLinkLog.log("4-transport", "carried by the URI transport: $it")
+                    return it
+                }
+                DeepLinkLog.skip(
+                    "4-transport",
+                    "the intent data is a kornerz:// URI but it does not " +
+                        "match the link grammar, so it carries no link: $uri",
+                )
+            } else {
+                DeepLinkLog.log(
+                    "4-transport",
+                    "the intent data is not a kornerz:// URI (scheme=" +
+                        "${uri.scheme}) — falling back to the extras " +
+                        "transport",
+                )
             }
         }
         val payload = DeepLinkPayloadParser.payloadFromExtras(
@@ -242,6 +285,21 @@ class MainActivity : ComponentActivity() {
             "Deep link intent: action=${intent.action} data=${intent.data} " +
                 "payload=$payload",
         )
+        DeepLinkLog.log(
+            "4-transport",
+            "carried by the extras transport: rawExtras=" +
+                "${intent.extras?.keySet()} filteredPayload=$payload",
+        )
+        if (payload.isEmpty()) {
+            DeepLinkLog.skip(
+                "4-transport",
+                "the extras carried NO payload keys the app recognises. " +
+                    "rawExtras=${intent.extras?.keySet()}. If the " +
+                    "backend did not send 'click_action', the Firebase " +
+                    "SDK launches the app with a plain launcher intent " +
+                    "that has no deep link in it at all.",
+            )
+        }
         return DeepLinkPayloadParser.parseAny(payload)
     }
 
