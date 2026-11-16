@@ -136,10 +136,15 @@ private fun LoadedPlans(
         modifier = Modifier
             .fillMaxSize()
             // The aqua background is painted by the `Surface` behind this
-            // column, so the screen reaches every edge. The content is
-            // inset by the system bars it must clear: the band is free to
-            // run under the status bar, and the links at the foot must
-            // clear the navigation bar.
+            // column, so the screen reaches every edge — including behind
+            // the system navigation bar, which the shell drops the inset
+            // for on this route.
+            //
+            // The *content* is inset by the system bar it must clear: the
+            // band is free to run under the status bar, and the links at
+            // the foot must clear the navigation bar. This is the only
+            // place the navigation-bar inset is applied for this route —
+            // the shell drops it so the aqua can reach the bottom edge.
             .navigationBarsPadding()
             // RTL-safe: a start-anchored scroll with padding rather than
             // fixed offsets, so the mirrored locale lays out correctly

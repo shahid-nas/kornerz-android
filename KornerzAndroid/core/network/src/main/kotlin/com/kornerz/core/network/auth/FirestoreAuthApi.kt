@@ -152,6 +152,24 @@ class FirestoreAuthApi @Inject constructor(
                 photoUrl = data["firebaseImageUrl"] as? String,
                 fcmToken = data["tokenPush"] as? String,
                 isPremium = data["isUserPremium"] as? Boolean ?: false,
+                // The three entitlement fields. They are the *server's*
+                // record of what the user bought, and they are what
+                // `User.isUserPremiumNow` — the single premium decision
+                // input on both platforms — is derived from. Dropping
+                // them here made every user look permanently free to the
+                // paywall gate and to the Profile row.
+                //
+                // Normalised to the ISO-8601 `String?` the `User` model
+                // stores, because `SessionRecord` serialises the whole
+                // `User` into one DataStore JSON document and a Firestore
+                // `Timestamp` is not `@Serializable`. Android writes a
+                // `Timestamp`; an older document may hold a string. Both
+                // are accepted, and an unrecognised shape degrades to
+                // `null` — which makes `isUserPremiumNow` `false` rather
+                // than crashing the shell.
+                subscriptionExpiryDate = data[FIELD_SUBSCRIPTION_EXPIRY]?.toInstantString(),
+                subscriptionType = data[FIELD_SUBSCRIPTION_TYPE] as? String,
+                subscriptionPlatform = data[FIELD_SUBSCRIPTION_PLATFORM] as? String,
                 createdAt = null,
                 // The avatar projection fields. Without these the session
                 // user's `thumbnailURL` / `imageURL` resolve to null and
@@ -162,6 +180,24 @@ class FirestoreAuthApi @Inject constructor(
             ),
         )
     }.getOrElse { mapError(it) }
+
+    /**
+     * Normalises a Firestore subscription-expiry value to the ISO-8601
+     * `String?` the [User] model stores.
+     *
+     * Mirrors `UserFirestoreApi.toInstantString` in
+     * `feature/profile` — the same document shape is decoded in three
+     * places, and all three must agree on the representation or a
+     * subscriber silently loses their entitlement depending on which
+     * reader ran.
+     */
+    private fun Any.toInstantString(): String? = when (this) {
+        is com.google.firebase.Timestamp -> runCatching {
+            kotlinx.datetime.Instant.fromEpochMilliseconds(toDate().time).toString()
+        }.getOrNull()
+        is String -> this
+        else -> null
+    }
 
     override suspend fun checkIfNickNameExists(nickname: String): AuthResult<Boolean> =
         runCatching {
@@ -206,5 +242,14 @@ class FirestoreAuthApi @Inject constructor(
 
     private companion object {
         const val USERS_COLLECTION = "Users"
+
+        /**
+         * The three entitlement keys, alongside the raw `isUserPremium`
+         * bit. `isUserPremium` is mapped but never used as the premium
+         * decision input — see `User.isUserPremiumNow`.
+         */
+        const val FIELD_SUBSCRIPTION_EXPIRY = "subscriptionExpiryDate"
+        const val FIELD_SUBSCRIPTION_TYPE = "subscriptionType"
+        const val FIELD_SUBSCRIPTION_PLATFORM = "subscriptionPlatform"
     }
 }

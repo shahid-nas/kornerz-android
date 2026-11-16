@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kornerz.core.network.AuthRepository
 import com.kornerz.core.network.fcm.FcmTokenRegistrar
+import com.kornerz.core.network.user.UserProfileRefresher
 import com.kornerz.feature.kornerz.detail.KornerDetailRefreshBus
 import com.kornerz.feature.profile.accountdeletion.UserDeletedHisAccountEventBus
 import com.kornerz.feature.shell.deeplink.DeepLinkManager
@@ -42,6 +43,7 @@ class ShellViewModel @Inject constructor(
     private val userDeletedEventBus: UserDeletedHisAccountEventBus,
     private val premiumGate: PremiumGate,
     private val entitlementReconciler: SubscriptionEntitlementReconciler,
+    private val userProfileRefresher: UserProfileRefresher,
     val deepLinkManager: DeepLinkManager,
     val deepLinkResolver: DeepLinkResolver,
     val kornerDetailRefreshBus: KornerDetailRefreshBus,
@@ -77,13 +79,63 @@ class ShellViewModel @Inject constructor(
         // P8: the shell graph being composed *is* the post-login call
         // site — `LoginVC.showSubscriptionScreen()` (`:219-232`) fires as
         // login hands off to the shell.
-        requestPremiumGateEvaluation()
+        //
+        // The cold-start refresh runs first. iOS starts `UserSyncService`
+        // in `AppTabController.startServices()` (`:196-204`) before its
+        // Combine sink evaluates the paywall, so the gate there sees the
+        // freshly-synced user rather than the login-time snapshot. The
+        // same order applies here: refresh the cached user, then
+        // reconcile the entitlement against it, then evaluate the gate.
+        refreshAndEvaluate()
     }
 
     /**
-     * The gate's two firing points, per the `premium-gate` spec:
-     * post-login (this method, called from `init`) and shell resume
-     * ([onShellResumed]).
+     * The cold-start sequence: refresh the cached user from the server,
+     * reconcile the subscription entitlement, then evaluate the paywall
+     * gate.
+     *
+     * The order is load-bearing:
+     *
+     * 1. **Refresh** — the cached `User` is written at login and never
+     *    updated, so it still holds the login-time `subscriptionExpiryDate`.
+     *    Refreshing first means the two steps below evaluate against the
+     *    user's *current* server state.
+     * 2. **Reconcile** — the Play-side entitlement check and the
+     *    server-side verification, which may grant or revoke the
+     *    entitlement and therefore change the user's premium state.
+     * 3. **Gate** — the paywall decision, which must not be taken until
+     *    both of the above have settled.
+     *
+     * A refresh failure is non-destructive: the cached session is left
+     * as it was, and the reconcile and gate still run against it. An
+     * offline device must still reach the app, and a subscriber whose
+     * refresh failed must still be treated as a subscriber.
+     */
+    private fun refreshAndEvaluate() {
+        viewModelScope.launch {
+            userProfileRefresher.refreshCurrentUser()
+            // Reconcile so the gate evaluates against the server's
+            // verdict rather than a stale local expiry.
+            entitlementReconciler.reconcile()
+            if (premiumGate.requestPresent()) {
+                _premiumGateRequests.value = _premiumGateRequests.value + 1
+            }
+        }
+    }
+
+    /**
+     * Reconciles the entitlement and re-evaluates the paywall gate.
+     *
+     * This is the **shell-resume** path only. The cold-start path is
+     * [refreshAndEvaluate], which adds the user refresh in front of it.
+     *
+     * The resume path deliberately does *not* refresh the cached user: a
+     * foreground is not a launch, and re-reading the user document on every
+     * foreground would turn a cheap app switch into a Firestore read. The
+     * entitlement check below already covers the case that actually
+     * changes while the app is backgrounded — a purchase or a renewal made
+     * on the Play Store — because it queries the Play purchase library
+     * directly.
      *
      * No destination-change or tab-switch evaluation exists anywhere in
      * this class — a free user who dismissed the paywall must not have it

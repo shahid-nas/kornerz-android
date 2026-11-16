@@ -486,14 +486,23 @@ fun AppShell(
             // The subscription paywall is a full-bleed screen: iOS
             // presents it modally with `.fullScreen` and its `#68B6CC`
             // background runs edge to edge, behind the status bar and the
-            // home indicator. The status-bar inset is therefore dropped
-            // for it, and the screen insets its own content instead —
+            // home indicator. Both insets are therefore dropped for it —
             // otherwise the window background shows through as a strip
-            // above the aqua.
+            // above the aqua, and as another strip below it, where the
+            // navigation bar sits.
+            //
+            // The screen insets its own **content** instead
+            // (`statusBarsPadding` / `navigationBarsPadding` in
+            // `SubscriptionContent`), which is what iOS does with its
+            // safe-area insets. Applying the bottom inset here as well
+            // would double it: the links at the foot would sit a second
+            // navigation-bar's height above the bottom edge.
+            //
+            // This mirrors the video-call case above, which drops the
+            // bottom inset for the same reason.
             isSubscriptionRoute(currentRoute) -> Modifier.padding(
                 start = padding.calculateStartPadding(layoutDirection),
                 end = padding.calculateEndPadding(layoutDirection),
-                bottom = padding.calculateBottomPadding(),
             )
 
             else -> Modifier.padding(padding)

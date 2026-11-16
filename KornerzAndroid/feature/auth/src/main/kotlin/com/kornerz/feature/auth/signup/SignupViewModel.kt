@@ -1,6 +1,7 @@
 package com.kornerz.feature.auth.signup
 
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -8,13 +9,19 @@ import com.kornerz.core.model.AsyncValue
 import com.kornerz.core.network.AuthException
 import com.kornerz.core.network.AuthRepository
 import com.kornerz.core.network.auth.dto.SignupRequest
+import com.kornerz.core.network.fellow.FellowRepository
 import com.kornerz.core.network.storage.SignupPhotoStorage
+import com.kornerz.core.storage.session.SessionRepository
+import com.kornerz.core.storage.session.SessionState
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.filterNot
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -29,6 +36,8 @@ import javax.inject.Inject
 @HiltViewModel
 class SignupViewModel @Inject constructor(
     private val authRepository: AuthRepository,
+    private val fellowRepository: FellowRepository,
+    private val sessionRepository: SessionRepository,
     private val photoStorage: SignupPhotoStorage,
     private val imageDecoder: SignupImageDecoder,
     private val savedStateHandle: SavedStateHandle,
@@ -345,10 +354,80 @@ class SignupViewModel @Inject constructor(
                 // The avatar now lives in Cloud Storage, so the local
                 // copy is no longer needed.
                 imageDecoder.discardCached(_state.value.photoUri)
+                // The Kornerz the user picked on step 5 become the
+                // user's *followed* Kornerz. The follows are written
+                // before the wizard hands over to the shell, so the
+                // "Your Kornerz" carousel is already populated on the
+                // first frame the user lands on.
+                followSelectedKornerz(current.interests)
                 _navEvents.trySend(SignupNavEvent.NavigateToShell)
             }
         }
     }
+
+    /**
+     * Writes a `Fellow` record for every Kornerz the user picked on
+     * step 5, making the new account a follower of them.
+     *
+     * Picking a Kornerz at signup is only meaningful if the user ends
+     * up **following** it: the `Fellow` collection is the follow graph
+     * between a user and a community, and it is what the Home tab's
+     * "Your Kornerz" carousel reads
+     * (`KornerzRepository.fetchYourKornerz` → `FellowRepository
+     * .userFelllowsList` → `CommunitiesRepository
+     * .fetchFollowingCommunities`). Without these writes the selection
+     * is only recorded on the user's `interests` field, which nothing
+     * renders — the user would pick topics and then see an empty
+     * "Your Kornerz" carousel.
+     *
+     * The record is keyed by the community's `communityName`, which is
+     * exactly what the picker stores in
+     * [SignupWizardState.interests] and what both platforms resolve a
+     * followed community by.
+     *
+     * **Never fails the signup.** The account already exists by the
+     * time this runs, so a failed follow must not strand the user on
+     * the password step with an error they cannot act on — they would
+     * be unable to proceed *and* their account would already be
+     * registered. A failure is logged and the user continues into the
+     * app; the user can still follow the Kornerz by hand from its
+     * detail screen.
+     */
+    private suspend fun followSelectedKornerz(communityNames: Set<String>) {
+        if (communityNames.isEmpty()) return
+        val userCode = signedInUserCode() ?: return
+        communityNames.forEach { community ->
+            fellowRepository.followCommunity(userCode, community)
+                .onFailure { error ->
+                    Log.w(TAG, "followCommunity($userCode, $community): ${error.message}")
+                }
+        }
+    }
+
+    /**
+     * The signed-in user's `codeUser` — the identifier the `Fellow`
+     * records are keyed by.
+     *
+     * Read from the session rather than from the wizard state: the
+     * wizard's own `userCode` is only generated when a photo is picked,
+     * so it is `null` for the users who skipped the photo step. The
+     * session holds the code the backend actually wrote
+     * (`FirestoreAuthApi.signup` generates one when the request does
+     * not carry it, and `fetchUser` reads it back).
+     *
+     * The `Loading` state is skipped: DataStore's first emission is
+     * `Loading`, and taking it would report an anonymous user for a
+     * session that is in fact authenticated.
+     */
+    private suspend fun signedInUserCode(): String? =
+        sessionRepository.data
+            .filterNot { it is SessionState.Loading }
+            .map { state ->
+                val user = (state as? SessionState.Authenticated)?.user
+                    ?: return@map null
+                user.userCode?.takeIf { it.isNotBlank() }
+            }
+            .first()
 
     /**
      * Takes a newly picked photo and copies it into the app's private
@@ -484,6 +563,7 @@ class SignupViewModel @Inject constructor(
     }
 
     private companion object {
+        const val TAG = "SignupViewModel"
         const val KEY_STEP = "signup.step"
         const val KEY_FULL_NAME = "signup.fullName"
         const val KEY_NICKNAME = "signup.nickname"
