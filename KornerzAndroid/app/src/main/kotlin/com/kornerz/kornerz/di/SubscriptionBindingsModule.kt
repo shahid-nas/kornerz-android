@@ -31,7 +31,7 @@ class AndroidPlayEntitlementChecker @Inject constructor(
 ) : PlayEntitlementChecker {
 
     override suspend fun hasActiveSubscription(): Boolean =
-        subscriptionRepository.queryPurchases().getOrNull()?.isNotEmpty() == true
+        subscriptionRepository.hasActiveSubscriptionForSession()
 }
 
 @Singleton

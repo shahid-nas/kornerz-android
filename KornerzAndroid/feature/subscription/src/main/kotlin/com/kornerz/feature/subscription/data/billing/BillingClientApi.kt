@@ -26,7 +26,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.withTimeoutOrNull
 import java.lang.ref.WeakReference
 import java.text.NumberFormat
 import java.util.Currency
@@ -191,52 +193,119 @@ class BillingClientApi @Inject constructor(
      * cannot silently reach Play. The `!IAP_ENABLED` branch returns
      * before `BillingClient.newBuilder` is ever called, so the Play
      * services are never contacted.
+     *
+     * **Mutable rather than `by lazy`** so a dropped Play service
+     * connection can be replaced. A `by lazy` client is a one-shot
+     * singleton: once Play's service drops the connection
+     * ([BillingClientStateListener.onBillingServiceDisconnected]), every
+     * subsequent query would be issued against a dead client and fail
+     * with `SERVICE_DISCONNECTED` forever. The retry affordance on the
+     * plans screen would then be useless. Replacing the instance is what
+     * makes a retry actually able to succeed.
+     *
+     * Guarded by [clientLock] because the replacement happens on a
+     * background thread (the ViewModel's coroutine) while the Play
+     * listener callbacks arrive on the main thread.
      */
-    private val billingClient: BillingClient? by lazy {
-        if (!IAP_ENABLED) {
-            null
-        } else {
-            BillingClient.newBuilder(context)
-                .setListener(purchasesUpdatedListener)
-                .enablePendingPurchases(
-                    PendingPurchasesParams.newBuilder()
-                        .enableOneTimeProducts()
-                        .build(),
-                )
-                .build()
-                .also { client ->
-                    _connectionState.value = BillingConnectionState.Connecting
-                    client.startConnection(object : BillingClientStateListener {
-                        override fun onBillingSetupFinished(billingResult: BillingResult) {
-                            _connectionState.value = when (val code = billingResult.responseCode) {
-                                BillingClient.BillingResponseCode.OK ->
-                                    BillingConnectionState.Ready(licenseResponseCode = code)
+    private var billingClient: BillingClient? = null
 
-                                // The `dev` flavor's application id
-                                // (`com.kornerz.kornerz.dev`) is not a
-                                // registered Play listing, so its license
-                                // check fails exactly this way.
-                                BillingClient.BillingResponseCode.DEVELOPER_ERROR ->
-                                    BillingConnectionState.Unavailable(
-                                        BillingUnavailableReason.UnsupportedApplicationId,
-                                    )
+    private val clientLock = Any()
 
-                                else ->
-                                    BillingConnectionState.Unavailable(
-                                        billingResult.toUnavailableReason(),
-                                    )
-                            }
-                        }
+    /**
+     * Builds a fresh Play client and starts connecting it.
+     *
+     * The `PurchasesUpdatedListener` is re-registered on every instance,
+     * so a purchase completed while the previous client was disconnected
+     * is still delivered to [purchaseOutcomes].
+     */
+    private fun createClient(): BillingClient {
+        val client = BillingClient.newBuilder(context)
+            .setListener(purchasesUpdatedListener)
+            .enablePendingPurchases(
+                PendingPurchasesParams.newBuilder()
+                    .enableOneTimeProducts()
+                    .build(),
+            )
+            .build()
 
-                        override fun onBillingServiceDisconnected() {
-                            _connectionState.value = BillingConnectionState.Unavailable(
-                                BillingUnavailableReason.Disconnected(
-                                    BillingClient.BillingResponseCode.SERVICE_DISCONNECTED,
-                                ),
-                            )
-                        }
-                    })
+        _connectionState.value = BillingConnectionState.Connecting
+        client.startConnection(object : BillingClientStateListener {
+            override fun onBillingSetupFinished(billingResult: BillingResult) {
+                _connectionState.value = when (val code = billingResult.responseCode) {
+                    BillingClient.BillingResponseCode.OK ->
+                        BillingConnectionState.Ready(licenseResponseCode = code)
+
+                    // The `dev` flavor's application id
+                    // (`com.kornerz.kornerz.dev`) is not a
+                    // registered Play listing, so its license
+                    // check fails exactly this way.
+                    BillingClient.BillingResponseCode.DEVELOPER_ERROR ->
+                        BillingConnectionState.Unavailable(
+                            BillingUnavailableReason.UnsupportedApplicationId,
+                        )
+
+                    else ->
+                        BillingConnectionState.Unavailable(
+                            billingResult.toUnavailableReason(),
+                        )
                 }
+            }
+
+            override fun onBillingServiceDisconnected() {
+                _connectionState.value = BillingConnectionState.Unavailable(
+                    BillingUnavailableReason.Disconnected(
+                        BillingClient.BillingResponseCode.SERVICE_DISCONNECTED,
+                    ),
+                )
+            }
+        })
+        return client
+    }
+
+    /**
+     * The current client, creating one on first use.
+     *
+     * Reading the field is synchronized so a concurrent rebuild cannot
+     * hand two callers two different clients.
+     *
+     * A client whose connection has already been reported as
+     * disconnected is **not** returned: it is bound to a dead service
+     * and every query against it would fail with `SERVICE_DISCONNECTED`.
+     * It is replaced here instead, so the replacement happens once per
+     * dropped connection rather than once per call.
+     */
+    private fun currentClient(): BillingClient? {
+        if (!IAP_ENABLED) return null
+        synchronized(clientLock) {
+            billingClient?.let { client ->
+                val state = _connectionState.value
+                val disconnected = state is BillingConnectionState.Unavailable &&
+                    state.reason is BillingUnavailableReason.Disconnected
+                if (!disconnected) return client
+                // Drop the dead client and fall through to a fresh one.
+                runCatching { client.endConnection() }
+                billingClient = null
+            }
+            val client = createClient()
+            billingClient = client
+            return client
+        }
+    }
+
+    /**
+     * Discards the current client and starts a new connection.
+     *
+     * Called when Play's service has dropped the connection. The old
+     * client is closed first — it is bound to a dead service — and the
+     * new one starts the IPC bind from scratch.
+     */
+    private fun rebuildClient() {
+        synchronized(clientLock) {
+            runCatching { billingClient?.endConnection() }
+            billingClient = null
+            if (IAP_ENABLED) {
+                billingClient = createClient()
+            }
         }
     }
 
@@ -269,6 +338,13 @@ class BillingClientApi @Inject constructor(
         }
 
         return runCatching {
+            // The catalog query is the app's *first* Play call, and the
+            // one most likely to land inside the connection window —
+            // the plans screen opens it. Waiting for readiness here is
+            // what keeps "Service connection is disconnected" off the
+            // screen.
+            ensureConnected()
+
             val params = QueryProductDetailsParams.newBuilder()
                 .setProductList(
                     ids.map { id ->
@@ -280,7 +356,7 @@ class BillingClientApi @Inject constructor(
                 )
                 .build()
 
-            val result = billingClient?.queryProductDetails(params)
+            val result = currentClient()?.queryProductDetails(params)
                 ?: throw SubscriptionException(
                     SubscriptionError.BillingUnavailable,
                     "In-app purchases are disabled in this build",
@@ -327,10 +403,11 @@ class BillingClientApi @Inject constructor(
         }
 
         return runCatching {
+            ensureConnected()
             val params = QueryPurchasesParams.newBuilder()
                 .setProductType(BillingClient.ProductType.SUBS)
                 .build()
-            val result = billingClient?.queryPurchasesAsync(params)
+            val result = currentClient()?.queryPurchasesAsync(params)
                 ?: throw SubscriptionException(
                     SubscriptionError.BillingUnavailable,
                     "In-app purchases are disabled in this build",
@@ -348,15 +425,165 @@ class BillingClientApi @Inject constructor(
     }
 
     /**
-     * Re-reads the active subscriptions from Play.
+     * Re-reads the active subscriptions from Play, ensuring the client is
+     * connected first.
      *
-     * The Android equivalent of iOS `InAppManager.restore(completion:)`
-     * (`InAppManager.swift:103-109`), which calls `AppStore.sync()` and
-     * re-reads `currentEntitlements`. **Purely a re-derivation**: it
-     * never creates a purchase and never charges the user, which is why
-     * it is a straight delegation to [queryPurchases].
+     * ## How Android "restore" actually works
+     *
+     * iOS has an explicit server-side primitive: `AppStore.sync()` pulls
+     * the signed-in Apple ID's transaction history down to the device.
+     * **Android has no equivalent.** `queryPurchaseHistoryAsync` — the
+     * closest thing — was removed from `BillingClient` in Play Billing
+     * 8.0.0 (verified against the 8.0.0 artifact: the method is absent
+     * from the class; only the orphaned `PurchaseHistoryRecord` data
+     * classes remain). There is deliberately no way for an app to walk a
+     * user's historical purchases.
+     *
+     * What Android offers instead is `queryPurchasesAsync(SUBS)`, which
+     * returns the **currently owned** subscriptions for the Play account
+     * signed in on the device. Play's client performs that sync against
+     * Google's servers as part of the call, which is what makes a
+     * fresh install able to see a purchase made on another device:
+     * Google's own guidance lists "a user may buy an item on one device
+     * and then expect to see the item when they switch devices" as one of
+     * the situations this query exists to handle.
+     *
+     * Two consequences follow, and they drive the rest of this file:
+     *
+     * 1. The query is scoped to the **Play account**, not to the app
+     *    account. A user who signed in to Kornerz with a different email
+     *    than the one that made the purchase still sees the purchase —
+     *    Play has no notion of the app's accounts. The app account is
+     *    matched separately, via the obfuscated account id attached at
+     *    checkout (see [PurchaseRecord.obfuscatedAccountId]).
+     * 2. The sync only happens when the call actually reaches Play, so a
+     *    client that is still connecting would report an empty list and
+     *    the user would see "nothing to restore" for a subscription they
+     *    demonstrably own. [ensureConnected] waits for readiness first so
+     *    the restore is never a false negative.
+     *
+     * The call **never** creates a purchase and **never** charges the
+     * user: it only re-derives the entitlement.
      */
-    override suspend fun restore(): Result<List<PurchaseRecord>> = queryPurchases()
+    override suspend fun restore(): Result<List<PurchaseRecord>> {
+        if (!IAP_ENABLED) {
+            return Result.success(emptyList())
+        }
+
+        return runCatching {
+            ensureConnected()
+            val params = QueryPurchasesParams.newBuilder()
+                .setProductType(BillingClient.ProductType.SUBS)
+                .build()
+            val result = currentClient()?.queryPurchasesAsync(params)
+                ?: throw SubscriptionException(
+                    SubscriptionError.BillingUnavailable,
+                    "In-app purchases are disabled in this build",
+                )
+            if (result.billingResult.responseCode != BillingClient.BillingResponseCode.OK) {
+                throw SubscriptionException(
+                    result.billingResult.toSubscriptionError(),
+                    "restore failed: ${result.billingResult.debugMessage}",
+                )
+            }
+            result.purchasesList.mapNotNull { it.toPurchaseRecord() }
+        }.recoverCatching { throwable ->
+            throw throwable.asSubscriptionThrowable("restore")
+        }
+    }
+
+    /**
+     * Suspends until the Play client is ready to serve a query.
+     *
+     * The client is built lazily and connected asynchronously, so a
+     * restore tapped immediately after launch can arrive while the
+     * connection is still being established. Querying in that window
+     * returns an empty list rather than an error, which the restore flow
+     * would report as "no subscription found" — a false negative that
+     * tells a paying subscriber they have nothing.
+     *
+     * `queryPurchasesAsync` already retries internally once the service is
+     * connected (the library's own reconnect behaviour), so this only has
+     * to cover the window before the *first* connection completes.
+     *
+     * ## Why every Play call goes through here
+     *
+     * `startConnection` binds to the Play Store service over IPC and is
+     * **asynchronous**. A query issued in that window is answered by Play
+     * with `SERVICE_DISCONNECTED` and the debug message "Service
+     * connection is disconnected" — not because anything is wrong with the
+     * account or the console, but because the bind had not completed yet.
+     * That is a race, and it is the reason the plans screen could open
+     * onto an error state whose only remedy was a retry button.
+     *
+     * So this gate is not only for `restore()`: every Play call waits
+     * for readiness first.
+     */
+    private suspend fun ensureConnected() {
+        val client = currentClient() ?: throw SubscriptionException(
+            SubscriptionError.BillingUnavailable,
+            "In-app purchases are disabled in this build",
+        )
+        if (client.isReady) return
+
+        val state = awaitConnectionSettled()
+        if (state is BillingConnectionState.Unavailable) {
+            // A disconnected service is recoverable — the client can be
+            // rebuilt and reconnected — so the disconnect is retried once
+            // before the failure is reported. Every other reason (no Play
+            // Store installed, unregistered application id) is terminal:
+            // reconnecting would fail identically.
+            if (state.reason is BillingUnavailableReason.Disconnected) {
+                rebuildClient()
+                val retried = awaitConnectionSettled()
+                if (retried is BillingConnectionState.Ready) return
+                throw SubscriptionException(
+                    SubscriptionError.BillingUnavailable,
+                    "Play Billing is unavailable: ${retried.reasonOrState()}",
+                )
+            }
+            throw SubscriptionException(
+                SubscriptionError.BillingUnavailable,
+                "Play Billing is unavailable: ${state.reasonOrState()}",
+            )
+        }
+    }
+
+    /**
+     * Waits for the current connection attempt to settle.
+     *
+     * The wait is bounded: Play's service can fail to bind entirely
+     * (no Play Store on the device, Play Store updating), and a callback
+     * that never arrives would otherwise suspend the caller forever.
+     *
+     * The wait starts from the state the *current* attempt published.
+     * A `Connecting` state means the attempt is in flight and the
+     * callback is still to come; anything already settled is returned
+     * immediately.
+     */
+    private suspend fun awaitConnectionSettled(): BillingConnectionState {
+        val settled = withTimeoutOrNull(CONNECTION_TIMEOUT_MILLIS) {
+            connectionState.first {
+                it is BillingConnectionState.Ready || it is BillingConnectionState.Unavailable
+            }
+        }
+        return settled ?: BillingConnectionState.Unavailable(
+            BillingUnavailableReason.Unknown,
+        )
+    }
+
+    /**
+     * The failure description for a settled-but-unusable connection.
+     *
+     * A [BillingConnectionState.Ready] never reaches this — the caller
+     * only asks for a reason once the connection has failed — but the
+     * branch keeps the function total so it can be interpolated
+     * unconditionally.
+     */
+    private fun BillingConnectionState.reasonOrState(): String = when (this) {
+        is BillingConnectionState.Unavailable -> reason.toString()
+        else -> toString()
+    }
 
     /**
      * Opens the Play purchase sheet.
@@ -380,6 +607,7 @@ class BillingClientApi @Inject constructor(
     override fun launchPurchase(
         productId: String,
         offerToken: String?,
+        obfuscatedAccountId: String?,
     ): Result<Unit> {
         // IAP is switched off, so there is no Play sheet to present.
         // Report the same typed failure the ViewModel already renders as
@@ -410,21 +638,36 @@ class BillingClientApi @Inject constructor(
             )
         }
 
+        // The sheet can only be presented by a connected client. The
+        // catalog query already established readiness, but the service
+        // can drop the connection between the query and the tap.
+        val client = currentClient()
+        if (client == null || !client.isReady) {
+            return Result.failure(
+                SubscriptionException(
+                    SubscriptionError.BillingUnavailable,
+                    "Play Billing is not connected; cannot present the purchase sheet",
+                ),
+            )
+        }
+
         val detailsParams = BillingFlowParams.ProductDetailsParams.newBuilder()
             .setProductDetails(productDetails)
             .apply { if (!offerToken.isNullOrEmpty()) setOfferToken(offerToken) }
             .build()
-        val result = billingClient?.launchBillingFlow(
-            activity,
-            BillingFlowParams.newBuilder()
-                .setProductDetailsParamsList(listOf(detailsParams))
-                .build(),
-        ) ?: return Result.failure(
-            SubscriptionException(
-                SubscriptionError.BillingUnavailable,
-                "In-app purchases are disabled in this build",
-            ),
-        )
+        val flowParams = BillingFlowParams.newBuilder()
+            .setProductDetailsParamsList(listOf(detailsParams))
+            // Attaching the app account id is what makes a later restore
+            // able to attribute this purchase to the account that made it.
+            // Play echoes it back with the purchase, so it survives a
+            // fresh install on a different device.
+            .apply {
+                if (!obfuscatedAccountId.isNullOrEmpty()) {
+                    setObfuscatedAccountId(obfuscatedAccountId)
+                }
+            }
+            .build()
+        val result = client.launchBillingFlow(activity, flowParams)
         return if (result.responseCode == BillingClient.BillingResponseCode.OK) {
             Result.success(Unit)
         } else {
@@ -460,10 +703,11 @@ class BillingClientApi @Inject constructor(
         }
 
         return runCatching {
+            ensureConnected()
             val params = AcknowledgePurchaseParams.newBuilder()
                 .setPurchaseToken(token)
                 .build()
-            val result = billingClient?.acknowledgePurchase(params)
+            val result = currentClient()?.acknowledgePurchase(params)
                 ?: throw SubscriptionException(
                     SubscriptionError.NotAcknowledged,
                     "In-app purchases are disabled in this build",
@@ -481,14 +725,33 @@ class BillingClientApi @Inject constructor(
     }
 
     /**
+     * Rebuilds the client and restarts the Play connection.
+     *
+     * Public counterpart of the private [reconnect] worker, so the plans
+     * screen's retry affordance can recover from a dropped service
+     * instead of re-querying a dead client.
+     */
+    override fun reconnect() {
+        if (!IAP_ENABLED) return
+        rebuildClient()
+    }
+
+    /**
      * Releases the client. Idempotent — a second call is a no-op and does
      * not throw, which matters because the plans screen can be dismissed
      * while a purchase is still in flight.
+     *
+     * The field is cleared as well as the client closed: a closed
+     * `BillingClient` cannot be reused, so the next call must build a
+     * fresh one rather than issue a query against a dead instance.
      */
     override fun endConnection() {
-        // The lazy returns `null` while IAP is off, so the Play client is
-        // never even constructed here.
-        runCatching { billingClient?.endConnection() }
+        synchronized(clientLock) {
+            // The client is `null` while IAP is off, so the Play client is
+            // never even constructed here.
+            runCatching { billingClient?.endConnection() }
+            billingClient = null
+        }
         _connectionState.value = BillingConnectionState.Disconnected
     }
 
@@ -512,6 +775,13 @@ class BillingClientApi @Inject constructor(
             productId = productId,
             purchaseTimeMillis = purchaseTime,
             isAcknowledged = isAcknowledged,
+            // The obfuscated account id is attached to the purchase at
+            // checkout and comes back with it, so it survives a fresh
+            // install: it is stored on Google's side, not on the device.
+            // A purchase made outside the app carries no id, which is
+            // exactly the case the restore flow treats as "grant to the
+            // signed-in user" (Play's own guidance).
+            obfuscatedAccountId = accountIdentifiers?.obfuscatedAccountId,
         )
     }
 
@@ -636,6 +906,18 @@ class BillingClientApi @Inject constructor(
         const val PERIOD_CODE_YEARLY = "P1Y"
         const val PERIOD_MONTHLY = "per month"
         const val PERIOD_YEARLY = "per year"
+
+        /**
+         * How long a Play connection attempt may take before it is
+         * treated as failed.
+         *
+         * The bind is normally sub-second; the bound exists so a
+         * Play Store that is mid-update — or absent — cannot suspend a
+         * caller indefinitely. Ten seconds is long enough to ride out a
+         * slow bind and short enough that the user sees an error rather
+         * than an endless spinner.
+         */
+        const val CONNECTION_TIMEOUT_MILLIS = 10_000L
     }
 }
 
@@ -643,12 +925,30 @@ class BillingClientApi @Inject constructor(
  * A Play subscription purchase projected out of the SDK. Carries no
  * `com.android.billingclient` type, so it can cross into
  * `feature/subscription`'s repository layer and be faked in unit tests.
+ *
+ * @param obfuscatedAccountId the app-account id that was attached to the
+ *   purchase at checkout, via
+ *   `BillingFlowParams.Builder.setObfuscatedAccountId`. `null` for a
+ *   purchase made outside the app (a Play Console promo redemption) or
+ *   on a build that predates the id being attached.
+ *
+ *   This is the only signal that ties a Play purchase to *this* app
+ *   account, and it is what makes the restore flow able to tell
+ *   "this device's Play account has never bought a Kornerz subscription"
+ *   apart from "this device's Play account bought one, but for a
+ *   different Kornerz account". See
+ *   [com.kornerz.feature.subscription.data.SubscriptionRepository.restore].
+ * @param isAcknowledged whether Play already considers this purchase
+ *   acknowledged. A restored purchase that is *not* acknowledged must be
+ *   acknowledged before the entitlement is granted, or Google refunds it
+ *   within three days and silently revokes the entitlement.
  */
 data class PurchaseRecord(
     val token: String,
     val productId: String,
     val purchaseTimeMillis: Long,
     val isAcknowledged: Boolean,
+    val obfuscatedAccountId: String? = null,
 )
 
 /**

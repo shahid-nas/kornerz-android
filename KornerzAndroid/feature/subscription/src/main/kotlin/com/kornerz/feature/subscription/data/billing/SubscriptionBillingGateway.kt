@@ -76,8 +76,22 @@ interface SubscriptionBillingGateway {
      * Play refuses to present the sheet (no Activity attached, product
      * never resolved). Success only means *the sheet opened* — the
      * outcome still arrives on [purchaseOutcomes].
+     *
+     * @param obfuscatedAccountId an opaque identifier for the app account
+     *   making the purchase, attached to the purchase by Play and returned
+     *   with it. This is what lets a later [restore] tell whether the
+     *   purchase on this device's Play account belongs to the account the
+     *   user is now signed in to. Play has no notion of the app's own
+     *   accounts, so without this the app could only ever answer "this
+     *   Play account bought something", never "this Play account bought
+     *   something *for you*". Must be a non-reversible, non-PII digest:
+     *   Play stores it and it is visible in Play Console tooling.
      */
-    fun launchPurchase(productId: String, offerToken: String?): Result<Unit>
+    fun launchPurchase(
+        productId: String,
+        offerToken: String?,
+        obfuscatedAccountId: String? = null,
+    ): Result<Unit>
 
     /** Resolves the catalog for [ids]. */
     suspend fun queryProductDetails(
@@ -91,10 +105,30 @@ interface SubscriptionBillingGateway {
     suspend fun acknowledgePurchase(token: String): Result<Unit>
 
     /**
-     * Re-derives the entitlement from local purchase state. Never creates a
-     * purchase and never charges the user.
+     * Re-derives the entitlement from the Play account's purchase library.
+     *
+     * Never creates a purchase and never charges the user.
+     *
+     * This is the Android counterpart of iOS's `AppStore.sync()` +
+     * `currentEntitlements` pair. Android has no `sync()` primitive —
+     * `queryPurchaseHistoryAsync` was removed in Play Billing 8.0.0 — so
+     * the library sync happens as part of the purchases query itself.
      */
     suspend fun restore(): Result<List<PurchaseRecord>>
+
+    /**
+     * Discards the current Play connection and starts a fresh one.
+     *
+     * A query issued while Play's service was disconnected cannot
+     * succeed no matter how many times it is repeated — the client is
+     * bound to a dead service. The plans screen's retry affordance
+     * therefore has to *reconnect* before it re-queries, otherwise the
+     * button would be decorative.
+     *
+     * Non-suspending: the connection is established asynchronously, and
+     * the call that follows waits for readiness itself.
+     */
+    fun reconnect()
 
     /** Releases the client. Idempotent. */
     fun endConnection()

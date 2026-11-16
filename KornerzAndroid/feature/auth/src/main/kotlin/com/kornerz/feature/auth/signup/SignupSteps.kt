@@ -421,7 +421,6 @@ fun SignupInterestsStep(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Aqua)
                     .padding(horizontal = 32.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {

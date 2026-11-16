@@ -3,11 +3,13 @@ package com.kornerz.feature.subscription.plans
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kornerz.core.model.AsyncValue
+import com.kornerz.core.model.SubscriptionProduct
 import com.kornerz.core.model.SubscriptionProductType
 import com.kornerz.core.storage.session.SessionRepository
 import com.kornerz.core.storage.session.SessionState
 import com.kornerz.feature.subscription.data.SubscriptionError
 import com.kornerz.feature.subscription.data.SubscriptionException
+import com.kornerz.feature.subscription.data.RestoreOutcome
 import com.kornerz.feature.subscription.data.SubscriptionRepository
 import com.kornerz.feature.subscription.data.billing.BillingConnectionState
 import com.kornerz.feature.subscription.data.billing.BillingPurchaseResult
@@ -110,8 +112,16 @@ class SubscriptionViewModel @Inject constructor(
     fun loadCatalog() {
         viewModelScope.launch {
             _state.value = _state.value.copy(products = AsyncValue.Loading, error = null)
+            // The retry affordance re-queries the catalog, so the client
+            // has to be usable first. Reconnecting before the query
+            // recovers from a Play service that dropped the connection —
+            // re-querying a dead client would fail identically, making
+            // the button decorative.
+            billingGateway.reconnect()
             val products = subscriptionRepository.observeCatalog()
-            _state.value = _state.value.copy(products = products)
+            _state.value = _state.value.copy(
+                products = products.asUserFacingCatalog(),
+            )
             // A resolved catalog with no plans is an error state, not an
             // empty screen: the Play Console is misconfigured for this app
             // id and the user needs a retry affordance, not a blank page.
@@ -122,6 +132,41 @@ class SubscriptionViewModel @Inject constructor(
             }
             syncTrialEligibility()
         }
+    }
+
+    /**
+     * Replaces a catalog failure with one the user can act on.
+     *
+     * The Play SDK's own failure text — "Service connection is
+     * disconnected", "Item unavailable", "Network error" — is a
+     * developer-facing diagnostic and is never rendered as-is. It is
+     * mapped through the same [SubscriptionError] → message table the
+     * purchase path uses, so the catalog error and the purchase error
+     * read identically.
+     *
+     * A failure that is not a typed [SubscriptionException] keeps its
+     * own message: it came from somewhere the app does not control (a
+     * Play Console misconfiguration, for instance) and is already
+     * phrased for a human.
+     */
+    private fun AsyncValue<List<SubscriptionProduct>>.asUserFacingCatalog():
+        AsyncValue<List<SubscriptionProduct>> = when (this) {
+        is AsyncValue.Error -> {
+            val throwable = throwable
+            val message = (throwable as? SubscriptionException)
+                ?.errorKind
+                ?.toMessage()
+                ?.takeIf { it.isNotBlank() }
+                ?: throwable.message
+                ?: ERROR_FALLBACK
+            AsyncValue.Error(SubscriptionException(
+                (throwable as? SubscriptionException)?.errorKind
+                    ?: SubscriptionError.Unknown(message),
+                message,
+            ))
+        }
+
+        else -> this
     }
 
     /**
@@ -170,7 +215,17 @@ class SubscriptionViewModel @Inject constructor(
 
         viewModelScope.launch {
             _state.value = _state.value.copy(isPurchasing = true, error = null)
-            val launch = billingGateway.launchPurchase(product.playProductId, product.offerTag)
+            // The app account id is attached to the purchase so a later
+            // restore can attribute it to the signed-in account. It is
+            // optional: a purchase made without it still restores, it
+            // simply cannot be distinguished from a purchase made for a
+            // different account.
+            val accountId = subscriptionRepository.obfuscatedAccountIdForSession()
+            val launch = billingGateway.launchPurchase(
+                productId = product.playProductId,
+                offerToken = product.offerTag,
+                obfuscatedAccountId = accountId,
+            )
             if (launch.isFailure) {
                 val failure = launch.exceptionOrNull()
                 finishPurchase(
@@ -251,51 +306,53 @@ class SubscriptionViewModel @Inject constructor(
     }
 
     /**
-     * The restore tap: re-derive the entitlement from Play. Restoring never
-     * creates a purchase and never charges the user.
+     * The restore tap: re-derive the entitlement from the Play account's
+     * purchase library. Restoring never creates a purchase and never
+     * charges the user.
+     *
+     * Every outcome is reported. The previous version emitted a
+     * `PurchaseFailed` event for "nothing to restore", which the shell
+     * discarded — so a user who tapped restore on a device that held no
+     * purchase saw the button do nothing at all, with no feedback.
      */
     fun onRestoreTap() {
         if (_state.value.isRestoring) return
         viewModelScope.launch {
             _state.value = _state.value.copy(isRestoring = true, error = null)
-            val purchases = subscriptionRepository.restore()
-            val records = purchases.getOrElse { throwable ->
+            val outcome = subscriptionRepository.restore().getOrElse { throwable ->
                 _state.value = _state.value.copy(isRestoring = false)
                 failUnlessCancelled(SubscriptionError.Unknown(throwable.message ?: "Restore failed"))
                 return@launch
             }
 
-            val latest = records.maxByOrNull { it.purchaseTimeMillis }
-            if (latest == null) {
-                // No active subscription is a normal outcome, not an
-                // error: "restore" on a free account should say so calmly.
-                _state.value = _state.value.copy(isRestoring = false)
-                _navEvents.trySend(
-                    SubscriptionNavEvent.PurchaseFailed(NOTHING_TO_RESTORE),
-                )
-                return@launch
-            }
+            _state.value = _state.value.copy(isRestoring = false, error = null)
 
-            val plan = SubscriptionProductType.fromPlayProductId(latest.productId)
-            val email = currentEmail()
-            if (plan == null || email == null) {
-                _state.value = _state.value.copy(isRestoring = false)
-                _navEvents.trySend(SubscriptionNavEvent.PurchaseFailed(NOTHING_TO_RESTORE))
-                return@launch
-            }
+            when (outcome) {
+                is RestoreOutcome.Restored -> {
+                    // The entitlement is written and the session cache is
+                    // refreshed, so the user is already premium. The shell
+                    // dismisses the paywall on this event.
+                    _navEvents.trySend(SubscriptionNavEvent.Restored(outcome.plan))
+                }
 
-            val grant = subscriptionRepository.grantEntitlement(
-                email = email,
-                plan = plan,
-                expiry = plan.deriveExpiryFrom(latest.purchaseTimeMillis),
-            )
-            _state.value = _state.value.copy(isRestoring = false)
-            if (grant.isSuccess) {
-                _navEvents.trySend(SubscriptionNavEvent.Restored(plan))
-            } else {
-                _navEvents.trySend(
-                    SubscriptionNavEvent.PurchaseFailed(RESTORE_FAILED),
-                )
+                RestoreOutcome.NothingFound -> {
+                    // Not an error: the user simply has no subscription on
+                    // this device's Play account.
+                    _state.value = _state.value.copy(error = MESSAGE_NOTHING_TO_RESTORE)
+                    _navEvents.trySend(
+                        SubscriptionNavEvent.PurchaseFailed(MESSAGE_NOTHING_TO_RESTORE),
+                    )
+                }
+
+                RestoreOutcome.WrongAccount -> {
+                    // The Android-specific failure: the subscription
+                    // exists, but under a different Kornerz account than
+                    // the one that is signed in here.
+                    _state.value = _state.value.copy(error = MESSAGE_WRONG_ACCOUNT)
+                    _navEvents.trySend(
+                        SubscriptionNavEvent.PurchaseFailed(MESSAGE_WRONG_ACCOUNT),
+                    )
+                }
             }
         }
     }
@@ -370,8 +427,29 @@ class SubscriptionViewModel @Inject constructor(
             "Billing is unavailable in this build"
 
         const val EMPTY_CATALOG_MESSAGE = "No subscription plans available"
-        const val NOTHING_TO_RESTORE = "No active subscription found"
-        const val RESTORE_FAILED = "Could not restore your subscription"
+
+        /**
+         * The last-resort catalog failure message, used when a failure
+         * carries no message of its own.
+         */
+        const val ERROR_FALLBACK = "Unable to load subscription plans"
+
+        /**
+         * Shown when the device's Play account holds no Kornerz
+         * subscription for the signed-in account. Not an error — a calm
+         * statement of fact.
+         */
+        const val MESSAGE_NOTHING_TO_RESTORE = "No active subscription found"
+
+        /**
+         * Shown when a subscription exists on this device's Play account
+         * but belongs to a different Kornerz account. On Android the
+         * subscription follows the **Google account**, not the app
+         * account, so this is the one restore failure iOS does not have.
+         */
+        const val MESSAGE_WRONG_ACCOUNT =
+            "This subscription was made with a different Google account. " +
+                "Sign in to that Google account and try again."
 
         const val MESSAGE_BILLING_UNAVAILABLE = "Billing is unavailable right now"
         const val MESSAGE_PRODUCT_UNAVAILABLE = "Subscription plans are unavailable"

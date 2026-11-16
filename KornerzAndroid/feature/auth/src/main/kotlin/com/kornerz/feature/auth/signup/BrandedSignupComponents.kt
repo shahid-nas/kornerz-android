@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -63,6 +65,22 @@ internal val Aqua = Color(0xFF68B6CC)
 private val DisabledBg = Color(0xFFF2F4F6)
 private val DisabledFg = Color(0xFF9E9EAE)
 
+/**
+ * The vertical space reserved for the floating back button.
+ *
+ * The back button is an overlay on the same layer as the step title
+ * (on iOS it sits in the navigation bar, above the content), so the
+ * title needs a reserved row of its own to clear it. 48dp matches the
+ * `IconButton` touch target the button is built from.
+ */
+private val BackButtonRowHeight = 48.dp
+
+/**
+ * The height of the image-header step's content area, measured below
+ * the status bar and the reserved back-button row.
+ */
+private val ImageHeaderHeight = 140.dp
+
 // ─── Scaffold ─────────────────────────────────────────────────────────────
 
 /**
@@ -78,6 +96,13 @@ private val DisabledFg = Color(0xFF9E9EAE)
  * When [bottomBar] is provided it is pinned to the bottom of the screen
  * — mirrors iOS `VStack { ScrollView { … }; actionView }` so the CTA
  * stays visible even when the content scrolls past the fold.
+ *
+ * The app draws edge-to-edge (`enableEdgeToEdge()` in `MainActivity`),
+ * so the body is inset by the bottom system bars — and by the IME when
+ * it is open — to keep the pinned CTA of the "Pick your Kornerz" step
+ * clear of the navigation bar. The Aqua background is painted by an
+ * outer, non-inset `Box` so it still bleeds edge-to-edge behind the
+ * system bars, as on iOS.
  *
  * When [imageHeader] is true the title is lifted out of the scroll area
  * and rendered inside a fixed-height header built like the Privacy
@@ -100,52 +125,44 @@ fun BrandedSignupScaffold(
             .fillMaxSize()
             .background(Aqua),
     ) {
-        if (imageHeader) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                BrandedSignupImageHeader(title)
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .verticalScroll(rememberScrollState()),
-                ) {
+        // Content is inset by the bottom system bars (and the IME when
+        // it is open) so the pinned CTA of the "Pick your Kornerz" step
+        // is never hidden behind the navigation bar. The Aqua
+        // background stays full-bleed because it is painted by the
+        // outer Box, which is not inset.
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .navigationBarsPadding()
+                .imePadding(),
+        ) {
+            if (imageHeader) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    BrandedSignupImageHeader(title)
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 32.dp, vertical = 32.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState()),
                     ) {
-                        content()
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 32.dp, vertical = 32.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                        ) {
+                            content()
+                        }
                     }
+                    bottomBar?.invoke()
                 }
-                bottomBar?.invoke()
-            }
-        } else if (bottomBar == null) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState()),
-            ) {
-                BrandedSignupHeader(showCloudHeader)
+            } else if (bottomBar == null) {
                 Column(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 32.dp, vertical = 32.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    BrandedSignupTitle(title)
-                    content()
-                }
-            }
-        } else {
-            Column(modifier = Modifier.fillMaxSize()) {
-                BrandedSignupHeader(showCloudHeader)
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
+                        .fillMaxSize()
                         .verticalScroll(rememberScrollState()),
                 ) {
+                    BrandedSignupHeader(showCloudHeader)
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -156,7 +173,27 @@ fun BrandedSignupScaffold(
                         content()
                     }
                 }
-                bottomBar()
+            } else {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    BrandedSignupHeader(showCloudHeader)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState()),
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 32.dp, vertical = 32.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                        ) {
+                            BrandedSignupTitle(title)
+                            content()
+                        }
+                    }
+                    bottomBar()
+                }
             }
         }
 
@@ -185,13 +222,19 @@ fun BrandedSignupScaffold(
  * Privacy Policy screen header: a compact Box with the `bg-clouds-light`
  * artwork as the back layer and the step title laid on top of it,
  * bottom-aligned inside the header.
+ *
+ * The header is inset by the status bar and reserves a row for the
+ * floating back button, so the title can never grow upward into it.
+ * The title is bottom-aligned, so a longer title needs more room above
+ * it, not less — hence the reserved [BackButtonRowHeight].
  */
 @Composable
 private fun BrandedSignupImageHeader(title: String) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(140.dp),
+            .statusBarsPadding()
+            .height(ImageHeaderHeight + BackButtonRowHeight),
         contentAlignment = Alignment.BottomCenter,
     ) {
         androidx.compose.foundation.Image(
@@ -232,6 +275,15 @@ private fun BrandedSignupHeader(showCloudHeader: Boolean) {
     }
 }
 
+/**
+ * The step title for the non-image-header steps.
+ *
+ * The title is inset by the status bar and by a reserved row for the
+ * floating back button. The back button is an overlay on the same
+ * layer as the title (unlike iOS, where it lives in the navigation bar
+ * above the content), so without this reservation the title renders
+ * underneath it.
+ */
 @Composable
 private fun BrandedSignupTitle(title: String) {
     Text(
@@ -242,7 +294,8 @@ private fun BrandedSignupTitle(title: String) {
         fontSize = 24.sp,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(bottom = 16.dp),
+            .statusBarsPadding()
+            .padding(top = BackButtonRowHeight, bottom = 16.dp),
     )
 }
 

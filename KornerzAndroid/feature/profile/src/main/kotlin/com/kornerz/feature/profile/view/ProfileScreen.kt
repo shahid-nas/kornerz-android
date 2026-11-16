@@ -42,6 +42,7 @@ import com.kornerz.core.ui.theme.Satoshi
 import com.kornerz.core.ui.theme.Spacing
 import com.kornerz.feature.profile.accountdeletion.AccountDeletionConfirmDialog
 import com.kornerz.feature.profile.accountdeletion.AccountDeletionViewModel
+import com.kornerz.feature.profile.components.AppVersionFooter
 import com.kornerz.feature.profile.components.KornerzErrorState
 import com.kornerz.feature.profile.components.KornerzLoadingView
 import com.kornerz.feature.profile.components.ProfileMenuRow
@@ -349,6 +350,13 @@ fun ProfileContent(
                         title = "Delete Account",
                         onClick = onDeleteAccountTap,
                         modifier = Modifier.padding(horizontal = 16.dp),
+                    )
+                }
+                // The version/build footer, in the very small muted type
+                // apps conventionally use for it.
+                item {
+                    AppVersionFooter(
+                        modifier = Modifier.padding(top = Spacing.space4),
                     )
                 }
             }

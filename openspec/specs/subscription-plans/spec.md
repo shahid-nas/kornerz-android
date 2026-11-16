@@ -114,7 +114,7 @@ The plans screen SHALL render exactly four states, dispatched on `SubscriptionSt
 | State | Condition | Rendered |
 |---|---|---|
 | Loading | `AsyncValue.Loading` | `KornerzLoadingView` from `core/ui` |
-| Error + retry | `AsyncValue.Error`, or an empty catalog | `KornerzErrorState` from `core/ui` with a working `onRetry` that re-invokes `queryProductDetails` |
+| Error + retry | `AsyncValue.Error`, or an empty catalog | `KornerzErrorState` from `core/ui` with a working `onRetry` that re-connects and re-invokes `queryProductDetails` |
 | Billing unavailable | `BillingConnectionState.Unavailable` | A non-fatal inline notice ("Billing is unavailable in this build") above the plan area; the rest of the screen renders normally and the app does not crash |
 | Loaded | `AsyncValue.Success` with a non-empty catalog | The full iOS-structured screen |
 
@@ -127,6 +127,11 @@ The `Unavailable` state SHALL NOT be an error state: it SHALL render alongside t
 #### Scenario: Catalog query fails
 - **WHEN** `SubscriptionState.products` is `AsyncValue.Error`
 - **THEN** `KornerzErrorState` renders with a retry action that re-issues the product query
+- **AND** the message shown is a user-facing billing message, never a raw Play SDK diagnostic such as "Service connection is disconnected"
+
+#### Scenario: The retry recovers from a dropped Play connection
+- **WHEN** the retry action is tapped after the Play service was disconnected
+- **THEN** the billing client is reconnected before the catalog is re-queried, so the retry can succeed rather than repeating the same failure
 
 #### Scenario: Dev flavor shows a non-fatal notice
 - **WHEN** `BillingConnectionState` is `Unavailable(UnsupportedApplicationId)` and the plans screen is reached from the Profile menu
@@ -208,3 +213,10 @@ The Android port SHALL ship a working asset (a vector drawable or a solid/gradie
 #### Scenario: Band renders visibly
 - **WHEN** the plans screen is composed
 - **THEN** the 320-pt band renders a visible asset rather than an empty region
+
+## References
+- [`docs/architecture.md`](../../../docs/architecture.md) — MVVM + Repository + unidirectional data flow; the module boundaries this screen's layers respect.
+- [`docs/screen-inventory.md`](../../../docs/screen-inventory.md) — the inventory entries (11.1 plans screen, 11.2 success screen) this spec implements.
+- `kornerz/Kornerz/InAppPurchase/SubscriptionScreen.swift` — the iOS paywall this screen mirrors: the plan cards, the "1 week free" caption, the terms links, and the restore action.
+- [`openspec/specs/play-billing/spec.md`](./play-billing/spec.md) — the Play Billing boundary, the connection-readiness gate, and the `SubscriptionError` taxonomy this screen renders.
+- [`openspec/specs/premium-gate/spec.md`](../premium-gate/spec.md) — the paywall guard that presents this screen.

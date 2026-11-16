@@ -88,7 +88,11 @@ class DevBillingGateway @Inject constructor() : SubscriptionBillingGateway {
 
     override fun detachActivity() = Unit
 
-    override fun launchPurchase(productId: String, offerToken: String?): Result<Unit> {
+    override fun launchPurchase(
+        productId: String,
+        offerToken: String?,
+        obfuscatedAccountId: String?,
+    ): Result<Unit> {
         if (OfflineCatalog.resolve(productId) == null) {
             return Result.failure(
                 SubscriptionException(
@@ -103,6 +107,10 @@ class DevBillingGateway @Inject constructor() : SubscriptionBillingGateway {
             productId = productId,
             purchaseTimeMillis = System.currentTimeMillis(),
             isAcknowledged = false,
+            // The simulated gateway echoes the account id back exactly as
+            // Play does, so the restore path's account-attribution logic
+            // is exercised on `dev` rather than only on `prod`.
+            obfuscatedAccountId = obfuscatedAccountId,
         )
 
         // Recorded before the outcome is emitted, not after: the outcome is
@@ -165,6 +173,16 @@ class DevBillingGateway @Inject constructor() : SubscriptionBillingGateway {
     }
 
     override suspend fun restore(): Result<List<PurchaseRecord>> = queryPurchases()
+
+    /**
+     * The simulated gateway has no Play service to reconnect to, so the
+     * connection state is simply restored to [BillingConnectionState.Ready].
+     */
+    override fun reconnect() {
+        _connectionState.value = BillingConnectionState.Ready(
+            licenseResponseCode = SYNTHETIC_LICENSE_CODE,
+        )
+    }
 
     override fun endConnection() {
         _connectionState.value = BillingConnectionState.Disconnected

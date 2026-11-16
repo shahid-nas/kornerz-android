@@ -78,6 +78,32 @@ fun rememberSubscriptionRoutes(premiumGate: PremiumGate): List<ShellExtraRoute> 
                                     launchSingleTop = true
                                 }
 
+                            // A restore recovered an existing purchase and
+                            // the entitlement has been written. The paywall
+                            // is mandatory — no close affordance, and the
+                            // back gesture is swallowed — so this event is
+                            // the *only* way off this route for a user who
+                            // already paid. It unwinds past the plans
+                            // route, exactly as the success route's
+                            // dismissal does.
+                            //
+                            // Before this was handled, the restore wrote
+                            // the entitlement and then did nothing
+                            // visible: the user stayed on the paywall,
+                            // which was re-presented on the next resume
+                            // because the gate's "satisfied" latch was
+                            // never set. That is what made the button
+                            // look inert.
+                            is SubscriptionNavEvent.Restored -> {
+                                premiumGate.markSatisfied()
+                                scope.onPremiumRouteClosed()
+                                val unwound = scope.navController.popBackStack(
+                                    SubscriptionRoute.Plans.route,
+                                    inclusive = true,
+                                )
+                                if (!unwound) scope.navController.popBackStack()
+                            }
+
                             // Reuses the existing P6 `profile/privacy-policy`
                             // destination rather than a subscription-local
                             // copy of the PDF viewer.
@@ -95,12 +121,10 @@ fun rememberSubscriptionRoutes(premiumGate: PremiumGate): List<ShellExtraRoute> 
                             SubscriptionNavEvent.OpenTermsOfUse ->
                                 scope.onOpenTermsOfUse(TERMS_OF_USE_URL)
 
-                            // The plans screen renders these inline; they
-                            // exist in the event set so the shell's
-                            // `when` stays exhaustive.
-                            is SubscriptionNavEvent.PurchaseFailed,
-                            is SubscriptionNavEvent.Restored,
-                            -> Unit
+                            // The plans screen renders the message inline;
+                            // the event exists so the shell's `when` stays
+                            // exhaustive.
+                            is SubscriptionNavEvent.PurchaseFailed -> Unit
                         }
                     },
                 )

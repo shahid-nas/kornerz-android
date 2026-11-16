@@ -273,8 +273,13 @@ private fun LoadedPlans(
             )
 
             // iOS `restore`
+            //
+            // The label reflects the in-flight state. A restore crosses
+            // the network to Play and back, and a button that stays
+            // unchanged while it does so reads as a dead control — the
+            // tap appears to do nothing at all.
             Text(
-                text = RESTORE_PURCHASE,
+                text = if (state.isRestoring) RESTORING_PURCHASE else RESTORE_PURCHASE,
                 color = Color.White,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Medium,
@@ -579,6 +584,12 @@ private const val SUBSCRIBE = "Subscribe"
 
 /** iOS `restore`. */
 private const val RESTORE_PURCHASE = "Restore Purchase"
+
+/**
+ * The restore button's label while the Play round trip is in flight.
+ * Shown in place of [RESTORE_PURCHASE] so the control reads as live.
+ */
+private const val RESTORING_PURCHASE = "Restoring…"
 
 /** iOS `privacy_policy`. */
 private const val PRIVACY_POLICY = "Privacy Policy"
