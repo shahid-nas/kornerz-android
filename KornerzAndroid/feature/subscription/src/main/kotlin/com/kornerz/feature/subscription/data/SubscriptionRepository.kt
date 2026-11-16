@@ -56,6 +56,67 @@ class SubscriptionRepository @Inject constructor(
         )
 
     /**
+     * Classifies an `ITEM_ALREADY_OWNED` failure.
+     *
+     * Play refuses to open the purchase sheet when this Google account
+     * already holds the subscription, and the response says nothing more
+     * than that. The app, though, can say a great deal more — the purchase
+     * library carries each purchase's obfuscated account id, so the
+     * purchase can be attributed to a Kornerz account. That is the
+     * difference between:
+     *
+     *  - [AlreadyOwnedClassification.OwnedByThisAccount] — the user paid
+     *    for this already; the only thing missing is the entitlement
+     *    write, which **restore** performs. The right instruction is
+     *    "tap Restore Purchase", not "sign in elsewhere".
+     *  - [AlreadyOwnedClassification.OwnedByAnotherAccount] — the purchase
+     *    was made for a different Kornerz account. This is the dead end:
+     *    the only way forward is to sign out and sign in as that account.
+     *  - [AlreadyOwnedClassification.Unknown] — the purchase library could
+     *    not be read, or it holds no attributable purchase. The app falls
+     *    back to the generic "already owned" message rather than guessing.
+     *
+     * A purchase with **no** obfuscated account id is treated as
+     * un-attributable and lands in [AlreadyOwnedClassification.Unknown]:
+     * it could have been made by anyone, so the app must not claim it for
+     * the signed-in account nor accuse the signed-in account of being
+     * wrong.
+     */
+    suspend fun classifyAlreadyOwned(): AlreadyOwnedClassification {
+        if (!IAP_ENABLED) return AlreadyOwnedClassification.Unknown
+
+        val email = authenticatedEmail() ?: return AlreadyOwnedClassification.Unknown
+
+        val records = billingGateway.restore().getOrElse {
+            return AlreadyOwnedClassification.Unknown
+        }
+
+        val purchases = records.filter { record ->
+            SubscriptionProductType.fromPlayProductId(record.productId) != null
+        }
+        if (purchases.isEmpty()) return AlreadyOwnedClassification.Unknown
+
+        val owned = purchases.filter { record ->
+            record.obfuscatedAccountId == null ||
+                record.obfuscatedAccountId == obfuscatedAccountId(email)
+        }
+        // Every purchase on this Play account belongs to a different
+        // Kornerz account — the wrong-account dead end.
+        if (owned.isEmpty()) return AlreadyOwnedClassification.OwnedByAnotherAccount
+
+        // A purchase for this account exists. If every one of them carries
+        // an account id, the attribution is certain; if some carry none,
+        // the app cannot rule out that the one blocking the purchase is
+        // another account's.
+        val attributable = purchases.all { record -> record.obfuscatedAccountId != null }
+        return if (attributable) {
+            AlreadyOwnedClassification.OwnedByThisAccount
+        } else {
+            AlreadyOwnedClassification.Unknown
+        }
+    }
+
+    /**
      * The obfuscated account id to attach to a purchase made by the
      * signed-in user, or `null` when there is no session.
      *
@@ -496,6 +557,46 @@ sealed interface RestoreOutcome {
      * for a different Kornerz account.
      */
     data object WrongAccount : RestoreOutcome
+}
+
+/**
+ * What an `ITEM_ALREADY_OWNED` failure actually means.
+ *
+ * Play's response only says "this Google account already owns it". The
+ * app can say more, because the purchase library carries the obfuscated
+ * account id of the Kornerz account each purchase was made for. That
+ * extra knowledge is what separates a recoverable situation from a dead
+ * end — see [SubscriptionRepository.classifyAlreadyOwned].
+ */
+sealed interface AlreadyOwnedClassification {
+
+    /**
+     * The purchase belongs to the **signed-in** Kornerz account.
+     *
+     * The user has already paid; only the entitlement write is missing,
+     * and **restore** performs it. The right instruction is "tap Restore
+     * Purchase", not "sign in elsewhere".
+     */
+    data object OwnedByThisAccount : AlreadyOwnedClassification
+
+    /**
+     * The purchase belongs to a **different** Kornerz account.
+     *
+     * The dead end: neither subscribing nor restoring can succeed from
+     * this session, and the only way forward is to sign out and sign in
+     * as the account that made the purchase.
+     */
+    data object OwnedByAnotherAccount : AlreadyOwnedClassification
+
+    /**
+     * The purchase could not be attributed to any Kornerz account.
+     *
+     * The purchase library was unreadable, held no attributable purchase,
+     * or held a purchase made outside the app (which carries no
+     * obfuscated account id). The app must not guess in either
+     * direction, so it falls back to a generic message.
+     */
+    data object Unknown : AlreadyOwnedClassification
 }
 
 /**

@@ -125,6 +125,23 @@ fun rememberSubscriptionRoutes(premiumGate: PremiumGate): List<ShellExtraRoute> 
                             // the event exists so the shell's `when` stays
                             // exhaustive.
                             is SubscriptionNavEvent.PurchaseFailed -> Unit
+
+                            // The wrong-account sheet's "Log out" action.
+                            //
+                            // The sheet is raised when a restore fails
+                            // because the purchase belongs to a different
+                            // Kornerz account. That is a dead end: the
+                            // paywall has no close affordance and swallows
+                            // the back gesture, so without this the user is
+                            // stuck until they delete the app.
+                            //
+                            // The teardown itself belongs to the shell —
+                            // `feature/subscription` may not depend on
+                            // `feature/shell` — so the request is handed
+                            // over and `ShellViewModel.onLogout` clears the
+                            // FCM token, clears the session, and navigates
+                            // to the auth graph.
+                            SubscriptionNavEvent.Logout -> scope.onLogout()
                         }
                     },
                 )

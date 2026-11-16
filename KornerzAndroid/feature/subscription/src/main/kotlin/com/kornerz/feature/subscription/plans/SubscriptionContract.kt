@@ -33,6 +33,22 @@ import com.kornerz.core.model.SubscriptionProductType
  *   [com.kornerz.feature.subscription.data.SubscriptionError.UserCancelled]
  *   deliberately leaves this `null`: cancelling the Play sheet is a normal
  *   return path, not something to apologise for.
+ * @param showWrongAccountSheet whether the "subscription belongs to a
+ *   different account" sheet is open.
+ *
+ *   This failure is a **dead end**: the purchase lives on the device's
+ *   Play account and is attributed to a different Kornerz account, so
+ *   neither subscribing nor restoring can succeed from this session. The
+ *   only two ways out are to sign in to the account that made the
+ *   purchase, or to sign out and sign back in as that account — and the
+ *   app cannot tell the user *which* Google account to switch to, because
+ *   Play Billing never exposes the Play account's identity.
+ *
+ *   The message therefore ships in a modal sheet rather than as an inline
+ *   line of text: an inline message leaves the user on a paywall they
+ *   cannot pass, with a Subscribe button that fails every time it is
+ *   tapped. The sheet makes the one actionable step — logging out — the
+ *   primary button.
  */
 data class SubscriptionState(
     val products: AsyncValue<List<SubscriptionProduct>> = AsyncValue.Loading,
@@ -42,6 +58,7 @@ data class SubscriptionState(
     val isRestoring: Boolean = false,
     val billingNotice: String? = null,
     val error: String? = null,
+    val showWrongAccountSheet: Boolean = false,
 ) {
     /** The selected product once the catalog has resolved, else `null`. */
     val selectedProduct: SubscriptionProduct?
@@ -86,4 +103,14 @@ sealed interface SubscriptionNavEvent {
 
     /** Opens the Apple EULA externally via `Intent.ACTION_VIEW`. */
     data object OpenTermsOfUse : SubscriptionNavEvent
+
+    /**
+     * The user asked to sign out from the wrong-account sheet.
+     *
+     * `feature/subscription` may not depend on `feature/shell`
+     * (`docs/architecture.md` §2.5 — only `app` imports the feature
+     * modules), so the screen cannot tear the session down itself. The
+     * event crosses the boundary and the shell performs the logout.
+     */
+    data object Logout : SubscriptionNavEvent
 }

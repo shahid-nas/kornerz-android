@@ -102,6 +102,18 @@ data class ShellExtraRoute(
  * controller, the Profile tab's nested controller (so the paywall can
  * reach the existing `profile/privacy-policy` destination instead of
  * shipping a second copy of the PDF viewer), and the paywall-gate hooks.
+ *
+ * [onLogout] lets a contributed route tear the session down. The
+ * subscription screen needs it: when a restore fails because the
+ * purchase belongs to a different Kornerz account, the user is stranded
+ * on a paywall they cannot pass, and signing out is the only way back to
+ * a screen where they can sign in as the right account.
+ *
+ * The route cannot log out on its own — `feature/subscription` may not
+ * depend on `feature/shell` (`docs/architecture.md` §2.5) — so the
+ * request arrives here and is routed through [ShellViewModel.onLogout],
+ * which performs the real teardown (FCM cleanup, session clear,
+ * navigation to the auth graph).
  */
 class ShellExtraRouteScope internal constructor(
     val navController: NavHostController,
@@ -110,6 +122,7 @@ class ShellExtraRouteScope internal constructor(
     val onOpenTermsOfUse: (String) -> Unit,
     val onPremiumRouteOpened: () -> Unit,
     val onPremiumRouteClosed: () -> Unit,
+    val onLogout: () -> Unit,
 )
 
 /**
@@ -215,6 +228,7 @@ fun AppShell(
             onOpenTermsOfUse = { url -> applicationContext.openExternally(url) },
             onPremiumRouteOpened = viewModel::onPremiumRouteOpened,
             onPremiumRouteClosed = viewModel::onPremiumRouteClosed,
+            onLogout = viewModel::onLogout,
         )
     }
     val comingSoonSnackbar = remember { SnackbarHostState() }

@@ -1033,11 +1033,16 @@ internal fun Int.toSubscriptionError(): SubscriptionError = when (this) {
     -> SubscriptionError.BillingUnavailable
 
     BillingClient.BillingResponseCode.ITEM_UNAVAILABLE,
-    // ITEM_ALREADY_OWNED is distinct from PurchasePending: it means Play
-    // already holds this subscription, which is the shape a restore
-    // surfaces, not a deferred purchase.
-    BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED,
     -> SubscriptionError.ProductUnavailable
+
+    // ITEM_ALREADY_OWNED is **not** a catalog failure: the plan is
+    // configured correctly, the device's Play account simply already
+    // holds it. It gets its own case so the app can tell "the plans are
+    // broken" apart from "you already own this", and so the
+    // already-owned case can be classified further against the purchase
+    // library's account id.
+    BillingClient.BillingResponseCode.ITEM_ALREADY_OWNED,
+    -> SubscriptionError.ItemAlreadyOwned
 
     BillingClient.BillingResponseCode.USER_CANCELED -> SubscriptionError.UserCancelled
 

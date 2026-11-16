@@ -7,6 +7,7 @@ import com.kornerz.core.model.SubscriptionProduct
 import com.kornerz.core.model.SubscriptionProductType
 import com.kornerz.core.storage.session.SessionRepository
 import com.kornerz.core.storage.session.SessionState
+import com.kornerz.feature.subscription.data.AlreadyOwnedClassification
 import com.kornerz.feature.subscription.data.SubscriptionError
 import com.kornerz.feature.subscription.data.SubscriptionException
 import com.kornerz.feature.subscription.data.RestoreOutcome
@@ -228,13 +229,60 @@ class SubscriptionViewModel @Inject constructor(
             )
             if (launch.isFailure) {
                 val failure = launch.exceptionOrNull()
-                finishPurchase(
-                    (failure as? SubscriptionException)?.errorKind
-                        ?: SubscriptionError.BillingUnavailable,
-                )
+                val errorKind = (failure as? SubscriptionException)?.errorKind
+                    ?: SubscriptionError.BillingUnavailable
+                // Play refused to open the sheet because this Google
+                // account already holds the subscription. What that means
+                // for the user depends on **which** Kornerz account the
+                // purchase was made for, so the purchase library is
+                // consulted before anything is shown.
+                if (errorKind == SubscriptionError.ItemAlreadyOwned) {
+                    handleAlreadyOwned()
+                    return@launch
+                }
+                finishPurchase(errorKind)
                 return@launch
             }
             // The outcome arrives on purchaseOutcomes, collected in init.
+        }
+    }
+
+    /**
+     * Handles an `ITEM_ALREADY_OWNED` purchase failure.
+     *
+     * Play's response is ambiguous on its own, so the purchase library is
+     * read to attribute the purchase:
+     *
+     *  - **another account** — the dead end. The sheet opens, offering to
+     *    sign out so the user can sign in as the account that made the
+     *    purchase.
+     *  - **this account** — the user has already paid for this. Nothing
+     *    is wrong; the entitlement is simply not written yet, and
+     *    **restore** writes it. The screen says so and points at the
+     *    restore button rather than sending the user to another account.
+     *  - **unattributable** — the app declines to guess and falls back to
+     *    the generic already-owned message.
+     */
+    private suspend fun handleAlreadyOwned() {
+        when (subscriptionRepository.classifyAlreadyOwned()) {
+            AlreadyOwnedClassification.OwnedByAnotherAccount -> {
+                _state.value = _state.value.copy(
+                    isPurchasing = false,
+                    error = null,
+                    showWrongAccountSheet = true,
+                )
+            }
+
+            AlreadyOwnedClassification.OwnedByThisAccount -> {
+                _state.value = _state.value.copy(
+                    isPurchasing = false,
+                    error = MESSAGE_ALREADY_OWNED_RESTORE,
+                )
+            }
+
+            AlreadyOwnedClassification.Unknown -> {
+                finishPurchase(SubscriptionError.ItemAlreadyOwned)
+            }
         }
     }
 
@@ -348,7 +396,18 @@ class SubscriptionViewModel @Inject constructor(
                     // The Android-specific failure: the subscription
                     // exists, but under a different Kornerz account than
                     // the one that is signed in here.
-                    _state.value = _state.value.copy(error = MESSAGE_WRONG_ACCOUNT)
+                    //
+                    // It is a dead end, not a transient error: the
+                    // purchase lives on this device's Play account and
+                    // is tagged to another Kornerz account, so neither
+                    // subscribing nor restoring can succeed from this
+                    // session. The message therefore opens a modal sheet
+                    // offering to sign out, rather than sitting inline
+                    // above a Subscribe button that fails every time.
+                    _state.value = _state.value.copy(
+                        error = null,
+                        showWrongAccountSheet = true,
+                    )
                     _navEvents.trySend(
                         SubscriptionNavEvent.PurchaseFailed(MESSAGE_WRONG_ACCOUNT),
                     )
@@ -367,6 +426,33 @@ class SubscriptionViewModel @Inject constructor(
 
     fun onDismissError() {
         _state.value = _state.value.copy(error = null)
+    }
+
+    /**
+     * Closes the wrong-account sheet without acting on it.
+     *
+     * Cancelling leaves the user exactly where they were — on the
+     * paywall, with the subscription still unattributable. The sheet is
+     * not re-shown on its own: it is raised by a restore attempt, so the
+     * user can dismiss it and try again (or sign out from the Profile
+     * tab) whenever they choose.
+     */
+    fun onDismissWrongAccountSheet() {
+        _state.value = _state.value.copy(showWrongAccountSheet = false)
+    }
+
+    /**
+     * The sheet's "Log out" action.
+     *
+     * The screen cannot tear the session down itself —
+     * `feature/subscription` must not depend on `feature/shell` — so the
+     * request crosses the module boundary as
+     * [SubscriptionNavEvent.Logout] and the shell performs the real
+     * logout (FCM cleanup, session clear, navigation to the auth graph).
+     */
+    fun onLogoutTap() {
+        _state.value = _state.value.copy(showWrongAccountSheet = false)
+        _navEvents.trySend(SubscriptionNavEvent.Logout)
     }
 
     /**
@@ -408,6 +494,7 @@ class SubscriptionViewModel @Inject constructor(
     private fun SubscriptionError.toMessage(): String = when (this) {
         SubscriptionError.BillingUnavailable -> MESSAGE_BILLING_UNAVAILABLE
         SubscriptionError.ProductUnavailable -> MESSAGE_PRODUCT_UNAVAILABLE
+        SubscriptionError.ItemAlreadyOwned -> MESSAGE_ALREADY_OWNED
         SubscriptionError.UserCancelled -> ""
         SubscriptionError.NetworkError -> MESSAGE_NETWORK
         SubscriptionError.PurchasePending -> MESSAGE_PURCHASE_PENDING
@@ -453,6 +540,25 @@ class SubscriptionViewModel @Inject constructor(
 
         const val MESSAGE_BILLING_UNAVAILABLE = "Billing is unavailable right now"
         const val MESSAGE_PRODUCT_UNAVAILABLE = "Subscription plans are unavailable"
+
+        /**
+         * Shown when Play refuses to open the purchase sheet because this
+         * Google account already holds the subscription, and the purchase
+         * could not be attributed to any Kornerz account.
+         */
+        const val MESSAGE_ALREADY_OWNED =
+            "This Google account already has an active subscription"
+
+        /**
+         * Shown when the subscription is already owned by the **signed-in**
+         * Kornerz account. Nothing is wrong — the entitlement is simply
+         * not written yet, and restore writes it — so the message points
+         * at the restore button instead of sending the user to another
+         * account.
+         */
+        const val MESSAGE_ALREADY_OWNED_RESTORE =
+            "You already have this subscription. Tap Restore Purchase to activate it."
+
         const val MESSAGE_NETWORK = "Check your connection and try again"
         const val MESSAGE_PURCHASE_PENDING = "Your purchase is pending approval"
         const val MESSAGE_NOT_ACKNOWLEDGED =

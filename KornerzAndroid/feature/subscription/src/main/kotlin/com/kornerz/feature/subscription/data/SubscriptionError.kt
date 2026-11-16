@@ -31,10 +31,35 @@ sealed interface SubscriptionError {
      * The catalog could not be resolved: `ITEM_UNAVAILABLE`,
      * `PRODUCT_NOT_AVAILABLE`, or an empty product list from Play.
      *
-     * Usually means the two products are missing or misconfigured in
-     * the Play Console, which is not under version control.
+     * Usually means the two products are missing or misconfigured in the
+     * Play Console, which is not under version control.
      */
     data object ProductUnavailable : SubscriptionError
+
+    /**
+     * Play refused to open the purchase sheet because this Google account
+     * **already owns** the subscription (`ITEM_ALREADY_OWNED`).
+     *
+     * This is not the same as [ProductUnavailable] and the two are no
+     * longer collapsed: the plan is perfectly well configured — the
+     * device's Play account already holds it. Collapsing the two made
+     * the app report "Subscription plans are unavailable", which is both
+     * wrong and useless to the user, because the plans *are* available;
+     * they are already bought.
+     *
+     * The code means one of two very different things, and the app
+     * cannot tell them apart from Play's response alone:
+     *
+     *  - the purchase belongs to **this** Kornerz account, and the user
+     *    simply needs to restore it — the entitlement is already paid for;
+     *  - the purchase belongs to a **different** Kornerz account, so the
+     *    only way forward is to sign out and sign in as that account.
+     *
+     * The distinction is made by inspecting the purchase library, which
+     * carries the purchase's obfuscated account id. See
+     * [com.kornerz.feature.subscription.data.SubscriptionRepository.classifyAlreadyOwned].
+     */
+    data object ItemAlreadyOwned : SubscriptionError
 
     /**
      * The user dismissed the Play purchase sheet. A **normal** return

@@ -42,6 +42,7 @@ import com.kornerz.core.ui.theme.KornerzTypography
 import com.kornerz.core.ui.theme.Spacing
 import com.kornerz.feature.subscription.R
 import com.kornerz.feature.subscription.plans.components.SubscriptionPlanCard
+import com.kornerz.feature.subscription.plans.components.WrongAccountSheet
 
 /**
  * The subscription plans screen (inventory **11.1** host + **11.2** view).
@@ -86,6 +87,8 @@ fun SubscriptionContent(
     onPrivacyPolicyTap: () -> Unit,
     onTermsOfUseTap: () -> Unit,
     onRetry: () -> Unit,
+    onWrongAccountLogoutTap: () -> Unit,
+    onWrongAccountCancelTap: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -116,6 +119,16 @@ fun SubscriptionContent(
                 onRestoreTap = onRestoreTap,
                 onPrivacyPolicyTap = onPrivacyPolicyTap,
                 onTermsOfUseTap = onTermsOfUseTap,
+            )
+        }
+
+        // The wrong-account failure is a dead end, so it ships in a modal
+        // sheet with the one action that resolves it. It is raised outside
+        // the `when` so it also covers the error catalog state.
+        if (state.showWrongAccountSheet) {
+            WrongAccountSheet(
+                onLogoutClick = onWrongAccountLogoutTap,
+                onCancelClick = onWrongAccountCancelTap,
             )
         }
     }
@@ -453,6 +466,8 @@ private fun SubscriptionContentRtlPreview() {
         onPrivacyPolicyTap = {},
         onTermsOfUseTap = {},
         onRetry = {},
+        onWrongAccountLogoutTap = {},
+        onWrongAccountCancelTap = {},
     )
 }
 
@@ -468,6 +483,8 @@ private fun SubscriptionContentMonthlyTrialPreview() {
         onPrivacyPolicyTap = {},
         onTermsOfUseTap = {},
         onRetry = {},
+        onWrongAccountLogoutTap = {},
+        onWrongAccountCancelTap = {},
     )
 }
 
@@ -484,6 +501,8 @@ private fun SubscriptionContentBillingUnavailablePreview() {
         onPrivacyPolicyTap = {},
         onTermsOfUseTap = {},
         onRetry = {},
+        onWrongAccountLogoutTap = {},
+        onWrongAccountCancelTap = {},
     )
 }
 
@@ -503,6 +522,8 @@ private fun SubscriptionContentYearlySelectedPreview() {
         onPrivacyPolicyTap = {},
         onTermsOfUseTap = {},
         onRetry = {},
+        onWrongAccountLogoutTap = {},
+        onWrongAccountCancelTap = {},
     )
 }
 
@@ -528,11 +549,35 @@ private fun SubscriptionContentNoTrialPreview() {
         onPrivacyPolicyTap = {},
         onTermsOfUseTap = {},
         onRetry = {},
+        onWrongAccountLogoutTap = {},
+        onWrongAccountCancelTap = {},
     )
 }
 
-private fun previewState(isTrialEligible: Boolean = true) = SubscriptionState(
-    products = AsyncValue.Success(
+/**
+ * The wrong-account sheet, raised over the paywall.
+ *
+ * Pins the dead-end contract: the inline error line is gone and the
+ * modal offers the one action that resolves it.
+ */
+@Preview(showBackground = true, backgroundColor = PREVIEW_BACKGROUND)
+@Composable
+private fun SubscriptionContentWrongAccountSheetPreview() {
+    SubscriptionContent(
+        state = previewState().copy(showWrongAccountSheet = true),
+        nickname = "satoshi",
+        onPlanSelected = {},
+        onSubscribeTap = {},
+        onRestoreTap = {},
+        onPrivacyPolicyTap = {},
+        onTermsOfUseTap = {},
+        onRetry = {},
+        onWrongAccountLogoutTap = {},
+        onWrongAccountCancelTap = {},
+    )
+}
+
+private fun previewState(isTrialEligible: Boolean = true) = SubscriptionState(    products = AsyncValue.Success(
         listOf(
             SubscriptionProduct(
                 playProductId = SubscriptionProductType.MONTHLY.playProductId,

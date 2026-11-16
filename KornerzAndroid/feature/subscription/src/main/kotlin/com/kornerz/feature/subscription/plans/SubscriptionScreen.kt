@@ -94,6 +94,8 @@ fun SubscriptionScreen(
             onPrivacyPolicyTap = viewModel::onPrivacyPolicyTap,
             onTermsOfUseTap = viewModel::onTermsOfUseTap,
             onRetry = viewModel::loadCatalog,
+            onWrongAccountLogoutTap = viewModel::onLogoutTap,
+            onWrongAccountCancelTap = viewModel::onDismissWrongAccountSheet,
         )
     }
 }
