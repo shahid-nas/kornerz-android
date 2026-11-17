@@ -59,9 +59,26 @@ class PremiumGate @Inject constructor(
     private var satisfiedThisProcess = false
 
     /**
-     * Whether the plans route is the current destination. Set by the shell
-     * when the paywall opens, so clause 1 does not re-present it while the
-     * user is looking at it.
+     * Whether the plans route is **on the back stack**.
+     *
+     * Set by the shell whenever the shell's current destination changes,
+     * so clause 1 cannot re-present the paywall while it is on screen —
+     * or while a destination pushed **on top of** it is on screen.
+     *
+     * "On the back stack" rather than "is the current destination" is
+     * deliberate. The paywall pushes the Privacy Policy viewer on top of
+     * itself (`SubscriptionRoutes.kt`), exactly as iOS pushes
+     * `PrivacyPolicyView` onto the paywall's own navigation controller
+     * (`SubscriptionController.swift:81-85`). While the viewer is open the
+     * plans route is **not** the current destination, but it is still on
+     * the stack and the user must not reach the un-gated app by backing
+     * out of the viewer.
+     *
+     * Deriving this from the navigation state — rather than toggling it
+     * manually at each call site — is what keeps the latch truthful. A
+     * manually-toggled latch drifted: the Privacy Policy path popped the
+     * plans route off the stack without clearing it, so the gate believed
+     * the paywall was still showing forever and never re-armed it.
      */
     @Volatile
     private var plansRouteOpen = false
@@ -117,9 +134,33 @@ class PremiumGate @Inject constructor(
         return true
     }
 
-    /** Called by the shell when the plans route is pushed. */
+    /**
+     * Records that the plans route has been pushed.
+     *
+     * Called by the shell **before** the navigation commits, so a second
+     * gate evaluation in the window between "the gate fired" and "the
+     * paywall is on screen" cannot push a second copy.
+     */
     fun markPlansRouteOpen(open: Boolean) {
         plansRouteOpen = open
+    }
+
+    /**
+     * Reconciles the clause-1 latch with the shell's actual back stack.
+     *
+     * The shell calls this whenever the current destination changes, with
+     * whether the plans route is on the stack. The latch is only ever
+     * **cleared** here — never set — so a reconciliation that lands
+     * between "the gate fired" and "the navigation committed" cannot open
+     * a window for a second paywall.
+     *
+     * A stale `true` is impossible: this reconciliation re-runs on every
+     * destination change, so a plans route that left the stack clears the
+     * latch. A stale `false` is impossible: [markPlansRouteOpen] sets it
+     * the moment the paywall is pushed.
+     */
+    fun reconcilePlansRouteOnStack(plansRouteOnStack: Boolean) {
+        if (!plansRouteOnStack) plansRouteOpen = false
     }
 
     /**

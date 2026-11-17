@@ -8,13 +8,17 @@ TBD - created by archiving change phase-8-premium-iap. Update Purpose after arch
 
 | # | Clause | iOS counterpart |
 |---|---|---|
-| 1 | The plans route is not already the current destination | `AppTabController.showSubscriptionScreen()` `:212` `guard isSubscriptionOpened() == false` |
-| 2 | The session is authenticated | `:213` `guard AppHelper.shared.isUserLoggedIn` |
+| 1 | The plans route is not on the back stack | `AppTabController.showSubscriptionScreen()` `:212` `guard isSubscriptionOpened() == false` |
+| 2 | The session is authenticated | `:213` `guard isUserLoggedIn` |
 | 3 | No active Play entitlement exists for this user | `:214` `guard InAppManager.shared.isSubscriptionActive == false` |
 | 4 | `User.isUserPremiumNow` is `false` | `:215` `guard AppHelper.shared.isUserPremium == false` |
 | 5 | Not dismissed in this process | Android-only latch (`markDismissed()`; no production call site arms it — see "The paywall is not dismissible") |
 
 Clauses 1–4 reproduce `AppTabController.showSubscriptionScreen()` (`kornerz/Kornerz/SwiftUI/TabView/AppTabController.swift:209-229`) and `LoginVC.showSubscriptionScreen()` (`kornerz/Kornerz/User/LoginVC/LoginVC.swift:219-232`), both of which carry an identical four-clause guard.
+
+Clause 1 SHALL be evaluated against the plans route's presence **on the back stack**, not merely against the current destination. The paywall pushes the Privacy Policy viewer on top of itself (see "The paywall is not dismissible"), so while the viewer is open the plans route is not the current destination but is still on the stack — and the user must not reach the un-gated app by backing out of it.
+
+Clause 1's latch SHALL be reconciled against the shell's actual back stack rather than toggled by hand at each call site. A manually-toggled latch drifted: the Privacy Policy path popped the plans route off the stack without clearing it, so the gate believed the paywall was still showing for the rest of the process and never re-armed it. The latch is only ever **cleared** by the reconciliation (the shell sets it optimistically when the paywall is pushed, before the navigation commits, so a reconciliation landing in that window cannot open a gap for a second paywall).
 
 Clause 4 SHALL use `User.isUserPremiumNow` (the expiry-derived projection) and SHALL NOT test the raw `isPremium` field, per the `premium-entitlement` capability.
 
@@ -27,8 +31,12 @@ Clause 4 SHALL use `User.isUserPremiumNow` (the expiry-derived projection) and S
 | `markDismissed()` | `fun markDismissed()` |
 | `markSatisfied()` | `fun markSatisfied()` |
 | `reset()` | `fun reset()` |
+| `markPlansRouteOpen(open: Boolean)` | `fun markPlansRouteOpen(open: Boolean)` |
+| `reconcilePlansRouteOnStack(onStack: Boolean)` | `fun reconcilePlansRouteOnStack(onStack: Boolean)` |
 
 `requestPresent()` SHALL recompute all five clauses against current state and return `true` only when every clause passes.
+
+`reconcilePlansRouteOnStack(onStack)` SHALL clear clause 1's latch when `onStack` is `false` and SHALL NOT set it when `onStack` is `true`.
 
 #### Scenario: Free user passes every clause
 - **WHEN** an authenticated user with no Play entitlement and a past-or-absent `subscriptionExpiryDate` has not dismissed the paywall this process and is not already on `subscription/plans`
@@ -47,8 +55,13 @@ Clause 4 SHALL use `User.isUserPremiumNow` (the expiry-derived projection) and S
 - **THEN** `requestPresent()` returns `false`
 
 #### Scenario: Already on the plans route fails clause 1
-- **WHEN** the current `NavBackStackEntry` destination is `subscription/plans`
+- **WHEN** the plans route is on the back stack
 - **THEN** `requestPresent()` returns `false`
+
+#### Scenario: The Privacy Policy excursion does not re-arm the gate
+- **WHEN** the user opens the Privacy Policy viewer from the paywall and then backs out of it
+- **THEN** the plans route is the current destination again and the user remains on the paywall
+- **AND** the gate's clause-1 latch is still `true`, so the paywall is not re-presented as a duplicate
 
 ### Requirement: The gate fires from exactly two places
 The gate SHALL be evaluated from exactly two call sites, each with a direct iOS counterpart. It SHALL NOT be evaluated on `NavHost` destination changes, tab switches, or deep-link arrivals.
@@ -108,6 +121,27 @@ This is also the iOS behaviour: `SubscriptionController`'s `configureNavigation`
 #### Scenario: Account deletion resets the gate
 - **WHEN** the `userDeletedHisAccount` event bus emits (P6, `account-deletion` capability)
 - **THEN** the gate latches are reset before the shell switches to the auth graph
+
+### Requirement: The Privacy Policy excursion cannot bypass the paywall
+The Privacy Policy link on the plans screen SHALL push the existing `profile/privacy-policy` destination **on top of** the plans route, and SHALL NOT pop the plans route off the back stack.
+
+This mirrors iOS: the paywall is presented modally and `SubscriptionController.openPrivacyPolicy()` pushes `PrivacyPolicyView` onto the *same* navigation controller (`kornerz/Kornerz/InAppPurchase/SubscriptionController.swift:81-85`), so Back returns to the paywall.
+
+Popping the plans route was a premium-gate bypass: it removed the paywall from the back stack entirely, so Back from the viewer landed the user in the un-gated app. It also left clause 1's latch stuck `true`, so the gate never re-armed the paywall for the rest of the process.
+
+The paywall swallows the system back gesture only while it is the current destination. With the viewer pushed on top of it, the system's back gesture pops the viewer — which is the intended behaviour — and the paywall reappears beneath it.
+
+#### Scenario: Privacy Policy opens on top of the paywall
+- **WHEN** the user taps "Privacy Policy" on the plans screen
+- **THEN** the `profile/privacy-policy` viewer is pushed and `subscription/plans` remains on the back stack
+
+#### Scenario: Back from the viewer returns to the paywall
+- **WHEN** the user presses back in the Privacy Policy viewer
+- **THEN** the viewer is popped and `subscription/plans` is the current destination again
+
+#### Scenario: The excursion never reaches the un-gated app
+- **WHEN** the user opens the Privacy Policy viewer from the paywall, presses back, and then backgrounds and resumes the app
+- **THEN** the user is still on the paywall and is not returned to the app's tabs
 
 ### Requirement: Gate navigation and success unwind
 When the gate opens, the shell SHALL navigate to `SubscriptionRoute.Plans`. On `SubscriptionNavEvent.PurchaseSucceeded`, the shell SHALL navigate forward to `SubscriptionRoute.Success`. On `SubscriptionSuccessNavEvent.Dismissed`, the shell SHALL call `PremiumGate.markSatisfied()` and pop **both** subscription routes — `subscription/plans` popped inclusively — returning the user to the destination that was current before the gate opened.

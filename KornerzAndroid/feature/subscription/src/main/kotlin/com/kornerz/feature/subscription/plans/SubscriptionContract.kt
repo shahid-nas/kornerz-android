@@ -67,12 +67,18 @@ data class SubscriptionState(
             ?.firstOrNull { it.playProductId == selected.playProductId }
 
     /**
-     * The price shown in the "1 week free, then {price}" caption.
+     * The price substituted into the "1 week free, then {price}" caption.
      *
      * Formatted as iOS formats it — `"<price>/<periodUnit>"`, e.g.
      * `"$10.99/month"` — because iOS passes `SubscriptionViewModel.selectedPrice`
      * into `select_payment_plan_message` and that value already carries
      * the period unit (`SubscriptionViewModel.swift:93-110`).
+     *
+     * The "1 week free, then " prefix is **not** part of this value: on
+     * iOS it lives inside the localized `select_payment_plan_message`
+     * string and is applied unconditionally
+     * (`SubscriptionScreen.swift:172-178`), independent of trial
+     * availability.
      */
     val selectedPriceLabel: String?
         get() = selectedProduct?.displayPrice

@@ -163,6 +163,22 @@ class ShellViewModel @Inject constructor(
     /** P8: the paywall was popped; clause 1 no longer blocks. */
     fun onPremiumRouteClosed() = premiumGate.markPlansRouteOpen(false)
 
+    /**
+     * P8: reconciles clause 1's latch with the shell's actual back stack.
+     *
+     * The shell calls this whenever the current destination changes, with
+     * whether the plans route is on the stack. Deriving the latch from the
+     * navigation state — rather than toggling it at each call site — is
+     * what keeps it truthful: a manually-toggled latch drifted when the
+     * Privacy Policy path popped the plans route off the stack without
+     * clearing it, leaving the gate convinced the paywall was still
+     * showing and never re-arming it.
+     *
+     * This only ever **clears** the latch; [onPremiumRouteOpened] sets it.
+     */
+    fun onPremiumRouteStackChanged(plansRouteOnStack: Boolean) =
+        premiumGate.reconcilePlansRouteOnStack(plansRouteOnStack)
+
     fun onLogout() {
         viewModelScope.launch {
             // Clear the latches first: a logout is the boundary the

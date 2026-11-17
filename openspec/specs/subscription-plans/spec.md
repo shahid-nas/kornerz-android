@@ -15,14 +15,14 @@ The subscription plans screen (inventory **11.1** host + **11.2** view, `Subscri
 | Feature blurb | `:43-48` `Text("subscription_feature_msg")` | "Get full access to our community of Klouders, unlimited Nook video calls, and Loops to discuss topics of interest." at 18-pt medium |
 | Free-trial line | `:49-57` `Text("start_free_trial")`, shown only when `viewModel.isTrialAvailable == true` | "Start with a 1 week free trial." at 16-pt medium, rendered **only** when the selected product's `hasFreeTrialOffer` is true |
 | Plan cards | `:74-133` | Exactly two cards; see the plan-card requirement below |
-| Selected-price caption | `:171-178` `Text("select_payment_plan_message", value: viewModel.selectedPrice)` | "1 week free, then {price}" at 16-pt medium, black text on the white content surface |
-| Subscribe button | `:156-169` `KornerzButton.capsuleWhiteOnBlack("try_for_free" \| "subscribe", size: .large, width: .infinite)` | Full-width black-capsule button with white text; label is "Try It Free" when a trial offer is present on the selected product, otherwise "Subscribe" |
+| Selected-price caption | `:171-178` `Text("select_payment_plan_message", value: viewModel.selectedPrice)` | "1 week free, then {price}" at 16-pt medium, black text on the aqua surface. The prefix is **unconditional**: iOS applies the localized `select_payment_plan_message` with no branch on trial availability, so only the subscribe button's label varies |
+| Subscribe button | `:156-169` `KornerzButton.capsuleWhiteOnBlack("try_for_free" \| "subscribe", size: .large, width: .infinite)` | Full-width black-capsule button with white text; label is "Try It Free" when a trial offer is present on the selected product, otherwise "Subscribe". The label is Satoshi 16 bold (iOS `.large` size) and the capsule's height is intrinsic, matching iOS |
 | Restore | `:180-189` `Button { Text("restore") }`, lato 16 medium white | Plain text button "Restore Purchase", 16-pt medium, white |
 | Bottom links | `:135-154` `HStack` with `privacy_policy` (left) + `term_of_use` (right), lato 14 medium white | Two side-by-side text links at 14-pt medium: "Privacy Policy" and "Term of Use" |
 
 The screen SHALL present no top app bar and no title, matching iOS (the host's `configureNavigation` / `customBackButton` are commented out at `SubscriptionController.swift:22-23`). The screen SHALL also present no close affordance: the paywall is mandatory, so it has no way out but subscribing — see the `premium-gate` capability's "The paywall is not dismissible" requirement.
 
-The Privacy Policy tap SHALL open the existing P6 privacy-policy destination (`profile/privacy-policy`). The Term of Use tap SHALL open `https://www.apple.com/legal/internet-services/itunes/dev/stdeula/` (iOS `SubscriptionViewModel.swift:152-157`) in an external browser via an `Intent.ACTION_VIEW`.
+The Privacy Policy tap SHALL open the existing P6 privacy-policy destination (`profile/privacy-policy`), pushed **on top of** the plans route so that backing out of it returns to the paywall rather than into the un-gated app — matching iOS, which pushes `PrivacyPolicyView` onto the paywall's own navigation controller (`SubscriptionController.swift:81-85`). See the `premium-gate` capability's "The Privacy Policy excursion cannot bypass the paywall" requirement. The Term of Use tap SHALL open `https://www.apple.com/legal/internet-services/itunes/dev/stdeula/` (iOS `SubscriptionViewModel.swift:152-157`) in an external browser via an `Intent.ACTION_VIEW`.
 
 #### Scenario: Screen renders with the iOS chrome
 - **WHEN** the plans screen is composed with a resolved two-product catalog
@@ -39,6 +39,14 @@ The Privacy Policy tap SHALL open the existing P6 privacy-policy destination (`p
 - **THEN** "Start with a 1 week free trial." is visible
 - **AND WHEN** the selected product has no free-trial offer
 - **THEN** the line is not rendered
+
+#### Scenario: The price caption always carries the free-trial prefix
+- **WHEN** the plans screen is composed with a resolved catalog
+- **THEN** the caption above the subscribe button reads "1 week free, then {price}"
+- **AND WHEN** the user is **not** eligible for the selected plan's free trial
+- **THEN** the caption still reads "1 week free, then {price}", while the subscribe button's label reads "Subscribe" rather than "Try It Free"
+
+Only the **subscribe button's label** varies with trial availability. The caption above it does not: on iOS the "1 week free, then " prefix is part of the localized `select_payment_plan_message` string (`"1 week free, then %@"`) and `SubscriptionScreen.swift:172-178` substitutes the price into it with no branch on `isTrialAvailable`.
 
 ### Requirement: Exactly two selectable plan cards
 The plans screen SHALL render exactly **two** plan cards — Monthly and Yearly — matching iOS `SubscriptionScreen.swift:74-133`. There SHALL NOT be a third option, a feature-tier selector, or a plan-count variable.
@@ -85,7 +93,7 @@ The plans screen's selected plan SHALL default to `SubscriptionProductType.MONTH
 
 #### Scenario: Default selection
 - **WHEN** the plans screen is composed for the first time in a process
-- **THEN** the monthly card is selected and the caption reads "1 week free, then {monthly price}" or "{monthly price}" per trial availability
+- **THEN** the monthly card is selected and the caption reads "1 week free, then {monthly price}"
 
 ### Requirement: Subscription success screen reproduces iOS SubscriptionSuccessScreen
 The subscription success screen (inventory **11.3**, `SubscriptionSuccessScreen` + `SubscriptionSuccessContent` in `feature/subscription/success/`) SHALL reproduce iOS `SubscriptionSuccessScreen.swift` (43 lines) exactly:
@@ -189,13 +197,17 @@ On a subscribe tap the VM SHALL set `isPurchasing = true`, launch the purchase, 
 
 `KornerzCapsuleButton` SHALL live in `core/ui/components/` because it is a brand-level primitive with two color variants, mirroring iOS `KornerzButton.capsuleWhiteOnBlack` (`KornerzButton.swift:60-84`, `:263-277`) and `.capsuleBlackOnWhite` (`:279-294`). It SHALL accept an explicit style parameter for black-background/white-text versus white-background/black-text, a `text`, an `onClick`, an `enabled` flag defaulting to `true`, and a `fillMaxWidth` behavior matching iOS's `width: .infinite`. It SHALL take its colors from `KornerzColors` and its typography from `KornerzTypography` rather than inline hex values.
 
+The capsule's label SHALL render in **Satoshi 16 bold**, matching iOS's `.large` button size (`KornerzButtonSize.large` carries `fontSize = 16`, and the capsule content renders `.satoshi(size.fontSize, weight: .bold)` — `KornerzButton.swift:35-44`, `:146-149`). It SHALL NOT use `typography.labelLarge`'s 14-pt medium weight, which is smaller and lighter than iOS's button label.
+
+The capsule's height SHALL be **intrinsic** — content-sized via a vertical padding of 12 dp — matching iOS's `EdgeInsets(h: 18, v: 12)` on a `.large` button, rather than a fixed height.
+
 `KornerzButton(Filled | Outlined | Text)` SHALL NOT be modified — its 52-dp height, 16-dp shape, and theme-primary fill are used by every P0–P7 screen.
 
 `SubscriptionPlanCard` SHALL live in `feature/subscription/plans/components/` (not `core/ui`) because it embeds subscription-specific vocabulary — the per-month equivalent line and the trial offer tag — that no other screen has. It SHALL take `product: SubscriptionProduct`, `isSelected: Boolean`, and `onClick: () -> Unit`.
 
 #### Scenario: Capsule button renders both variants
 - **WHEN** `KornerzCapsuleButton` is composed with the white-on-black style
-- **THEN** it renders a fully-rounded black capsule with white text at full width
+- **THEN** it renders a fully-rounded black capsule with white text at full width, the label in Satoshi 16 bold
 
 #### Scenario: Existing button is untouched
 - **WHEN** `KornerzButton` is composed by an existing P0–P7 screen

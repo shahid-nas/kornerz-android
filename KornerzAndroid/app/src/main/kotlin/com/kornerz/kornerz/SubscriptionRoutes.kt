@@ -56,20 +56,6 @@ fun rememberSubscriptionRoutes(premiumGate: PremiumGate): List<ShellExtraRoute> 
         ShellExtraRoute(
             route = SubscriptionRoute.Plans.route,
             content = { scope ->
-                // `remember` is scoped to this back-stack entry, so the
-                // pre-gate destination is captured once per presentation
-                // and the unwind is deterministic rather than inferred from
-                // the back stack's depth.
-                val preGateRoute = androidx.compose.runtime.remember {
-                    androidx.compose.runtime.mutableStateOf<String?>(null)
-                }
-
-                androidx.compose.runtime.LaunchedEffect(Unit) {
-                    preGateRoute.value = scope.navController.previousBackStackEntry
-                        ?.destination
-                        ?.route
-                }
-
                 SubscriptionScreen(
                     onNavEvent = { event ->
                         when (event) {
@@ -107,13 +93,31 @@ fun rememberSubscriptionRoutes(premiumGate: PremiumGate): List<ShellExtraRoute> 
                             // Reuses the existing P6 `profile/privacy-policy`
                             // destination rather than a subscription-local
                             // copy of the PDF viewer.
-                            SubscriptionNavEvent.OpenPrivacyPolicy -> {
-                                popToPreGateDestination(
-                                    scope.navController,
-                                    preGateRoute.value,
-                                )
+                            //
+                            // The viewer is **pushed on top of** the plans
+                            // route, which is what iOS does: iOS presents
+                            // the paywall modally and pushes
+                            // `PrivacyPolicyView` onto the *same*
+                            // navigation controller
+                            // (`SubscriptionController.swift:81-85`), so
+                            // Back returns to the paywall.
+                            //
+                            // The plans route is deliberately **not**
+                            // popped. It used to be: the pop was there
+                            // because the paywall swallows the system
+                            // back gesture, so the viewer could not be
+                            // dismissed back into it. But popping removed
+                            // the paywall from the back stack entirely,
+                            // so Back from the viewer landed the user in
+                            // the un-gated app — a premium-gate bypass — and
+                            // the gate's clause-1 latch stayed stuck
+                            // `true`, so the paywall was never re-armed.
+                            //
+                            // Pushing instead keeps the paywall on the
+                            // stack: Back from the viewer returns to it,
+                            // and the gate's latch stays truthful.
+                            SubscriptionNavEvent.OpenPrivacyPolicy ->
                                 scope.openPrivacyPolicy()
-                            }
 
                             // iOS `SubscriptionViewModel.swift:152-157`
                             // opens the EULA externally. The back stack is
@@ -181,27 +185,6 @@ fun rememberSubscriptionRoutes(premiumGate: PremiumGate): List<ShellExtraRoute> 
             },
         ),
     )
-}
-
-/**
- * Returns to the destination that was current before the paywall opened,
- * falling back to a plain pop when that entry is gone (for example after
- * a process restore).
- *
- * The Privacy Policy link still needs this: the paywall route is
- * mandatory (it has no close affordance and swallows the system back
- * gesture), so it must be popped off the stack before the PDF viewer can
- * take over. The viewer itself lives on the shell's root graph
- * (`profile/privacy-policy`, registered by `feature/shell`), so it renders
- * as soon as the plans route is gone.
- */
-private fun popToPreGateDestination(
-    navController: androidx.navigation.NavHostController,
-    preGateRoute: String?,
-) {
-    val popped = preGateRoute != null &&
-        navController.popBackStack(preGateRoute, inclusive = false)
-    if (!popped) navController.popBackStack()
 }
 
 /** iOS `SubscriptionViewModel.swift:152-157`. */

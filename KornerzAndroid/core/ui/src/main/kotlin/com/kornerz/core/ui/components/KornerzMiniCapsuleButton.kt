@@ -33,10 +33,11 @@ import com.kornerz.core.ui.theme.KornerzTheme
  *   - shape: capsule
  *
  * **Why this is a sibling of [KornerzCapsuleButton] rather than a
- * style of it:** `KornerzCapsuleButton` is the full-width 56-dp
- * primary action (plans, success screens). The Korner detail hero and
- * the nook cards need an *inline* capsule with a 12-sp regular label
- * and a 16×4 padding, so the geometry differs in every dimension.
+ * style of it:** `KornerzCapsuleButton` is the full-width primary
+ * action (plans, success screens), sized to its label with a Satoshi
+ * 16 bold label. The Korner detail hero and the nook cards need an
+ * *inline* capsule with a 12-sp regular label and a 16×4 padding, so
+ * the geometry differs in every dimension.
  *
  * Modifier is the last parameter (architecture §4).
  */

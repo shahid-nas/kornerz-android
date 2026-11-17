@@ -5,7 +5,6 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import com.kornerz.core.model.User
 import kotlinx.coroutines.tasks.await
-import java.util.Calendar
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -99,9 +98,9 @@ class UserFirestoreApi @Inject constructor(
     /**
      * Mirrors iOS `FireStoreServiceManager.updateRegistrationDate
      * (userId:)` (lines 78–83): if the user document has no
-     * `userDateRegister` field, stamp it with the seed date
-     * `2024-03-25T00:00:00Z`. Used by `UserProfileRepository.refresh`
-     * on the first session after the v4 migration.
+     * `userDateRegister` field, stamp it with the current timestamp.
+     * New signups set the field before insertion; this fallback covers
+     * legacy documents created before Android began storing it.
      */
     suspend fun updateRegistrationDateIfNeeded(email: String): Result<Unit> = runCatching {
         val snapshot = firestore.collection(USERS_COLLECTION)
@@ -111,14 +110,10 @@ class UserFirestoreApi @Inject constructor(
         if (!snapshot.exists()) return@runCatching
         val existing = snapshot.getTimestamp(FIELD_REGISTRATION_DATE)
         if (existing != null) return@runCatching
-        val seedCalendar = Calendar.getInstance().apply {
-            clear()
-            set(2024, Calendar.MARCH, 25, 0, 0, 0)
-        }
         firestore.collection(USERS_COLLECTION)
             .document(email)
             .set(
-                mapOf(FIELD_REGISTRATION_DATE to com.google.firebase.Timestamp(seedCalendar.time)),
+                mapOf(FIELD_REGISTRATION_DATE to com.google.firebase.Timestamp.now()),
                 SetOptions.merge(),
             )
             .await()
@@ -161,6 +156,7 @@ class UserFirestoreApi @Inject constructor(
             subscriptionExpiryDate = data[FIELD_SUBSCRIPTION_EXPIRY]?.toInstantString(),
             subscriptionType = data[FIELD_SUBSCRIPTION_TYPE] as? String,
             subscriptionPlatform = data[FIELD_SUBSCRIPTION_PLATFORM] as? String,
+            createdAt = data[FIELD_REGISTRATION_DATE]?.toInstantString(),
             firebaseImageUrl = data[FIELD_FIREBASE_IMAGE_URL] as? String,
             firebaseThumbnailUrl = data[FIELD_FIREBASE_THUMBNAIL_URL] as? String,
             thumbnailType = data[FIELD_THUMBNAIL_TYPE] as? String,

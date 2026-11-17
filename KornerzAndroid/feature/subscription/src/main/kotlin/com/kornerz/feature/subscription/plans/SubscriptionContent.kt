@@ -263,6 +263,11 @@ private fun LoadedPlans(
 
             // iOS `select_payment_plan_message`, in black on the
             // aqua surface rather than the white content card.
+            //
+            // iOS renders this caption unconditionally — the "1 week
+            // free, then " prefix is part of the localized string, not a
+            // conditional the screen adds. Only the button label below
+            // varies with trial availability.
             Text(
                 text = selectedPriceCaption(state),
                 color = Color.Black,
@@ -420,23 +425,27 @@ private fun orderedPlans(products: List<SubscriptionProduct>): List<Subscription
 }
 
 /**
- * "1 week free, then {price}" when the user is eligible for the
- * selected plan's trial, else just the price. iOS passes
- * `viewModel.selectedPrice` into `select_payment_plan_message`, whose
- * English value carries the "1 week free, then " prefix.
+ * "1 week free, then {price}".
  *
- * The prefix is gated on the same eligibility flag as the button label,
- * so the caption can never claim a trial the button does not offer.
+ * iOS renders this **unconditionally**. The prefix lives inside the
+ * `select_payment_plan_message` localization — whose English value is
+ * `"1 week free, then %@"` — and `SubscriptionScreen.swift:172-178`
+ * substitutes `viewModel.selectedPrice` into it with no branch on
+ * `isTrialAvailable`. Only the *button label* varies with trial
+ * availability (`SubscriptionScreen.swift:156-169`); the caption above
+ * it never does.
+ *
+ * Gating the prefix on Android's `isTrialEligible` was therefore a
+ * parity break: a user the store will not grant a trial saw a bare
+ * "$10.99/month" where iOS shows "1 week free, then $10.99/month".
  *
  * The price itself is the card's `displayPrice` — iOS's
  * `<displayPrice>/<periodUnit>` format (`SubscriptionViewModel.swift:93-110`)
  * — so the caption reads "1 week free, then $10.99/month" exactly as it
  * does on iOS.
  */
-private fun selectedPriceCaption(state: SubscriptionState): String {
-    val price = state.selectedPriceLabel.orEmpty()
-    return if (state.isTrialEligible) "$TRIAL_CAPTION_PREFIX$price" else price
-}
+private fun selectedPriceCaption(state: SubscriptionState): String =
+    "$TRIAL_CAPTION_PREFIX${state.selectedPriceLabel.orEmpty()}"
 
 /**
  * iOS `AppColor.C68B6CC` (`kornerz/Kornerz/Helper/Config.swift:51`),
@@ -532,10 +541,14 @@ private fun SubscriptionContentYearlySelectedPreview() {
  * free trial, or the store is not granting one to them.
  *
  * Pins the button contract: the capsule reads "Subscribe", not "Try It
- * Free", and the price caption carries no "1 week free, then " prefix.
- * This is the state iOS reaches through the same route — StoreKit simply
- * leaves `Product.introductoryOffer` nil for a user who has consumed it
- * (`SubscriptionViewModel.swift:73-79`).
+ * Free". This is the state iOS reaches through the same route — StoreKit
+ * simply leaves `Product.introductoryOffer` nil for a user who has
+ * consumed it (`SubscriptionViewModel.swift:73-79`).
+ *
+ * The price caption above the button still reads "1 week free, then
+ * {price}", because iOS renders `select_payment_plan_message`
+ * unconditionally (`SubscriptionScreen.swift:172-178`) — only the button
+ * label varies with trial availability.
  */
 @Preview(showBackground = true, backgroundColor = PREVIEW_BACKGROUND)
 @Composable
@@ -623,7 +636,12 @@ private const val FEATURE_BLURB =
 /** iOS `start_free_trial`. */
 private const val FREE_TRIAL_LINE = "Start with a 1 week free trial."
 
-/** iOS `select_payment_plan_message`, English value. */
+/**
+ * iOS `select_payment_plan_message`, English value `"1 week free, then %@"`.
+ *
+ * Applied unconditionally, exactly as iOS does — the prefix is part of
+ * the localized string, not a conditional the screen adds.
+ */
 private const val TRIAL_CAPTION_PREFIX = "1 week free, then "
 
 /** iOS `try_for_free`. */

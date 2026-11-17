@@ -368,8 +368,11 @@ subscription navigation wiring:
   return the user to where they were.
 - On `SubscriptionNavEvent.Dismissed`, the shell SHALL pop back to the
   pre-gate destination and call `PremiumGate.markDismissed()`.
-- `SubscriptionNavEvent.OpenPrivacyPolicy` SHALL route to the existing
-  P6 `profile/privacy-policy` destination.
+- `SubscriptionNavEvent.OpenPrivacyPolicy` SHALL push the existing P6
+  `profile/privacy-policy` destination **on top of** the plans route,
+  leaving the plans route on the back stack. See the `premium-gate`
+  capability's "The Privacy Policy excursion cannot bypass the paywall"
+  requirement.
 - `SubscriptionNavEvent.OpenTermsOfUse` SHALL open
   `https://www.apple.com/legal/internet-services/itunes/dev/stdeula/`
   externally via `Intent.ACTION_VIEW` (iOS
@@ -397,6 +400,7 @@ unwind is deterministic rather than relying on the back stack depth.
 #### Scenario: Privacy policy reuses the P6 destination
 - **WHEN** `SubscriptionNavEvent.OpenPrivacyPolicy` is received
 - **THEN** the shell navigates to the existing `profile/privacy-policy` destination rather than a subscription-local copy
+- **AND** `subscription/plans` remains on the back stack, so backing out of the viewer returns to the paywall
 
 #### Scenario: Terms of use opens externally
 - **WHEN** `SubscriptionNavEvent.OpenTermsOfUse` is received

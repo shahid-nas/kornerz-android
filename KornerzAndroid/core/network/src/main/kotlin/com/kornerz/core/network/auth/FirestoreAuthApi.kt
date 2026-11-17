@@ -84,6 +84,7 @@ class FirestoreAuthApi @Inject constructor(
             "emailUserLogged" to true,
             "termosAceitos" to true,
             "isUserPremium" to false,
+            FIELD_REGISTRATION_DATE to com.google.firebase.Timestamp.now(),
         )
         docRef.set(payload).await()
         signInFirebaseAnonymously()
@@ -170,7 +171,7 @@ class FirestoreAuthApi @Inject constructor(
                 subscriptionExpiryDate = data[FIELD_SUBSCRIPTION_EXPIRY]?.toInstantString(),
                 subscriptionType = data[FIELD_SUBSCRIPTION_TYPE] as? String,
                 subscriptionPlatform = data[FIELD_SUBSCRIPTION_PLATFORM] as? String,
-                createdAt = null,
+                createdAt = data[FIELD_REGISTRATION_DATE]?.toInstantString(),
                 // The avatar projection fields. Without these the session
                 // user's `thumbnailURL` / `imageURL` resolve to null and
                 // the Profile screen always renders the placeholder.
@@ -251,5 +252,6 @@ class FirestoreAuthApi @Inject constructor(
         const val FIELD_SUBSCRIPTION_EXPIRY = "subscriptionExpiryDate"
         const val FIELD_SUBSCRIPTION_TYPE = "subscriptionType"
         const val FIELD_SUBSCRIPTION_PLATFORM = "subscriptionPlatform"
+        const val FIELD_REGISTRATION_DATE = "userDateRegister"
     }
 }

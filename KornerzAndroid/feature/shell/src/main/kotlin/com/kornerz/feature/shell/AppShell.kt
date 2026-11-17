@@ -214,6 +214,40 @@ fun AppShell(
         }
     }
 
+    // Keep the gate's clause-1 latch in sync with the **actual** back
+    // stack.
+    //
+    // Clause 1 is "the plans route is not already showing", i.e. the gate
+    // must not re-present the paywall while it is on screen. Tracking it
+    // by hand at each call site let it drift: the Privacy Policy path
+    // popped the plans route off the stack without clearing the latch, so
+    // the gate believed the paywall was still showing for the rest of the
+    // process and never re-armed it — the paywall became permanently
+    // dismissible.
+    //
+    // Reading the back stack instead makes the latch self-correcting: it
+    // is true exactly when the plans route is on the stack, however it
+    // got there. The check is "on the stack" rather than "is the current
+    // destination" because the paywall pushes the Privacy Policy viewer
+    // on top of itself — the viewer is the current destination while the
+    // paywall is still on the stack beneath it, and the user must not
+    // reach the un-gated app by backing out of the viewer.
+    //
+    // The latch is only ever **cleared** here, never set: the opening
+    // effect above sets it optimistically, before the navigation commits,
+    // so a clear between "gate fired" and "navigation committed" cannot
+    // open a window for a second paywall. A stale `true` is impossible
+    // because this effect re-runs on every back-stack change, and a
+    // stale `false` is impossible because the opening effect sets it.
+    LaunchedEffect(navController) {
+        navController.currentBackStack.collect { stack ->
+            val plansOnStack = stack.any {
+                it.destination.route == SubscriptionRoutePatterns.PLANS
+            }
+            viewModel.onPremiumRouteStackChanged(plansOnStack)
+        }
+    }
+
     val extraRouteScope = remember(navController, viewModel) {
         ShellExtraRouteScope(
             navController = navController,
