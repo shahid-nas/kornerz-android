@@ -17,7 +17,7 @@ android {
         applicationId = "com.kornerz.kornerz"
         minSdk = 26
         targetSdk = 36
-        versionCode = 184
+        versionCode = 186
         versionName = "2.0"
     }
 

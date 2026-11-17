@@ -10,6 +10,7 @@ import com.kornerz.core.model.AsyncValue
 import com.kornerz.core.network.gamification.GamificationRepository
 import com.kornerz.core.network.videocall.PublisherInfo
 import com.kornerz.core.network.videocall.RemoteSubscriber
+import com.kornerz.core.network.videocall.VideoCallJoinNotifier
 import com.kornerz.core.network.videocall.VideoCallSessionEvent
 import com.kornerz.core.network.videocall.VonageSessionController
 import com.kornerz.core.storage.session.SessionRepository
@@ -56,6 +57,7 @@ class VideoCallViewModel @Inject constructor(
     private val vonageSessionController: VonageSessionController,
     private val sessionRepository: SessionRepository,
     private val gamificationRepository: GamificationRepository,
+    private val videoCallJoinNotifier: VideoCallJoinNotifier,
 ) : ViewModel() {
 
     private val sessionId: String = savedStateHandle.get<String>(ARG_SESSION_ID).orEmpty()
@@ -112,6 +114,9 @@ class VideoCallViewModel @Inject constructor(
 
     /** Guards the one-shot Klouders award for joining a nook. */
     private var hasAwardedAccessNook = false
+
+    /** Guards the one-shot backend join notification. */
+    private var hasNotifiedCallJoined = false
 
     /**
      * Set once the user ends the call, so the session's own
@@ -362,6 +367,7 @@ class VideoCallViewModel @Inject constructor(
             vonageSessionController.currentContext = appContext
         }
         awardAccessNookOnce()
+        notifyCallJoinedOnce()
         Log.i(
             TAG,
             "startConnect: sessionId='$sessionId' permissions=$permissionsGranted identity=$publisherInfoReady",
@@ -403,6 +409,27 @@ class VideoCallViewModel @Inject constructor(
                 points = 2,
                 referenceId = communityId,
             )
+        }
+    }
+
+    /**
+     * Notifies the backend that this user joined the video call.
+     * Mirrors iOS `VideoCallViewModel.onAppear()`. The notification is
+     * best-effort and never blocks or fails the call.
+     */
+    private fun notifyCallJoinedOnce() {
+        if (hasNotifiedCallJoined) return
+        hasNotifiedCallJoined = true
+        viewModelScope.launch {
+            val nickname = (sessionRepository.data.first() as? SessionState.Authenticated)
+                ?.user
+                ?.nickname
+                ?.takeIf { it.isNotBlank() }
+                ?: return@launch
+            videoCallJoinNotifier.notifyVideoCallJoined(communityId, nickname)
+                .onFailure { error ->
+                    Log.w(TAG, "Video call join notification failed: ${error.message}")
+                }
         }
     }
 

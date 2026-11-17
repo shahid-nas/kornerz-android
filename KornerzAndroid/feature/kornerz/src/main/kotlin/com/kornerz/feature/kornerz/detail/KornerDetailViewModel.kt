@@ -298,7 +298,8 @@ class KornerDetailViewModel @Inject constructor(
             KornerDetailNavEvent.JoinVideoCall(
                 sessionId = sessionId,
                 communityName = detail.korner.name,
-                communityId = detail.korner.id,
+                communityId = detail.korner.communityId?.takeIf { it.isNotBlank() }
+                    ?: detail.korner.id,
             ),
         )
     }
