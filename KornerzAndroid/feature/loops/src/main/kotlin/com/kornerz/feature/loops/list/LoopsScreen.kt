@@ -10,7 +10,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.kornerz.core.model.AsyncValue
 
 /**
  * Entry Composable for the Loops tab list (architecture §2.1).
@@ -48,7 +47,7 @@ fun LoopsScreen(
 
     Box(modifier = modifier.fillMaxSize()) {
         PullToRefreshBox(
-            isRefreshing = state.feed is AsyncValue.Loading,
+            isRefreshing = state.isRefreshing,
             onRefresh = { viewModel.onEvent(LoopsEvent.Refresh) },
             modifier = Modifier.fillMaxSize(),
         ) {

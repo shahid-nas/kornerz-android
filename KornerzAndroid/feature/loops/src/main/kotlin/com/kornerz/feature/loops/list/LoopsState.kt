@@ -25,5 +25,14 @@ data class LoopsState(
     val searchQuery: String = "",
     val isSearchMode: Boolean = false,
     val hasMoreData: Boolean = true,
+    /**
+     * True while a *pull-to-refresh* reload is in flight.
+     *
+     * Kept separate from [feed]'s `AsyncValue.Loading` so the refresh
+     * spinner is only shown for an actual user-initiated pull — not
+     * for the first load (which shows the shimmer) and not for a
+     * background reload that keeps the current content on screen.
+     */
+    val isRefreshing: Boolean = false,
     val accentColors: Map<String, androidx.compose.ui.graphics.Color> = emptyMap(),
 )

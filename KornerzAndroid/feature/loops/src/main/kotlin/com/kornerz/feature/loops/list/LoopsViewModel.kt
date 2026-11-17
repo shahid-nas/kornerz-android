@@ -28,6 +28,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.filterNot
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -85,6 +87,7 @@ class LoopsViewModel @Inject constructor(
         when (event) {
             LoopsEvent.Refresh -> {
                 headerVm.fetchData()
+                _state.update { it.copy(isRefreshing = true) }
                 loadInitial()
             }
             LoopsEvent.Retry -> loadInitial()
@@ -113,10 +116,28 @@ class LoopsViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Reloads the feed from the first page.
+     *
+     * When content is already on screen the feed is **not** reset to
+     * `AsyncValue.Loading` — the existing page stays visible while the
+     * new one is fetched. iOS behaves the same way: `fetchLoops()`
+     * sets `isLoading = true` but leaves the `loops` array intact, and
+     * the view only shows the loading state while `loops.isEmpty`
+     * (iOS `LoopsTabViewModel.fetchLoops` / `LoopsTabView`). Blanking
+     * the feed here is what made the tab flash the shimmer a second
+     * time after the content had already been rendered.
+     */
     private fun loadInitial() {
         feedJob?.cancel()
         lastDocument = null
-        _state.update { it.copy(feed = AsyncValue.Loading, hasMoreData = true) }
+        _state.update { current ->
+            if (current.feed is AsyncValue.Success) {
+                current.copy(hasMoreData = true)
+            } else {
+                current.copy(feed = AsyncValue.Loading, hasMoreData = true)
+            }
+        }
         feedJob = viewModelScope.launch {
             loopRepository
                 .observeLoops(
@@ -140,10 +161,15 @@ class LoopsViewModel @Inject constructor(
                                         ),
                                     ),
                                     hasMoreData = page.hasMore,
+                                    isRefreshing = false,
                                 )
                             }
                         },
-                        onFailure = { t -> _state.update { it.copy(feed = AsyncValue.Error(t)) } },
+                        onFailure = { t ->
+                            _state.update {
+                                it.copy(feed = AsyncValue.Error(t), isRefreshing = false)
+                            }
+                        },
                     )
                 }
         }
@@ -252,11 +278,32 @@ class LoopsViewModel @Inject constructor(
             }
             .first()
 
+    /**
+     * Watches the search field and reloads the feed.
+     *
+     * The debounce must only react to **user-driven** query changes.
+     * `searchQuery` is a `StateFlow` seeded with `""`, and `debounce`
+     * always emits the latest value — including that initial `""` —
+     * one debounce window after the ViewModel is constructed. Without
+     * a guard that initial emission re-runs [loadInitial] ~1.5 s after
+     * the tab opened, which reset the feed back to `AsyncValue.Loading`
+     * and flashed the shimmer a second time, right after the content
+     * had already been shown.
+     *
+     * `drop(1)` drops that replayed seed value. Clearing the field
+     * back to blank is a genuine user action and must still reload the
+     * unfiltered feed, so the blank case is not filtered out — it is
+     * distinguished from the seed by the `drop(1)` above.
+     */
     private fun observeSearch() {
         viewModelScope.launch {
-            searchQuery.debounce(1_500L).collectLatest {
-                loadInitial()
-            }
+            searchQuery
+                .debounce(1_500L)
+                .drop(1)
+                .distinctUntilChanged()
+                .collectLatest {
+                    loadInitial()
+                }
         }
         viewModelScope.launch {
             searchSubmitTrigger.collect {

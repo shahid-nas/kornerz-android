@@ -289,6 +289,72 @@ fun AppShell(
     val pendingLoopTarget = remember { MutableStateFlow<LoopDetailTarget?>(null) }
 
     /**
+     * The Loops tab's **live** nested controller.
+     *
+     * The loop detail lives inside the Loops tab's nested `NavHost`, so
+     * the shell cannot push it on the root controller — it writes the
+     * requested id to [pendingLoopTarget] and the tab's nested
+     * controller consumes it.
+     *
+     * **Why the live controller has to be published.** Switching to the
+     * Loops tab re-creates the tab's destination entry, so the tab's
+     * nested `NavHost` — and with it the collector that consumes the
+     * pending target — is **recreated**. The previous collector is
+     * disposed, but not *synchronously*: for a short window the old
+     * collector is still alive and still subscribed to
+     * [pendingLoopTarget].
+     *
+     * The shell writes the pending target **before** it switches the
+     * tab, so the write is delivered to the collector that is alive at
+     * that moment — the **old** one. It then navigates on a nested
+     * controller that is about to be destroyed, and clears the holder,
+     * so the **new** collector sees `null` and the loop detail never
+     * opened. That is why tapping a `LoopComment` push while the Loops
+     * tab was already on screen did nothing but reload the tab.
+     *
+     * Publishing the live controller makes the hand-off deterministic:
+     * a collector may only consume a target when it owns the live
+     * controller. The shell clears the published controller **before**
+     * switching the tab, so the old collector cannot consume anything,
+     * and the new collector — which publishes itself as it starts —
+     * consumes the target that is still waiting in the holder.
+     */
+    val liveLoopsController = remember { MutableStateFlow<NavHostController?>(null) }
+
+    /**
+     * The Kornerz tab's **live** nested controller.
+     *
+     * The Korner detail lives inside the Kornerz tab's nested
+     * `NavHost`, so the shell reaches it through the pending holder
+     * rather than pushing it on the root controller.
+     *
+     * The live controller is published so that only the collector that
+     * owns it can consume a pending target. Switching to the tab
+     * re-creates its destination entry, so the nested controller — and
+     * the collector — are **recreated**, and the old collector is still
+     * subscribed for a short window. Without the guard the stale
+     * collector used to navigate on a controller that was about to be
+     * destroyed and clear the holder, so the live collector saw
+     * `null` and the Korner detail never opened.
+     *
+     * See [liveLoopsController] for the full story.
+     */
+    val liveKornerzController = remember { MutableStateFlow<NavHostController?>(null) }
+
+    /**
+     * Records a loop-detail request in the pending holder.
+     *
+     * The holder is cleared by the collector that owns the **live**
+     * nested controller, so a stale collector can never take the
+     * target away from the live one.
+     *
+     * See [liveLoopsController] for why that matters.
+     */
+    val setPendingLoopTarget: (LoopDetailTarget) -> Unit = { target ->
+        pendingLoopTarget.value = target
+    }
+
+    /**
      * Whether the loop detail currently on screen hides the bottom
      * bar. The detail lives inside a tab's **nested** `NavHost` — the
      * Loops tab's own feed and the Home tab's loop-of-the-day card
@@ -390,7 +456,8 @@ fun AppShell(
                 navController = navController,
                 loopId = target.loopId,
                 hideBottomBar = true,
-                onPending = { pendingLoopTarget.value = it },
+                liveLoopsController = liveLoopsController,
+                onPending = { setPendingLoopTarget(it) },
             )
 
             is DeepLinkTarget.KornerDetail -> {
@@ -411,6 +478,7 @@ fun AppShell(
                     navigateToKornerDetail(
                         navController = navController,
                         kornerId = target.kornerId,
+                        liveKornerzController = liveKornerzController,
                         onPending = { pendingKornerTarget.value = it },
                     )
                 }
@@ -566,6 +634,7 @@ fun AppShell(
                         navController = navController,
                         kornerId = id,
                         themeColorHex = themeColorHex,
+                        liveKornerzController = liveKornerzController,
                         onPending = { pendingKornerTarget.value = it },
                     )
                 },
@@ -597,10 +666,11 @@ fun AppShell(
                         loopId = id,
                         hideBottomBar = true,
                         accentColorHex = accentColorHex,
-                        onPending = { pendingLoopTarget.value = it },
+                        onPending = { setPendingLoopTarget(it) },
                     )
                 },
                 pendingKornerTarget = pendingKornerTarget,
+                liveKornerzController = liveKornerzController,
                 onPendingConsumed = { pendingKornerTarget.value = null },
                 snackbarHostState = comingSoonSnackbar,
                 onHideBottomBarChanged = { hides -> kornerDetailHidesBottomBar = hides },
@@ -639,10 +709,12 @@ fun AppShell(
                         navController = navController,
                         kornerId = kornerId,
                         themeColorHex = themeColorHex,
+                        liveKornerzController = liveKornerzController,
                         onPending = { pendingKornerTarget.value = it },
                     )
                 },
                 pendingLoopTarget = pendingLoopTarget,
+                liveLoopsController = liveLoopsController,
                 onPendingConsumed = { pendingLoopTarget.value = null },
                 onHideBottomBarChanged = { loopsLoopDetailHidesBottomBar = it },
                 onLoopDetailVisibleChanged = { loopsLoopDetailVisible = it },
@@ -724,7 +796,8 @@ fun AppShell(
                             navController = navController,
                             loopId = loopId,
                             hideBottomBar = true,
-                            onPending = { pendingLoopTarget.value = it },
+                            liveLoopsController = liveLoopsController,
+                            onPending = { setPendingLoopTarget(it) },
                         )
                     },
                     onOpenForumComment = { forumId ->
@@ -959,12 +1032,35 @@ private fun navigateToTab(navController: NavHostController, tab: ShellTab) {
     }
 }
 
+/**
+ * Opens the Korner detail in the Kornerz tab.
+ *
+ * The Korner detail lives inside the Kornerz tab's **nested**
+ * `NavHost`, so the shell cannot push it on the root controller — it
+ * writes the requested id to the pending holder and the tab's nested
+ * controller consumes it.
+ *
+ * **The live controller is released first.** Switching to the Kornerz
+ * tab re-creates the tab's destination entry, so the tab's nested
+ * `NavHost` — and the collector that consumes the pending target — are
+ * **recreated**. The old collector is disposed, but not
+ * synchronously, so it is still subscribed to the holder when the
+ * target is written. Releasing the live controller first makes the
+ * hand-off deterministic: the old collector is skipped, and the
+ * collector that starts with the rebuilt tab consumes the target.
+ */
 private fun navigateToKornerDetail(
     navController: NavHostController,
     kornerId: String,
     themeColorHex: String = "",
+    liveKornerzController: MutableStateFlow<NavHostController?>? = null,
     onPending: (KornerDetailTarget) -> Unit = {},
 ) {
+    // The tab that is on screen right now is about to be replaced. It
+    // must stop claiming to be the live controller **before** the
+    // target is written, so its collector cannot consume the target
+    // that belongs to the tab that replaces it.
+    liveKornerzController?.value = null
     onPending(KornerDetailTarget(kornerId = kornerId, themeColorHex = themeColorHex))
     navController.navigate(ShellTab.Kornerz.route) {
         popUpTo(navController.graph.id) { saveState = true }
@@ -973,11 +1069,38 @@ private fun navigateToKornerDetail(
     }
 }
 
+/**
+ * Opens the loop detail in the Loops tab.
+ *
+ * The loop detail lives inside the Loops tab's **nested** `NavHost`, so
+ * the shell cannot push it on the root controller — it writes the
+ * requested id to the pending holder and the tab's nested controller
+ * consumes it.
+ *
+ * **The live controller is released first.** Switching to the Loops tab
+ * re-creates the tab's destination entry, so the tab's nested `NavHost`
+ * — and the collector that consumes the pending target — are
+ * **recreated**. The old collector is disposed, but not
+ * synchronously, so it is still subscribed to the holder when the
+ * target is written.
+ *
+ * Releasing the live controller first makes the hand-off deterministic:
+ * the old collector no longer owns the live controller, so it is
+ * skipped, and the collector that starts with the rebuilt tab — the one
+ * that publishes itself as live — consumes the target.
+ *
+ * Without this, the old collector won the race: it navigated on a
+ * controller that was about to be destroyed and cleared the holder, so
+ * the new collector saw `null` and the loop detail never opened. The
+ * visible symptom was a `LoopComment` push tapped while the Loops tab
+ * was already on screen reloading the tab and doing nothing else.
+ */
 private fun navigateToLoopDetail(
     navController: NavHostController,
     loopId: String,
     hideBottomBar: Boolean = true,
     accentColorHex: String = "",
+    liveLoopsController: MutableStateFlow<NavHostController?>? = null,
     onPending: (LoopDetailTarget) -> Unit = {},
 ) {
     DeepLinkLog.log(
@@ -985,6 +1108,11 @@ private fun navigateToLoopDetail(
         "handing the loop detail over to the Loops tab: loopId='$loopId' " +
             "hideBottomBar=$hideBottomBar accentColorHex='$accentColorHex'",
     )
+    // The tab that is on screen right now is about to be replaced. It
+    // must stop claiming to be the live controller **before** the
+    // target is written, so its collector cannot consume the target
+    // that belongs to the tab that replaces it.
+    liveLoopsController?.value = null
     onPending(
         LoopDetailTarget(
             loopId = loopId,
@@ -994,12 +1122,20 @@ private fun navigateToLoopDetail(
     )
     navController.navigate(ShellTab.Loops.route) {
         popUpTo(navController.graph.id) { saveState = true }
-        launchSingleTop = true
         // The tab is entered **fresh**: the loop the caller asked for is
         // the only detail on the tab's nested stack. Restoring the saved
         // state would push the requested detail on top of a detail that
         // was open earlier, so the back button would reveal that stale
         // screen instead of the feed.
+        //
+        // `launchSingleTop` is deliberately **not** set. The tab is
+        // often the destination that is already on screen — the user
+        // was looking at the Loops feed when the push was tapped — and
+        // `launchSingleTop` would then match the existing entry and
+        // skip the navigation altogether, leaving the pending target
+        // unconsumed. Without it the tab's entry is re-created, the
+        // nested controller is rebuilt, and the live collector picks
+        // the target up.
         restoreState = false
     }
     DeepLinkLog.log(
@@ -1199,6 +1335,7 @@ internal fun androidx.navigation.NavGraphBuilder.kornerzTabGraph(
     onJoinVideoCall: (sessionId: String, communityName: String, communityId: String) -> Unit =
         { _, _, _ -> },
     pendingKornerTarget: MutableStateFlow<KornerDetailTarget?>,
+    liveKornerzController: MutableStateFlow<NavHostController?>,
     onPendingConsumed: () -> Unit = {},
     onHideBottomBarChanged: (Boolean) -> Unit = {},
     onKornerDetailVisibleChanged: (Boolean) -> Unit = {},
@@ -1239,18 +1376,42 @@ internal fun androidx.navigation.NavGraphBuilder.kornerzTabGraph(
         // pushed. The collector receives the target written before the
         // tab switch (a `StateFlow` replays its current value to a new
         // subscriber) and every target written while the tab is open.
+        //
+        // The **ownership guard** is the same one the Loops tab uses:
+        // switching to this tab re-creates its destination entry, so the
+        // nested controller — and this collector — are recreated, and the
+        // old collector is still subscribed for a short window. Only the
+        // collector that owns the **live** controller may consume the
+        // target; the stale one is skipped without clearing the holder,
+        // so the target survives for the live collector.
         LaunchedEffect(nested) {
-            pendingKornerTarget.collect { target ->
-                if (target != null) {
-                    // Cleared before the push so a cancelled tab switch
-                    // cannot replay the same target on the next visit.
-                    onPendingConsumed()
-                    nested.navigate(
-                        KornerzRoute.Detail.build(
-                            kornerId = target.kornerId,
-                            themeColorHex = target.themeColorHex,
-                        ),
-                    )
+            liveKornerzController.value = nested
+            try {
+                pendingKornerTarget.collect { target ->
+                    if (target != null) {
+                        if (liveKornerzController.value !== nested) {
+                            DeepLinkLog.log(
+                                "11-consume",
+                                "ignoring a pending target on a STALE nested " +
+                                    "controller — the Kornerz tab's live controller " +
+                                    "is different, so the target is left for it",
+                            )
+                            return@collect
+                        }
+                        // Cleared before the push so a cancelled tab switch
+                        // cannot replay the same target on the next visit.
+                        onPendingConsumed()
+                        nested.navigate(
+                            KornerzRoute.Detail.build(
+                                kornerId = target.kornerId,
+                                themeColorHex = target.themeColorHex,
+                            ),
+                        )
+                    }
+                }
+            } finally {
+                if (liveKornerzController.value === nested) {
+                    liveKornerzController.value = null
                 }
             }
         }
@@ -1438,6 +1599,7 @@ internal fun androidx.navigation.NavGraphBuilder.loopsTabGraph(
     onProfileTap: () -> Unit = {},
     onNavigateToKornerDetail: (String, String) -> Unit = { _, _ -> },
     pendingLoopTarget: MutableStateFlow<LoopDetailTarget?>,
+    liveLoopsController: MutableStateFlow<NavHostController?>,
     onPendingConsumed: () -> Unit = {},
     onHideBottomBarChanged: (Boolean) -> Unit = {},
     onLoopDetailVisibleChanged: (Boolean) -> Unit = {},
@@ -1463,32 +1625,83 @@ internal fun androidx.navigation.NavGraphBuilder.loopsTabGraph(
         val loopDetailVisible = nestedRoute == LoopsRoute.Detail.PATTERN
         LaunchedEffect(loopDetailVisible) { onLoopDetailVisibleChanged(loopDetailVisible) }
         LaunchedEffect(nested) {
-            pendingLoopTarget.collect { target ->
-                if (target != null) {
-                    // Cleared before the push so a cancelled tab switch
-                    // cannot replay the same target on the next visit.
-                    onPendingConsumed()
-                    val route = LoopsRoute.Detail.build(
-                        target.loopId,
-                        target.hideBottomBar,
-                        target.accentColorHex,
-                    )
-                    DeepLinkLog.log(
-                        "11-consume",
-                        "the Loops tab took the pending target: loopId=" +
-                            "'${target.loopId}' route='$route'",
-                    )
-                    nested.navigate(route)
-                    DeepLinkLog.log(
-                        "12-route",
-                        "pushed the loop detail route '$route' on the " +
-                            "Loops tab's nested controller",
-                    )
-                } else {
-                    DeepLinkLog.log(
-                        "11-consume",
-                        "the pending target is empty — nothing to open",
-                    )
+            // Publish this controller as the Loops tab's **live** one.
+            //
+            // Switching to the tab re-creates its destination entry, so
+            // the nested controller — and this collector — are
+            // **recreated**. The previous collector is disposed, but
+            // not synchronously: for a short window the old collector
+            // is still subscribed to [pendingLoopTarget] and can still
+            // receive the target the shell writes.
+            //
+            // The shell clears the published controller *before* it
+            // switches the tab, so the old collector can no longer
+            // claim ownership and is skipped. This collector publishes
+            // itself as it starts, and it is the one that consumes the
+            // target that is still waiting in the holder.
+            liveLoopsController.value = nested
+            try {
+                pendingLoopTarget.collect { target ->
+                    if (target != null) {
+                        // The ownership guard. Only the collector whose
+                        // controller is the **live** one may consume
+                        // the target. A collector whose controller has
+                        // been replaced — the old one, whose nested
+                        // `NavHost` is about to be torn down — is
+                        // skipped **without** clearing the holder, so
+                        // the target survives for the live collector.
+                        //
+                        // Without this guard the stale collector used
+                        // to win the race: it navigated on a
+                        // controller that was no longer in the tree
+                        // and cleared the holder, so the live
+                        // collector saw `null` and the loop detail
+                        // never opened. That is what happened when a
+                        // `LoopComment` push was tapped while the
+                        // Loops tab was already on screen — the tab
+                        // simply reloaded.
+                        if (liveLoopsController.value !== nested) {
+                            DeepLinkLog.log(
+                                "11-consume",
+                                "ignoring a pending target on a STALE nested " +
+                                    "controller — this tab's live controller is " +
+                                    "different, so the target is left for it",
+                            )
+                            return@collect
+                        }
+                        // Cleared before the push so a cancelled tab
+                        // switch cannot replay the same target on the
+                        // next visit.
+                        onPendingConsumed()
+                        val route = LoopsRoute.Detail.build(
+                            target.loopId,
+                            target.hideBottomBar,
+                            target.accentColorHex,
+                        )
+                        DeepLinkLog.log(
+                            "11-consume",
+                            "the Loops tab took the pending target: loopId=" +
+                                "'${target.loopId}' route='$route'",
+                        )
+                        nested.navigate(route)
+                        DeepLinkLog.log(
+                            "12-route",
+                            "pushed the loop detail route '$route' on the " +
+                                "Loops tab's nested controller",
+                        )
+                    } else {
+                        DeepLinkLog.log(
+                            "11-consume",
+                            "the pending target is empty — nothing to open",
+                        )
+                    }
+                }
+            } finally {
+                // The tab is going away — stop claiming to be the live
+                // controller, so a stale collector can never consume a
+                // target that belongs to the tab that replaces it.
+                if (liveLoopsController.value === nested) {
+                    liveLoopsController.value = null
                 }
             }
         }
