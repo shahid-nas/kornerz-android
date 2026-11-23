@@ -43,7 +43,26 @@ data class SignupResponse(val token: String, val expiresAt: String, val userId: 
 data class RequestPasswordResetRequest(val email: String)
 
 @Serializable
-data class RequestPasswordResetResponse(val sent: Boolean)
+data class RequestPasswordResetResponse(
+    val sent: Boolean,
+    /**
+     * The generated reset code, returned only when the account exists.
+     *
+     * The client needs it to mail the code to the user through the
+     * `sendrecoveryemail` Cloud Function — the same hand-off iOS does
+     * through its navigation payload.
+     */
+    val code: String? = null,
+)
+
+@Serializable
+data class SendRecoveryEmailRequest(
+    val to: String,
+    val code: String,
+)
+
+@Serializable
+data class SendRecoveryEmailResponse(val sent: Boolean)
 
 @Serializable
 data class ConfirmPasswordResetCodeRequest(val email: String, val code: String)

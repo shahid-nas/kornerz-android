@@ -9,6 +9,7 @@ import com.kornerz.core.network.auth.dto.ChangePasswordRequest
 import com.kornerz.core.network.auth.dto.ConfirmPasswordResetCodeRequest
 import com.kornerz.core.network.auth.dto.LoginRequest
 import com.kornerz.core.network.auth.dto.RequestPasswordResetRequest
+import com.kornerz.core.network.auth.dto.SendRecoveryEmailRequest
 import com.kornerz.core.network.auth.dto.SignupRequest
 import com.kornerz.core.network.fcm.DeviceIdProvider
 import com.kornerz.core.network.fcm.DeviceTokenStore
@@ -103,10 +104,36 @@ class AuthRepository @Inject constructor(
             is AuthResult.Failure -> AsyncValue.Error(result.error.toThrowable())
         }
 
-    suspend fun requestPasswordReset(email: String): AsyncValue<Unit> {
+    /**
+     * Requests a password-reset code for [email].
+     *
+     * Returns [PasswordResetRequest] carrying the generated `code` when
+     * the account exists. The code is `null` for an unknown email — the
+     * caller must not reveal that difference to the user, but it does
+     * need the code to mail it through [sendRecoveryEmail].
+     */
+    suspend fun requestPasswordReset(email: String): AsyncValue<PasswordResetRequest> {
         return when (
             val result = authApi.requestPasswordReset(
                 RequestPasswordResetRequest(email = email),
+            )
+        ) {
+            is AuthResult.Success -> AsyncValue.Success(
+                PasswordResetRequest(email = email, code = result.data.code),
+            )
+            is AuthResult.Failure -> AsyncValue.Error(result.error.toThrowable())
+        }
+    }
+
+    /**
+     * Mails the password-reset [code] to [email] through the
+     * `sendrecoveryemail` Cloud Function — the same call iOS makes from
+     * its Confirm Code screen (`ApiService.sendRecoveryEmail`).
+     */
+    suspend fun sendRecoveryEmail(email: String, code: String): AsyncValue<Unit> {
+        return when (
+            val result = authApi.sendRecoveryEmail(
+                SendRecoveryEmailRequest(to = email, code = code),
             )
         ) {
             is AuthResult.Success -> AsyncValue.Success(Unit)
@@ -214,6 +241,19 @@ class AuthRepository @Inject constructor(
         AsyncValue.Loading -> AsyncValue.Loading
     }
 }
+
+/**
+ * Outcome of a password-reset request.
+ *
+ * @param email the address the request was made for.
+ * @param code the generated reset code, or `null` when no account
+ *   exists for [email]. The code has to reach the user by email, so the
+ *   caller forwards it to `sendRecoveryEmail`.
+ */
+data class PasswordResetRequest(
+    val email: String,
+    val code: String?,
+)
 
 private fun <T> AuthResult<T>.asAsyncValue(): AsyncValue<T> = when (this) {
     is AuthResult.Success -> AsyncValue.Success(data)

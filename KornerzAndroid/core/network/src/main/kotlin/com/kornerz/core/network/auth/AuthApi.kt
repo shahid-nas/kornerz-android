@@ -9,6 +9,8 @@ import com.kornerz.core.network.auth.dto.LoginRequest
 import com.kornerz.core.network.auth.dto.LoginResponse
 import com.kornerz.core.network.auth.dto.RequestPasswordResetRequest
 import com.kornerz.core.network.auth.dto.RequestPasswordResetResponse
+import com.kornerz.core.network.auth.dto.SendRecoveryEmailRequest
+import com.kornerz.core.network.auth.dto.SendRecoveryEmailResponse
 import com.kornerz.core.network.auth.dto.SignupRequest
 import com.kornerz.core.network.auth.dto.SignupResponse
 import kotlinx.datetime.Instant
@@ -33,6 +35,18 @@ interface AuthApi {
     suspend fun requestPasswordReset(
         request: RequestPasswordResetRequest,
     ): AuthResult<RequestPasswordResetResponse>
+
+    /**
+     * Mails the password-reset [request]'s code to the user.
+     *
+     * Mirrors iOS `ApiService.sendRecoveryEmail(toEmail:code:completion:)`
+     * (`kornerz/Kornerz/Helper/ApiService.swift:207`), which posts to the
+     * `sendrecoveryemail` Cloud Function. Without this call the reset
+     * code never leaves the device.
+     */
+    suspend fun sendRecoveryEmail(
+        request: SendRecoveryEmailRequest,
+    ): AuthResult<SendRecoveryEmailResponse>
 
     suspend fun confirmPasswordResetCode(
         request: ConfirmPasswordResetCodeRequest,

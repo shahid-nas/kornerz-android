@@ -72,6 +72,10 @@ fun NavGraphBuilder.authGraph(
             route = AuthRoute.OtpConfirm.route,
             arguments = listOf(
                 navArgument(AuthRoute.OtpConfirm.ARG_EMAIL) { type = NavType.StringType },
+                navArgument(AuthRoute.OtpConfirm.ARG_CODE) {
+                    type = NavType.StringType
+                    defaultValue = ""
+                },
             ),
         ) {
             OtpConfirmScreen(navController = navController)

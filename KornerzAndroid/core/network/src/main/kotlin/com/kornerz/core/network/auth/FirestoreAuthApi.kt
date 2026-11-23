@@ -11,6 +11,8 @@ import com.kornerz.core.network.auth.dto.LoginRequest
 import com.kornerz.core.network.auth.dto.LoginResponse
 import com.kornerz.core.network.auth.dto.RequestPasswordResetRequest
 import com.kornerz.core.network.auth.dto.RequestPasswordResetResponse
+import com.kornerz.core.network.auth.dto.SendRecoveryEmailRequest
+import com.kornerz.core.network.auth.dto.SendRecoveryEmailResponse
 import com.kornerz.core.network.auth.dto.SignupRequest
 import com.kornerz.core.network.auth.dto.SignupResponse
 import kotlinx.coroutines.tasks.await
@@ -32,11 +34,18 @@ import javax.inject.Singleton
  * Cloud-Function-shaped contract from [AuthApi] so P2+ can swap to a real
  * Cloud Function client without touching any ViewModel. See task #2.3 for
  * the follow-up issue.
+ *
+ * **Password recovery.** The reset code is written to the user document
+ * exactly as iOS does (`resetCode`), but the code is *also* returned to
+ * the caller so it can be mailed through the `sendrecoveryemail` Cloud
+ * Function — iOS mails it from `ConfirmCodeViewModel.sendRecoveryEamil()`
+ * using the code it received through navigation.
  */
 @Singleton
 class FirestoreAuthApi @Inject constructor(
     private val firestore: FirebaseFirestore,
     private val firebaseAuth: FirebaseAuth,
+    private val recoveryEmailApi: RecoveryEmailApi,
 ) : AuthApi {
 
     private val usersCollection
@@ -102,12 +111,24 @@ class FirestoreAuthApi @Inject constructor(
     ): AuthResult<RequestPasswordResetResponse> = runCatching {
         val snapshot = usersCollection.whereEqualTo("email", request.email).get().await()
         if (snapshot.isEmpty) {
-            return AuthResult.Success(RequestPasswordResetResponse(sent = false))
+            return AuthResult.Success(RequestPasswordResetResponse(sent = false, code = null))
         }
         val code = generateResetCode()
         snapshot.documents.first().reference.update("resetCode", code).await()
-        AuthResult.Success(RequestPasswordResetResponse(sent = true))
+        // The code travels back to the caller so it can be mailed through
+        // the `sendrecoveryemail` Cloud Function — iOS hands the code over
+        // the same way (`ForgotPasswordViewModel` → `navigateToConfirmCode`).
+        AuthResult.Success(RequestPasswordResetResponse(sent = true, code = code))
     }.getOrElse { mapError(it) }
+
+    override suspend fun sendRecoveryEmail(
+        request: SendRecoveryEmailRequest,
+    ): AuthResult<SendRecoveryEmailResponse> {
+        return recoveryEmailApi.send(request.to, request.code).fold(
+            onSuccess = { AuthResult.Success(SendRecoveryEmailResponse(sent = true)) },
+            onFailure = { mapError(it) },
+        )
+    }
 
     override suspend fun confirmPasswordResetCode(
         request: ConfirmPasswordResetCodeRequest,

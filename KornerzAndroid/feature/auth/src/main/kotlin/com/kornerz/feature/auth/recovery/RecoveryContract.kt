@@ -18,7 +18,13 @@ sealed interface ForgotPasswordEvent {
 }
 
 sealed interface ForgotPasswordNavEvent {
-    data class NavigateToOtp(val email: String) : ForgotPasswordNavEvent
+    /**
+     * @param code the generated reset code, or `null` when no account
+     *   exists for the address. It is handed to the OTP screen so it can
+     *   mail the code to the user — iOS carries the code the same way
+     *   (`AuthCoordinator.navigateToConfirmCode(email:code:)`).
+     */
+    data class NavigateToOtp(val email: String, val code: String?) : ForgotPasswordNavEvent
 }
 
 data class OtpConfirmState(

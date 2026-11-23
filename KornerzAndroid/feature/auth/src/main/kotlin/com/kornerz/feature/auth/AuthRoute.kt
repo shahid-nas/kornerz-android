@@ -20,9 +20,17 @@ sealed class AuthRoute(val route: String) {
 
     data object ForgotPassword : AuthRoute("auth/forgot_password")
 
-    data object OtpConfirm : AuthRoute("auth/otp_confirm/{email}") {
+    data object OtpConfirm : AuthRoute("auth/otp_confirm/{email}/{code}") {
         const val ARG_EMAIL = "email"
-        fun build(email: String): String = "auth/otp_confirm/${email}"
+        const val ARG_CODE = "code"
+
+        /**
+         * @param code the generated reset code, or `null` when no account
+         *   exists for [email]. A `null` code is routed as an empty
+         *   segment — the screen then has no code to mail.
+         */
+        fun build(email: String, code: String?): String =
+            "auth/otp_confirm/${email}/${code.orEmpty()}"
     }
 
     data object ChangePassword : AuthRoute("auth/change_password/{email}/{token}") {

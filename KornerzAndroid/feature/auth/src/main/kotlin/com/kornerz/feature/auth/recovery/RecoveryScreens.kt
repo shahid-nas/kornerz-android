@@ -19,7 +19,9 @@ fun ForgotPasswordScreen(
         viewModel.navEvents.collect { event ->
             when (event) {
                 is ForgotPasswordNavEvent.NavigateToOtp ->
-                    navController.navigate(com.kornerz.feature.auth.AuthRoute.OtpConfirm.build(event.email))
+                    navController.navigate(
+                        com.kornerz.feature.auth.AuthRoute.OtpConfirm.build(event.email, event.code),
+                    )
             }
         }
     }
