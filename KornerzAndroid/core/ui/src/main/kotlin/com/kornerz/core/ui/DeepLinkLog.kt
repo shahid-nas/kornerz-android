@@ -39,6 +39,13 @@ import android.util.Log
  * | `13-destination` | the destination screen | the screen took the id and loaded |
  *
  * A hop that is **missing** from the log is the hop that broke.
+ *
+ * **Debug builds only.** Every method returns immediately when
+ * [BuildConfig.DEBUG] is `false`, so a release build emits nothing under
+ * this tag. `android.util.Log` calls are not removed by R8 — it cannot
+ * know they are side-effect-free — so the guard here is the only thing
+ * keeping them out of a release. The same policy applies to
+ * [SubscriptionGateLog], so the two loggers cannot drift apart.
  */
 object DeepLinkLog {
 
@@ -54,6 +61,7 @@ object DeepLinkLog {
      * Android side decides how to print it.
      */
     fun log(stage: String, message: String) {
+        if (!BuildConfig.DEBUG) return
         Log.i(TAG, "[$stage] $message")
     }
 
@@ -65,6 +73,7 @@ object DeepLinkLog {
      * is simply absent.
      */
     fun fail(stage: String, message: String) {
+        if (!BuildConfig.DEBUG) return
         Log.w(TAG, "[$stage] FAILED: $message")
     }
 
@@ -73,6 +82,7 @@ object DeepLinkLog {
      * arrived but carried nothing the app could act on.
      */
     fun skip(stage: String, message: String) {
+        if (!BuildConfig.DEBUG) return
         Log.w(TAG, "[$stage] SKIPPED: $message")
     }
 }

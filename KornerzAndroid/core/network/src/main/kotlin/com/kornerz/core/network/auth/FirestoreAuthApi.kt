@@ -2,6 +2,7 @@ package com.kornerz.core.network.auth
 
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.kornerz.core.model.SubscriptionDiagnostics
 import com.kornerz.core.model.User
 import com.kornerz.core.network.auth.dto.ChangePasswordRequest
 import com.kornerz.core.network.auth.dto.ChangePasswordResponse
@@ -161,6 +162,21 @@ class FirestoreAuthApi @Inject constructor(
             return AuthResult.Failure(AuthError.SessionExpired)
         }
         val data = snapshot.data ?: emptyMap()
+        // The entitlement fields are the paywall gate's input, and the
+        // decision parses the decoded expiry string. The raw Firestore
+        // value and its type are logged next to the decoded string so a
+        // value that decodes to something `Instant.parse` rejects — which
+        // makes a paying subscriber look free — is visible rather than
+        // inferred.
+        val rawExpiry = data[FIELD_SUBSCRIPTION_EXPIRY]
+        SubscriptionDiagnostics.log(
+            "1-refresh",
+            "read the user document ${snapshot.id} — " +
+                "rawExpiry=$rawExpiry rawExpiryType=${rawExpiry?.javaClass?.simpleName} " +
+                "decodedExpiry=${rawExpiry.toInstantString()} " +
+                "subscriptionType=${data[FIELD_SUBSCRIPTION_TYPE]} " +
+                "subscriptionPlatform=${data[FIELD_SUBSCRIPTION_PLATFORM]}",
+        )
         AuthResult.Success(
             User(
                 id = snapshot.id,
@@ -191,8 +207,7 @@ class FirestoreAuthApi @Inject constructor(
                 // than crashing the shell.
                 subscriptionExpiryDate = data[FIELD_SUBSCRIPTION_EXPIRY]?.toInstantString(),
                 subscriptionType = data[FIELD_SUBSCRIPTION_TYPE] as? String,
-                subscriptionPlatform = data[FIELD_SUBSCRIPTION_PLATFORM] as? String,
-                createdAt = data[FIELD_REGISTRATION_DATE]?.toInstantString(),
+                subscriptionPlatform = data[FIELD_SUBSCRIPTION_PLATFORM] as? String,                createdAt = data[FIELD_REGISTRATION_DATE]?.toInstantString(),
                 // The avatar projection fields. Without these the session
                 // user's `thumbnailURL` / `imageURL` resolve to null and
                 // the Profile screen always renders the placeholder.
@@ -213,7 +228,7 @@ class FirestoreAuthApi @Inject constructor(
      * subscriber silently loses their entitlement depending on which
      * reader ran.
      */
-    private fun Any.toInstantString(): String? = when (this) {
+    private fun Any?.toInstantString(): String? = when (this) {
         is com.google.firebase.Timestamp -> runCatching {
             kotlinx.datetime.Instant.fromEpochMilliseconds(toDate().time).toString()
         }.getOrNull()

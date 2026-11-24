@@ -4,6 +4,7 @@ import com.google.firebase.Timestamp
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FieldValue
+import com.kornerz.core.model.SubscriptionDiagnostics
 import com.kornerz.core.model.User
 import kotlinx.coroutines.tasks.await
 import kotlinx.datetime.Instant
@@ -138,6 +139,21 @@ class SubscriptionFirestoreApi @Inject constructor(
     private fun DocumentSnapshot.toUserOrNull(): User? {
         val data = data ?: return null
         val documentEmail = (data[FIELD_EMAIL] as? String) ?: return null
+        val rawExpiry = data[FIELD_EXPIRY_DATE]
+        // The raw Firestore value and the type it arrived as are logged
+        // alongside the decoded string, because a mismatch between them is
+        // the difference between "the user is free" and "the user is
+        // premium": the premium decision parses the decoded string, so a
+        // value that decodes to something `Instant.parse` rejects makes a
+        // paying subscriber look free.
+        SubscriptionDiagnostics.log(
+            "1-refresh",
+            "read the user document $documentEmail — " +
+                "rawExpiry=$rawExpiry rawExpiryType=${rawExpiry?.javaClass?.simpleName} " +
+                "decodedExpiry=${rawExpiry.toInstantString()} " +
+                "subscriptionType=${data[FIELD_SUBSCRIPTION_TYPE]} " +
+                "subscriptionPlatform=${data[FIELD_SUBSCRIPTION_PLATFORM]}",
+        )
         return User(
             id = documentEmail,
             email = documentEmail,
@@ -150,10 +166,7 @@ class SubscriptionFirestoreApi @Inject constructor(
             photoUrl = data[FIELD_PHOTO_URL] as? String,
             fcmToken = data[FIELD_TOKEN_PUSH] as? String,
             isPremium = data[FIELD_IS_USER_PREMIUM] as? Boolean ?: false,
-            subscriptionExpiryDate = data[FIELD_EXPIRY_DATE]?.let { value ->
-                (value as? Timestamp)?.toDate()?.toInstant()?.toString()
-                    ?: value as? String
-            },
+            subscriptionExpiryDate = rawExpiry.toInstantString(),
             subscriptionType = data[FIELD_SUBSCRIPTION_TYPE] as? String,
             subscriptionPlatform = data[FIELD_SUBSCRIPTION_PLATFORM] as? String,
             createdAt = data[FIELD_REGISTRATION_DATE]?.let { value ->
@@ -164,6 +177,26 @@ class SubscriptionFirestoreApi @Inject constructor(
             firebaseThumbnailUrl = data[FIELD_FIREBASE_THUMBNAIL_URL] as? String,
             thumbnailType = data[FIELD_THUMBNAIL_TYPE] as? String,
         )
+    }
+
+    /**
+     * Normalises a Firestore subscription-expiry value to the ISO-8601
+     * `String?` the [User] model stores.
+     *
+     * A `Timestamp` is converted through `kotlinx.datetime.Instant` so the
+     * result is byte-identical to the other two decoders
+     * (`FirestoreAuthApi.toInstantString` and
+     * `UserFirestoreApi.toInstantString`) — the premium decision parses
+     * this string with `kotlinx.datetime.Instant.parse`, so the three
+     * readers must agree on the representation or a subscriber silently
+     * loses their entitlement depending on which reader ran.
+     */
+    private fun Any?.toInstantString(): String? = when (this) {
+        is Timestamp -> runCatching {
+            kotlinx.datetime.Instant.fromEpochMilliseconds(toDate().time).toString()
+        }.getOrNull()
+        is String -> this
+        else -> null
     }
 
     private companion object {

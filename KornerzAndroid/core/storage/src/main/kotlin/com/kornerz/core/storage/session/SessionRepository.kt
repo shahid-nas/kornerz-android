@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.DataStoreFactory
 import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
+import com.kornerz.core.model.SubscriptionDiagnostics
 import com.kornerz.core.model.User
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -48,6 +49,17 @@ class SessionRepository @Inject constructor(
                 user = user,
             )
         }
+        // The session cache is what the paywall gate reads before the
+        // cold-start refresh lands, so the entitlement it now holds is
+        // logged — a login that captured a stale or empty expiry is
+        // otherwise indistinguishable from a correct one.
+        SubscriptionDiagnostics.log(
+            "1-refresh",
+            "wrote the session for ${user.email} — " +
+                "subscriptionExpiryDate=${user.subscriptionExpiryDate} " +
+                "parsed=${user.subscriptionExpiryInstant} " +
+                "isUserPremiumNow=${user.isUserPremiumNow}",
+        )
     }
 
     suspend fun clearSession() {
@@ -87,7 +99,19 @@ class SessionRepository @Inject constructor(
      */
     suspend fun updateUser(transform: (User) -> User): Result<Unit> = runCatching {
         dataStore.updateData { current ->
-            current.copy(user = transform(current.user))
+            val updated = transform(current.user)
+            // The cached user is what the paywall gate reads, so the
+            // entitlement fields it now holds are logged — a refresh that
+            // silently wrote an empty expiry, or failed to write at all,
+            // is otherwise invisible.
+            SubscriptionDiagnostics.log(
+                "1-refresh",
+                "wrote the refreshed user to the session cache — " +
+                    "subscriptionExpiryDate=${updated.subscriptionExpiryDate} " +
+                    "parsed=${updated.subscriptionExpiryInstant} " +
+                    "isUserPremiumNow=${updated.isUserPremiumNow}",
+            )
+            current.copy(user = updated)
         }
         Unit
     }

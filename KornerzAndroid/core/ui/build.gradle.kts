@@ -25,6 +25,11 @@ android {
 
     buildFeatures {
         compose = true
+        // Generates `com.kornerz.core.ui.BuildConfig`, whose `DEBUG`
+        // flag gates the module's loggers (`DeepLinkLog`,
+        // `SubscriptionGateLog`) to debug builds only. Without it the
+        // module has no `BuildConfig` at all.
+        buildConfig = true
     }
 }
 

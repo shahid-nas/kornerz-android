@@ -2,6 +2,7 @@ package com.kornerz.feature.shell
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.kornerz.core.model.SubscriptionDiagnostics
 import com.kornerz.core.network.AuthRepository
 import com.kornerz.core.network.fcm.FcmTokenRegistrar
 import com.kornerz.core.network.user.UserProfileRefresher
@@ -10,6 +11,7 @@ import com.kornerz.feature.profile.accountdeletion.UserDeletedHisAccountEventBus
 import com.kornerz.feature.shell.deeplink.DeepLinkManager
 import com.kornerz.feature.shell.deeplink.DeepLinkResolver
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -62,6 +64,83 @@ class ShellViewModel @Inject constructor(
      */
     val premiumGateRequests: StateFlow<Int> = _premiumGateRequests.asStateFlow()
 
+    /**
+     * Completes when the **first** gate evaluation — the cold-start one,
+     * which carries the user refresh — has finished.
+     *
+     * **Why this exists.** `ON_RESUME` fires while the cold-start
+     * evaluation is still in flight: the cold start reads the user
+     * document from Firestore, which takes hundreds of milliseconds, and
+     * the activity's `ON_RESUME` arrives long before that read lands. The
+     * resume path then evaluated the gate against the **stale** cached
+     * session — the login-time snapshot — because it deliberately skips
+     * the refresh.
+     *
+     * The consequence was that the resume evaluation could decide the
+     * paywall on data the cold start was in the middle of replacing: a
+     * user whose subscription had lapsed still carried the old expiry in
+     * the session cache, so the resume evaluation saw them as premium and
+     * suppressed the paywall. The cold-start evaluation, a few hundred
+     * milliseconds later, reached the opposite conclusion — but the gate
+     * had already been asked, and the paywall was not presented.
+     *
+     * Awaiting this deferred makes the resume path wait for the first
+     * refresh to land, so the very first gate decision in the process is
+     * always made against fresh data. Later resumes are unaffected: the
+     * deferred is already completed by then.
+     */
+    private val firstEvaluation = CompletableDeferred<Unit>()
+
+    /**
+     * The user refresh, the entitlement reconciliation, and the gate
+     * evaluation, run as **one** serialized unit.
+     *
+     * The refresh must not be skipped on the resume path for the same
+     * reason the cold start performs it: the cached user is written at
+     * login and never updated, so it holds a login-time
+     * `subscriptionExpiryDate` that may be weeks stale. The resume path
+     * used to reconcile without refreshing, which left the gate deciding
+     * on that stale expiry — and the whole point of the refresh is that
+     * the expiry is the gate's input.
+     *
+     * The refresh is therefore shared: the first evaluation refreshes,
+     * and later ones do not, so a foreground is still cheap while the
+     * **first** decision of the process is always made against fresh
+     * data.
+     */
+    private suspend fun evaluateGate(refresh: Boolean, trigger: String) {
+        if (refresh) {
+            SubscriptionDiagnostics.log(
+                "1-refresh",
+                "$trigger — refreshing the cached user before the gate is evaluated",
+            )
+            val result = userProfileRefresher.refreshCurrentUser()
+            if (result.isFailure) {
+                SubscriptionDiagnostics.fail(
+                    "1-refresh",
+                    "the cached user could not be refreshed " +
+                        "(${result.exceptionOrNull()?.message}); " +
+                        "the gate will evaluate against the stale session",
+                )
+            }
+        }
+
+        // Reconcile so the gate evaluates against the server's verdict
+        // rather than a stale local expiry.
+        SubscriptionDiagnostics.log(
+            "2-reconcile",
+            "$trigger — reconciling the entitlement before the gate is evaluated",
+        )
+        // `reconcile()` returns Unit by contract; the repository logs its
+        // own failures through the diagnostics sink.
+        entitlementReconciler.reconcile()
+
+        SubscriptionDiagnostics.log("5-clause", "$trigger — evaluating the gate")
+        if (premiumGate.requestPresent()) {
+            _premiumGateRequests.value = _premiumGateRequests.value + 1
+        }
+    }
+
     init {
         // P6 (task 9.5) — listen for the shared `.userDeletedHisAccount`
         // event bus and re-emit as a [ShellNavEvent.Logout] so the root
@@ -113,12 +192,12 @@ class ShellViewModel @Inject constructor(
      */
     private fun refreshAndEvaluate() {
         viewModelScope.launch {
-            userProfileRefresher.refreshCurrentUser()
-            // Reconcile so the gate evaluates against the server's
-            // verdict rather than a stale local expiry.
-            entitlementReconciler.reconcile()
-            if (premiumGate.requestPresent()) {
-                _premiumGateRequests.value = _premiumGateRequests.value + 1
+            try {
+                evaluateGate(refresh = true, trigger = "cold start")
+            } finally {
+                // Released even if the evaluation threw, so a resume can
+                // never wait forever on a failed cold start.
+                firstEvaluation.complete(Unit)
             }
         }
     }
@@ -129,13 +208,22 @@ class ShellViewModel @Inject constructor(
      * This is the **shell-resume** path only. The cold-start path is
      * [refreshAndEvaluate], which adds the user refresh in front of it.
      *
-     * The resume path deliberately does *not* refresh the cached user: a
-     * foreground is not a launch, and re-reading the user document on every
-     * foreground would turn a cheap app switch into a Firestore read. The
-     * entitlement check below already covers the case that actually
-     * changes while the app is backgrounded — a purchase or a renewal made
-     * on the Play Store — because it queries the Play purchase library
-     * directly.
+     * **The resume path waits for the cold-start evaluation first.**
+     * `ON_RESUME` arrives while the cold-start refresh is still reading
+     * the user document from Firestore, so without the wait the resume
+     * evaluation would decide the paywall on the stale login-time
+     * session — the very snapshot the cold-start refresh exists to
+     * replace. A user whose subscription had lapsed still carried the old
+     * expiry in that snapshot, so the resume evaluation saw them as
+     * premium and suppressed the paywall.
+     *
+     * After the first evaluation the resume path deliberately does *not*
+     * refresh the cached user again: a foreground is not a launch, and
+     * re-reading the user document on every foreground would turn a cheap
+     * app switch into a Firestore read. The entitlement reconciliation
+     * still runs, because it covers the case that actually changes while
+     * the app is backgrounded — a purchase or a renewal made on the Play
+     * Store — by querying the Play purchase library directly.
      *
      * No destination-change or tab-switch evaluation exists anywhere in
      * this class — a free user who dismissed the paywall must not have it
@@ -143,12 +231,16 @@ class ShellViewModel @Inject constructor(
      */
     fun requestPremiumGateEvaluation() {
         viewModelScope.launch {
-            // Reconcile first so the gate evaluates against the server's
-            // verdict rather than a stale local expiry.
-            entitlementReconciler.reconcile()
-            if (premiumGate.requestPresent()) {
-                _premiumGateRequests.value = _premiumGateRequests.value + 1
-            }
+            // Wait for the cold-start evaluation to land, so the first
+            // decision of the process is made against fresh data. The
+            // deferred is completed even if the cold start threw, so this
+            // cannot hang.
+            firstEvaluation.await()
+
+            // The cold start already refreshed, so this evaluation reuses
+            // that fresh user. The `refresh` flag is false for exactly
+            // this reason — a foreground must stay cheap.
+            evaluateGate(refresh = false, trigger = "shell resume")
         }
     }
 

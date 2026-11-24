@@ -2,6 +2,7 @@ package com.kornerz.feature.subscription.data
 
 import com.kornerz.core.model.AsyncValue
 import com.kornerz.core.model.IAP_ENABLED
+import com.kornerz.core.model.SubscriptionDiagnostics
 import com.kornerz.core.model.SubscriptionProduct
 import com.kornerz.core.model.SubscriptionProductType
 import com.kornerz.core.storage.session.SessionRepository
@@ -282,13 +283,24 @@ class SubscriptionRepository @Inject constructor(
     suspend fun hasActiveSubscriptionForSession(): Boolean {
         val email = authenticatedEmail() ?: return false
         val purchases = billingGateway.queryPurchases().getOrNull().orEmpty()
-        return purchases.any { record ->
+        val owned = purchases.filter { record ->
             SubscriptionProductType.fromPlayProductId(record.productId) != null &&
                 (
                     record.obfuscatedAccountId == null ||
                         record.obfuscatedAccountId == obfuscatedAccountId(email)
                     )
         }
+        // This is clause 3 of the paywall gate: "the device holds no active
+        // Play purchase". A `true` here suppresses the paywall, so the
+        // purchases that produced it are logged — an unexpired-looking
+        // purchase on the device would otherwise be invisible.
+        SubscriptionDiagnostics.log(
+            "2-reconcile",
+            "clause-3 play entitlement check for $email — " +
+                "purchases=${purchases.size} owned=${owned.size} " +
+                "hasActiveSubscription=${owned.isNotEmpty()}",
+        )
+        return owned.isNotEmpty()
     }
 
     /**
@@ -357,7 +369,19 @@ class SubscriptionRepository @Inject constructor(
             subscriptionType = plan.subscriptionType,
             platform = ENTITLEMENT_PLATFORM,
         )
-        if (write.isFailure) return write
+        if (write.isFailure) {
+            SubscriptionDiagnostics.fail(
+                "3-grant",
+                "the entitlement could not be written for $email (${write.exceptionOrNull()?.message})",
+            )
+            return write
+        }
+
+        SubscriptionDiagnostics.log(
+            "3-grant",
+            "the entitlement was written for $email — expiry=$expiry " +
+                "type=${plan.subscriptionType} platform=$ENTITLEMENT_PLATFORM",
+        )
 
         return refreshCachedUser(email)
     }
@@ -370,7 +394,19 @@ class SubscriptionRepository @Inject constructor(
         authenticatedEmail() ?: return anonymousSessionFailure("revokeEntitlement")
 
         val clear = firestoreApi.clearSubscription(email)
-        if (clear.isFailure) return clear
+        if (clear.isFailure) {
+            SubscriptionDiagnostics.fail(
+                "4-revoke",
+                "the entitlement could not be cleared for $email " +
+                    "(${clear.exceptionOrNull()?.message})",
+            )
+            return clear
+        }
+
+        SubscriptionDiagnostics.log(
+            "4-revoke",
+            "the entitlement was cleared for $email — the user is free again",
+        )
 
         return refreshCachedUser(email)
     }
@@ -459,10 +495,29 @@ class SubscriptionRepository @Inject constructor(
         // it is non-destructive: leave local state alone and let the gate
         // keep enforcing the local expiry.
         val purchases = billingGateway.queryPurchases().getOrElse {
+            SubscriptionDiagnostics.fail(
+                "2-reconcile",
+                "the Play purchase library could not be queried " +
+                    "(${it.message}); the local expiry remains the authority",
+            )
             return Result.failure(it)
         }
 
-        if (!user.isUserPremiumNow && purchases.isEmpty()) return Result.success(Unit)
+        SubscriptionDiagnostics.log(
+            "2-reconcile",
+            "queried the Play purchase library for $email — " +
+                "purchases=${purchases.size} " +
+                "localExpiry=${user.subscriptionExpiryDate} " +
+                "localIsUserPremiumNow=${user.isUserPremiumNow}",
+        )
+
+        if (!user.isUserPremiumNow && purchases.isEmpty()) {
+            SubscriptionDiagnostics.skip(
+                "2-reconcile",
+                "nothing to reconcile — the user is not premium and the device holds no purchase",
+            )
+            return Result.success(Unit)
+        }
 
         // Only purchases made for *this* account may drive the
         // reconciliation. A purchase that names a different app account
@@ -479,15 +534,34 @@ class SubscriptionRepository @Inject constructor(
             // revocation whose RTDN has not landed, or a purchase tied to
             // a different Play account. No token to verify, so the local
             // expiry remains the authority.
+            SubscriptionDiagnostics.skip(
+                "2-reconcile",
+                "no owned purchase to verify — the local expiry remains the authority " +
+                    "(owned=${owned.size} of ${purchases.size} purchases)",
+            )
             return Result.success(Unit)
         }
 
         return cloudFunctionsApi.verifyPurchase(latest.token, latest.productId).fold(
             onSuccess = { verdict ->
+                SubscriptionDiagnostics.log(
+                    "2-reconcile",
+                    "the server verified the purchase — isActive=${verdict.isActive} " +
+                        "expiryDate=${verdict.expiryDate} autoRenewing=${verdict.autoRenewing} " +
+                        "acknowledged=${verdict.acknowledged}",
+                )
                 if (verdict.isActive) {
                     val serverExpiry = verdict.expiryDate
                         ?.let { runCatching { Instant.parse(it) }.getOrNull() }
-                        ?: return@fold Result.success(Unit)
+                        ?: run {
+                            SubscriptionDiagnostics.fail(
+                                "2-reconcile",
+                                "the server reported an active subscription with an " +
+                                    "unparseable expiry (${verdict.expiryDate}); " +
+                                    "the local expiry remains the authority",
+                            )
+                            return@fold Result.success(Unit)
+                        }
                     grantEntitlement(
                         email = email,
                         // The stored Firestore value is the canonical
@@ -504,7 +578,14 @@ class SubscriptionRepository @Inject constructor(
                     revokeEntitlement(email)
                 }
             },
-            onFailure = { Result.failure(it) },
+            onFailure = {
+                SubscriptionDiagnostics.fail(
+                    "2-reconcile",
+                    "the purchase could not be verified (${it.message}); " +
+                        "the local expiry remains the authority",
+                )
+                Result.failure(it)
+            },
         )
     }
 

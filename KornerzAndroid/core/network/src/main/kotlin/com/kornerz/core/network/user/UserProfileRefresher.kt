@@ -1,6 +1,7 @@
 package com.kornerz.core.network.user
 
 import android.util.Log
+import com.kornerz.core.model.SubscriptionDiagnostics
 import com.kornerz.core.network.auth.AuthApi
 import com.kornerz.core.network.auth.AuthError
 import com.kornerz.core.network.auth.AuthResult
@@ -67,15 +68,36 @@ class UserProfileRefresher @Inject constructor(
         return when (val result = authApi.fetchUser(email)) {
             is AuthResult.Success -> {
                 val authoritative = result.data
+                // The expiry is logged in full — the raw string, the parsed
+                // instant, and the premium verdict derived from them. This
+                // is the single read the paywall gate depends on, so a
+                // stale, missing, or unparseable expiry is visible here
+                // rather than only as a paywall that never appears.
+                SubscriptionDiagnostics.log(
+                    "1-refresh",
+                    "refreshed the cached user for $email — " +
+                        "subscriptionExpiryDate=${authoritative.subscriptionExpiryDate} " +
+                        "parsed=${authoritative.subscriptionExpiryInstant} " +
+                        "isUserPremiumNow=${authoritative.isUserPremiumNow} " +
+                        "subscriptionType=${authoritative.subscriptionType} " +
+                        "subscriptionPlatform=${authoritative.subscriptionPlatform}",
+                )
                 sessionRepository.updateUser { authoritative }
                     .onFailure { error ->
                         Log.w(TAG, "Could not write the refreshed user to the session store", error)
                     }
                     .map { }
             }
-            is AuthResult.Failure -> Result.failure(
-                RefreshFailure.FetchFailed(result.error),
-            )
+            is AuthResult.Failure -> {
+                SubscriptionDiagnostics.fail(
+                    "1-refresh",
+                    "could not read the user document for $email (${result.error}); " +
+                        "the cached session is left as it was",
+                )
+                Result.failure(
+                    RefreshFailure.FetchFailed(result.error),
+                )
+            }
         }
     }
 

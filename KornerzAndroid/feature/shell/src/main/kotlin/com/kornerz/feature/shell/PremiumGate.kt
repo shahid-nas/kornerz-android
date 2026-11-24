@@ -1,6 +1,7 @@
 package com.kornerz.feature.shell
 
 import com.kornerz.core.model.IAP_ENABLED
+import com.kornerz.core.model.SubscriptionDiagnostics
 import com.kornerz.core.storage.session.SessionRepository
 import com.kornerz.core.storage.session.SessionState
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -99,39 +100,125 @@ class PremiumGate @Inject constructor(
      * changed tabs.
      */
     suspend fun requestPresent(): Boolean = gateLock.withLock {
+        SubscriptionDiagnostics.log("5-clause", "evaluating the gate")
         val present = evaluate()
         _shouldPresent.value = present
+        SubscriptionDiagnostics.log(
+            "5-clause",
+            "evaluation finished — shouldPresent=$present",
+        )
         present
     }
 
+    /**
+     * Evaluates the five clauses and reports **which** one blocked the
+     * paywall.
+     *
+     * Every clause returns `false` for the same outward reason — "do not
+     * present" — so from the outside a blocked paywall is
+     * indistinguishable from a missing one. Each clause therefore
+     * reports its own verdict through
+     * [com.kornerz.core.model.SubscriptionDiagnostics] before it
+     * returns, so a single logcat filter shows which clause stopped the
+     * paywall and what value it stopped on.
+     *
+     * The clause order is preserved: the clauses are evaluated in the
+     * order the KDoc above lists them, so the logged sequence is the
+     * evaluation sequence. A clause that is never reached is logged as
+     * such by the clause that preceded it, because the evaluation
+     * short-circuits.
+     */
     private suspend fun evaluate(): Boolean {
         // The paywall is mandatory — it has no close affordance and swallows
         // the back gesture — so it is only presented when a purchase can
         // actually be completed. While IAP is off the gate reports "do not
         // present".
-        if (!IAP_ENABLED) return false
+        if (!IAP_ENABLED) {
+            block("iap-disabled", "IAP_ENABLED is false; the paywall is never presented")
+            return false
+        }
 
         // Clause 5 — the per-process dismissal latch.
-        if (dismissedThisProcess || satisfiedThisProcess) return false
+        if (dismissedThisProcess || satisfiedThisProcess) {
+            block(
+                "clause-5-latch",
+                "dismissedThisProcess=$dismissedThisProcess satisfiedThisProcess=$satisfiedThisProcess",
+            )
+            return false
+        }
 
         // Clause 1 — already showing the paywall.
-        if (plansRouteOpen) return false
+        if (plansRouteOpen) {
+            block("clause-1-already-open", "the plans route is already on the back stack")
+            return false
+        }
 
         // Clause 2 — authenticated. An anonymous session never reaches the
         // paywall.
         val user = (sessionRepository.data.first() as? SessionState.Authenticated)?.user
-            ?: return false
+        if (user == null) {
+            block("clause-2-anonymous", "the session is not authenticated")
+            return false
+        }
 
         // Clause 4 — no live entitlement. Checked before clause 3 because
         // it is a pure in-memory comparison, while clause 3 costs a Play
         // round trip; a subscriber should never pay that latency to be
         // told they are a subscriber.
-        if (user.isUserPremiumNow) return false
+        //
+        // The expiry is logged in full: the raw string, the parsed
+        // instant, and the comparison against now. A subscriber who is
+        // wrongly gated has exactly three possible causes, and each one
+        // is visible in this line — the raw value is missing (the server
+        // has no expiry), the raw value is present but does not parse
+        // (a format mismatch between the platforms), or the parsed value
+        // is in the past (the subscription really has lapsed).
+        val expiryInstant = user.subscriptionExpiryInstant
+        if (user.isUserPremiumNow) {
+            block(
+                "clause-4-premium-now",
+                "isUserPremiumNow=true; subscriptionExpiryDate=${user.subscriptionExpiryDate} " +
+                    "parsed=$expiryInstant — the user IS premium",
+            )
+            return false
+        }
 
         // Clause 3 — no active Play entitlement on this device.
-        if (entitlementChecker.hasActiveSubscription()) return false
+        val hasPlayEntitlement = entitlementChecker.hasActiveSubscription()
+        if (hasPlayEntitlement) {
+            block(
+                "clause-3-play-entitlement",
+                "hasActiveSubscription=true; the device holds an active Play purchase",
+            )
+            return false
+        }
 
+        // Every clause passed. The full context is logged so the decision
+        // is reproducible from the log alone.
+        SubscriptionDiagnostics.log(
+            "6-present",
+            "all clauses passed — presenting the paywall. " +
+                "email=${user.email} " +
+                "subscriptionExpiryDate=${user.subscriptionExpiryDate} " +
+                "parsed=$expiryInstant " +
+                "isUserPremiumNow=${user.isUserPremiumNow} " +
+                "hasPlayEntitlement=$hasPlayEntitlement",
+        )
         return true
+    }
+
+    /**
+     * Records that a clause blocked the paywall.
+     *
+     * The clause name and its verdict are reported together, so the log
+     * line is self-describing: it names the clause, and it carries the
+     * values that clause decided on.
+     */
+    private fun block(clause: String, detail: String) {
+        SubscriptionDiagnostics.skip(
+            "5-clause",
+            "$clause blocked the paywall — $detail",
+        )
     }
 
     /**
@@ -143,6 +230,10 @@ class PremiumGate @Inject constructor(
      */
     fun markPlansRouteOpen(open: Boolean) {
         plansRouteOpen = open
+        SubscriptionDiagnostics.log(
+            "5-clause",
+            "clause-1 latch set — plansRouteOpen=$open",
+        )
     }
 
     /**
@@ -160,6 +251,12 @@ class PremiumGate @Inject constructor(
      * the moment the paywall is pushed.
      */
     fun reconcilePlansRouteOnStack(plansRouteOnStack: Boolean) {
+        if (!plansRouteOnStack && plansRouteOpen) {
+            SubscriptionDiagnostics.log(
+                "5-clause",
+                "clause-1 latch cleared — the plans route left the back stack",
+            )
+        }
         if (!plansRouteOnStack) plansRouteOpen = false
     }
 
@@ -177,6 +274,10 @@ class PremiumGate @Inject constructor(
     fun markDismissed() {
         dismissedThisProcess = true
         _shouldPresent.value = false
+        SubscriptionDiagnostics.log(
+            "5-clause",
+            "clause-5 latch set — dismissedThisProcess=true",
+        )
     }
 
     /**
@@ -190,6 +291,10 @@ class PremiumGate @Inject constructor(
         satisfiedThisProcess = true
         dismissedThisProcess = false
         _shouldPresent.value = false
+        SubscriptionDiagnostics.log(
+            "5-clause",
+            "clause-5 latch set — satisfiedThisProcess=true",
+        )
     }
 
     /**
@@ -203,5 +308,9 @@ class PremiumGate @Inject constructor(
         satisfiedThisProcess = false
         plansRouteOpen = false
         _shouldPresent.value = false
+        SubscriptionDiagnostics.log(
+            "5-clause",
+            "all latches cleared by reset()",
+        )
     }
 }

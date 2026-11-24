@@ -6,8 +6,10 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import com.kornerz.core.model.DeepLinkDiagnostics
+import com.kornerz.core.model.SubscriptionDiagnostics
 import com.kornerz.core.network.fcm.FcmTokenRegistrar
 import com.kornerz.core.ui.DeepLinkLog
+import com.kornerz.core.ui.SubscriptionGateLog
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 
@@ -47,6 +49,15 @@ class KornerzApplication : Application() {
         // the earliest point in the process, so no event is missed.
         DeepLinkDiagnostics.reporter = DeepLinkDiagnostics.Reporter { stage, message ->
             DeepLinkLog.log(stage, message)
+        }
+
+        // Route the subscription gate's diagnostics to logcat under the
+        // single `SubscriptionGate` tag. Same reason as the deep-link
+        // reporter above: the reporting modules cannot log themselves,
+        // and the paywall gate is a five-clause conjunction whose
+        // blocking clause is otherwise invisible from the outside.
+        SubscriptionDiagnostics.reporter = SubscriptionDiagnostics.Reporter { stage, message ->
+            SubscriptionGateLog.log(stage, message)
         }
 
         FirebaseApp.initializeApp(this)
