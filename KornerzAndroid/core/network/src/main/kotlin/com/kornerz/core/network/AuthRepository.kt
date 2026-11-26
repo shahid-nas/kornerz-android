@@ -11,6 +11,7 @@ import com.kornerz.core.network.auth.dto.LoginRequest
 import com.kornerz.core.network.auth.dto.RequestPasswordResetRequest
 import com.kornerz.core.network.auth.dto.SendRecoveryEmailRequest
 import com.kornerz.core.network.auth.dto.SignupRequest
+import com.kornerz.core.network.crashlytics.CrashReporter
 import com.kornerz.core.network.fcm.DeviceIdProvider
 import com.kornerz.core.network.fcm.DeviceTokenStore
 import com.kornerz.core.storage.session.SessionRepository
@@ -39,6 +40,7 @@ class AuthRepository @Inject constructor(
     private val interceptor: AuthInterceptor,
     private val deviceTokenStore: DeviceTokenStore,
     private val deviceIdProvider: DeviceIdProvider,
+    private val crashReporter: CrashReporter,
 ) {
 
     private val _sessionExpired = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -57,7 +59,7 @@ class AuthRepository @Inject constructor(
                 }
                 user.map { }
             }
-            is AuthResult.Failure -> AsyncValue.Error(result.error.toThrowable())
+            is AuthResult.Failure -> AsyncValue.Error(result.error.toReportedThrowable())
         }
     }
 
@@ -74,7 +76,7 @@ class AuthRepository @Inject constructor(
                 }
                 user.map { }
             }
-            is AuthResult.Failure -> AsyncValue.Error(result.error.toThrowable())
+            is AuthResult.Failure -> AsyncValue.Error(result.error.toReportedThrowable())
         }
     }
 
@@ -88,7 +90,7 @@ class AuthRepository @Inject constructor(
     suspend fun checkIfNickNameExists(nickname: String): AsyncValue<Boolean> =
         when (val result = authApi.checkIfNickNameExists(nickname)) {
             is AuthResult.Success -> AsyncValue.Success(result.data)
-            is AuthResult.Failure -> AsyncValue.Error(result.error.toThrowable())
+            is AuthResult.Failure -> AsyncValue.Error(result.error.toReportedThrowable())
         }
 
     /**
@@ -101,7 +103,7 @@ class AuthRepository @Inject constructor(
     suspend fun checkIfEmailExists(email: String): AsyncValue<Boolean> =
         when (val result = authApi.checkIfEmailExists(email)) {
             is AuthResult.Success -> AsyncValue.Success(result.data)
-            is AuthResult.Failure -> AsyncValue.Error(result.error.toThrowable())
+            is AuthResult.Failure -> AsyncValue.Error(result.error.toReportedThrowable())
         }
 
     /**
@@ -121,7 +123,7 @@ class AuthRepository @Inject constructor(
             is AuthResult.Success -> AsyncValue.Success(
                 PasswordResetRequest(email = email, code = result.data.code),
             )
-            is AuthResult.Failure -> AsyncValue.Error(result.error.toThrowable())
+            is AuthResult.Failure -> AsyncValue.Error(result.error.toReportedThrowable())
         }
     }
 
@@ -137,7 +139,7 @@ class AuthRepository @Inject constructor(
             )
         ) {
             is AuthResult.Success -> AsyncValue.Success(Unit)
-            is AuthResult.Failure -> AsyncValue.Error(result.error.toThrowable())
+            is AuthResult.Failure -> AsyncValue.Error(result.error.toReportedThrowable())
         }
     }
 
@@ -148,7 +150,7 @@ class AuthRepository @Inject constructor(
             )
         ) {
             is AuthResult.Success -> AsyncValue.Success(result.data.resetToken)
-            is AuthResult.Failure -> AsyncValue.Error(result.error.toThrowable())
+            is AuthResult.Failure -> AsyncValue.Error(result.error.toReportedThrowable())
         }
     }
 
@@ -167,7 +169,7 @@ class AuthRepository @Inject constructor(
             )
         ) {
             is AuthResult.Success -> AsyncValue.Success(Unit)
-            is AuthResult.Failure -> AsyncValue.Error(result.error.toThrowable())
+            is AuthResult.Failure -> AsyncValue.Error(result.error.toReportedThrowable())
         }
     }
 
@@ -239,6 +241,21 @@ class AuthRepository @Inject constructor(
         }
         is AsyncValue.Error -> this
         AsyncValue.Loading -> AsyncValue.Loading
+    }
+
+    /**
+     * Converts an [AuthError] to a [Throwable] and, when the failure is
+     * **unexpected** (not a routine user mistake such as a wrong
+     * password, and not a transient network blip), records it as a
+     * Crashlytics non-fatal so auth bugs are visible in the Firebase
+     * console without killing the session.
+     */
+    private fun AuthError.toReportedThrowable(): Throwable {
+        val throwable = toThrowable()
+        if (this is AuthError.Unknown) {
+            crashReporter.recordException(throwable)
+        }
+        return throwable
     }
 }
 
