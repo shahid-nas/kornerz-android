@@ -17,8 +17,8 @@ android {
         applicationId = "com.kornerz.kornerz"
         minSdk = 26
         targetSdk = 36
-        versionCode = 186
-        versionName = "2.0"
+        versionCode = 188
+        versionName = "2.1"
     }
 
     flavorDimensions += "env"
